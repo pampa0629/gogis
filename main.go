@@ -146,7 +146,7 @@ func main() {
 	// // gmap.Zoom(5)
 	gmap.Draw()
 	// // 输出图片文件
-	gmap.Output("c:/temp/result2.png")
+	gmap.Output("c:/temp/result2.png", "png")
 	// gmap.Save("c:/temp/map.txt")
 
 	// 记录时间
