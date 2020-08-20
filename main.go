@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"gogis"
-	"image/png" // webp支持
+	"image/png"
 	"net/http"
 	"os"
 	"strconv"
@@ -109,29 +109,68 @@ func testRest() {
 
 func testMap() {
 	gmap := gogis.NewMap()
-	gmap.Open("c:/temp/map.txt")
+	gmap.Open("c:/temp/JBNTBHTB.txt")
+
+	startTime := time.Now().UnixNano()
 	gmap.Prepare(4000, 3000)
 	gmap.Draw()
 
 	// 输出图片文件
-	gmap.Output("c:/temp/result.png", "png")
+	gmap.Output("c:/temp/JBNTBHTB_10.png", "png")
 	// gmap.Resize(3000, 4000)
 	// gmap.Draw()
 
 	// // 输出图片文件
 	// gmap.Output("c:/temp/result2.png")
+	endTime := time.Now().UnixNano()
+	seconds := float64((endTime - startTime) / 1e6)
+	fmt.Printf("time: %f 毫秒", seconds)
+}
+
+func testCache() {
+	names := []string{"c:/temp/australia.txt", "c:/temp/DLTB.txt", "c:/temp/JBNTBHTB.txt"}
+
+	gmap := gogis.NewMap()
+	gmap.Open(names[2])
+	startTime := time.Now().UnixNano()
+	gmap.Cache("c:/temp/cache2/")
+	endTime := time.Now().UnixNano()
+	seconds := float64((endTime - startTime) / 1e9)
+	fmt.Printf("time: %f 秒", seconds)
+}
+
+// var filename = "C:/temp/data/australia.shp"
+
+// var filename = "C:/temp/DLTB.shp"
+
+var filename = "C:/temp/JBNTBHTB.shp"
+
+func testVecPyramid() {
+	shp := new(gogis.ShapeFile)
+
+	shp.Open(filename)
+	shp.Load()
+
+	startTime := time.Now().UnixNano()
+	shp.BuildVecPyramid()
+
+	// 记录时间
+	endTime := time.Now().UnixNano()
+	seconds := float64((endTime - startTime) / 1e6)
+	fmt.Printf("time: %f 毫秒", seconds)
 }
 
 func main() {
-	testRest()
-	// testMap()
+	// testRest()
+	testMap()
+	// testCache()
+	// testVecPyramid()
 	return
+	// return
 
 	// 打开shape文件
 	shp := new(gogis.ShapeFile)
-	// filename := "C:/temp/data/australia.shp"
-	// filename := "C:/temp/DLTB.shp"
-	filename := "C:/temp/JBNTBHTB.shp"
+
 	shp.Open(filename)
 
 	startTime := time.Now().UnixNano()
@@ -140,13 +179,15 @@ func main() {
 	// 创建地图
 	gmap := gogis.NewMap()
 	gmap.AddLayer(shp)
-	// 绘制
-	gmap.Prepare(4000, 3000)
+	// 设置位图大小
+	gmap.Prepare(1024, 768)
 
 	// // gmap.Zoom(5)
+	// 绘制
 	gmap.Draw()
 	// // 输出图片文件
 	gmap.Output("c:/temp/result2.png", "png")
+
 	// gmap.Save("c:/temp/map.txt")
 
 	// 记录时间

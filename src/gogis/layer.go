@@ -1,7 +1,6 @@
 package gogis
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -18,24 +17,28 @@ func NewLayer(shp *ShapeFile) *Layer {
 // 一次性绘制的对象个数
 const ONE_DRAW_COUNT = 100000
 
-func (this *Layer) Draw(canvas *Canvas) {
+func (this *Layer) Draw(canvas *Canvas) int {
 	ids := this.Shp.Query(canvas.params.GetBounds())
-	fmt.Println("ids count:", len(ids))
+	// fmt.Println("ids count:", len(ids))
 
 	forcount := (int)(len(ids)/ONE_DRAW_COUNT) + 1
 	var wg *sync.WaitGroup = new(sync.WaitGroup)
 	for i := 0; i < forcount; i++ {
 		wg.Add(1)
-		go this.DrawBatch(i*ONE_DRAW_COUNT, ids, canvas, wg)
+		go this.drawBatch(i*ONE_DRAW_COUNT, ids, canvas, wg)
 	}
 	wg.Wait()
+	return len(ids)
 }
 
-func (this *Layer) DrawBatch(num int, ids []int, canvas *Canvas, wg *sync.WaitGroup) {
-	fmt.Println("begin drawBatch:", num)
+func (this *Layer) drawBatch(num int, ids []int, canvas *Canvas, wg *sync.WaitGroup) {
+	// fmt.Println("begin drawBatch:", num)
 	for i := 0; i < ONE_DRAW_COUNT && num < len(ids); i++ {
-		line := ChangePolyline(this.Shp.geometrys[ids[num]], canvas.params)
-		canvas.DrawPolyline(line)
+		// line := ChangePolyline(this.Shp.geometrys[ids[num]], canvas.params)
+		if this.Shp.geoPyms[10][ids[num]] != nil {
+			line := ChangePolyline(this.Shp.geoPyms[10][ids[num]], canvas.params)
+			canvas.DrawPolyline(line)
+		}
 		num++
 	}
 	// png.Encode(f, img)
@@ -44,6 +47,7 @@ func (this *Layer) DrawBatch(num int, ids []int, canvas *Canvas, wg *sync.WaitGr
 
 // 把 shape格式（浮点数）的对象，转化为绘制格式（整数）的对象，方便后续绘制
 func ChangePolyline(polyline *shpPolyline, params CoordParams) *IntPolyline {
+	// fmt.Println("ChangePolyline: ", polyline)
 	var intPolyline = new(IntPolyline)
 	intPolyline.numParts = (int)(polyline.numParts)
 	intPolyline.points = make([][]Point, intPolyline.numParts)

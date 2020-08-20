@@ -1,7 +1,6 @@
 package gogis
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 	"math"
@@ -28,7 +27,7 @@ func (this *CoordParams) Init(bbox Rect2D, dx int, dy int) {
 	this.drawCenter.Y = dy / 2
 	this.dx = dx
 	this.dy = dy
-	fmt.Println("params:", this)
+	// fmt.Println("params:", this)
 }
 
 // 得到当前地图的范围
@@ -38,7 +37,7 @@ func (this *CoordParams) GetBounds() Rect2D {
 	bbox.Min.Y = this.mapCenter.Y - float64(this.drawCenter.Y)/this.scale
 	bbox.Max.X = this.mapCenter.X + float64(this.drawCenter.X)/this.scale
 	bbox.Max.Y = this.mapCenter.Y + float64(this.drawCenter.Y)/this.scale
-	fmt.Println("CoordParams.GetBounds():", bbox)
+	// fmt.Println("CoordParams.GetBounds():", bbox)
 	return bbox
 }
 
