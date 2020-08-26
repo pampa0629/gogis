@@ -8,12 +8,12 @@ type GeoPolyline struct {
 }
 
 func (this *GeoPolyline) Type() GeoType {
-	if len(this.Points) == 1 {
-		return TGeoLineString
-	} else if len(this.Points) > 1 {
-		return TGeoMultiLineString
-	}
-	return TGeoEmpty
+	// 	if len(this.Points) == 1 {
+	// 		return TGeoLineString
+	// 	} else if len(this.Points) > 1 {
+	// 		return TGeoMultiLineString
+	// 	}
+	return TGeoPolygon
 }
 
 func (this *GeoPolyline) GetBounds() base.Rect2D {

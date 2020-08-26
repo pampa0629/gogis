@@ -151,9 +151,9 @@ import (
 
 // var filename = "C:/temp/data/australia.shp"
 
-// var filename = "C:/temp/DLTB.shp"
+var filename = "C:/temp/DLTB.shp"
 
-var filename = "C:/temp/JBNTBHTB.shp"
+// var filename = "C:/temp/JBNTBHTB.shp"
 
 // func testVecPyramid() {
 // 	shp := new(gogis.ShapeFile)

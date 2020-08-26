@@ -8,12 +8,12 @@ type GeoPolygon struct {
 }
 
 func (this *GeoPolygon) Type() GeoType {
-	if len(this.Points) == 1 {
-		return TGeoPolygon
-	} else if len(this.Points) > 1 {
-		return TGeoMultiPolygon
-	}
-	return TGeoEmpty
+	// if len(this.Points) == 1 {
+	// 	return TGeoPolygon
+	// } else if len(this.Points) > 1 {
+	// 	return TGeoMultiPolygon
+	// }
+	return TGeoPolygon
 }
 
 func (this *GeoPolygon) GetBounds() base.Rect2D {

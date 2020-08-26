@@ -3,6 +3,7 @@ package mapping
 import (
 	"encoding/json"
 	"fmt"
+	"gogis/base"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -261,5 +262,5 @@ func (this *Map) calcCacheLevels() (minLevel, maxLevel int) {
 		geoCount += len(layer.Shp.geometrys)
 	}
 
-	return calcMinMaxLevels(this.BBox, geoCount)
+	return base.CalcMinMaxLevels(this.BBox, geoCount)
 }

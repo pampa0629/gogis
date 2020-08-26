@@ -1,6 +1,7 @@
 package data
 
 import (
+	"fmt"
 	"gogis/base"
 	"gogis/geometry"
 	"math"
@@ -27,7 +28,7 @@ func (this *GridIndex) Init(bbox base.Rect2D, num int) {
 	this.col = (int)(math.Ceil(bbox.Dx() / this.len))
 	this.row = (int)(math.Ceil(bbox.Dy() / this.len))
 	this.min = bbox.Min
-	// fmt.Println("grid index:", count,area,this.len,this.col,this.row)
+	fmt.Println("grid index:", count, area, this.len, this.col, this.row)
 
 	cap := (int)(math.Min(float64(num), ONE_GRID_COUNT/4)) // 预留空间大小
 	this.indexs = make([][][]int, this.row)
