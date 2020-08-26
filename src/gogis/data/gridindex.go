@@ -1,6 +1,8 @@
-package gogis
+package data
 
 import (
+	"gogis/base"
+	"gogis/geometry"
 	"math"
 )
 
@@ -8,15 +10,15 @@ import (
 const ONE_GRID_COUNT = 10000
 
 type GridIndex struct {
-	indexs   [][][]int  // 格子编号对应 的ids
-	bboxs    [][]Rect2D // 格子编号对应的bbox
-	row, col int        // 格子 的行列数量
-	len      float64    // 格子边长
-	min      Point2D    // 左下角（最小值）的点
+	indexs   [][][]int       // 格子编号对应 的ids
+	bboxs    [][]base.Rect2D // 格子编号对应的bbox
+	row, col int             // 格子 的行列数量
+	len      float64         // 格子边长
+	min      base.Point2D    // 左下角（最小值）的点
 }
 
 // 根据范围和 对象 数量来确定grid数量和每个grid的 box范围
-func (this *GridIndex) Init(bbox Rect2D, num int) {
+func (this *GridIndex) Init(bbox base.Rect2D, num int) {
 	// 先根据 ONE_GRID_COUNT 计算 应该 分为多少个 grid
 	count := num/ONE_GRID_COUNT + 1
 	// 再确定 格子的行列数，步骤：1）算出每个 grid的面积；2）算出grid边长；3）算出 x/y方向的grid个数
@@ -36,10 +38,10 @@ func (this *GridIndex) Init(bbox Rect2D, num int) {
 		}
 	}
 
-	this.bboxs = make([][]Rect2D, this.row)
+	this.bboxs = make([][]base.Rect2D, this.row)
 	// 计算每个 bbox的边框
 	for i, _ := range this.bboxs {
-		this.bboxs[i] = make([]Rect2D, this.col)
+		this.bboxs[i] = make([]base.Rect2D, this.col)
 		for j, _ := range this.bboxs[i] {
 			this.bboxs[i][j].Min.X = this.min.X + float64(j)*this.len
 			this.bboxs[i][j].Max.X = this.bboxs[i][j].Min.X + this.len
@@ -49,16 +51,28 @@ func (this *GridIndex) Init(bbox Rect2D, num int) {
 	}
 }
 
+func (this *GridIndex) Clear() {
+	this.indexs = this.indexs[:0]
+	this.bboxs = this.bboxs[:0]
+}
+
 // 构建空间索引
-func (this *GridIndex) Build(geometrys []*shpPolyline) {
+func (this *GridIndex) BuildByGeos(geometrys []geometry.Geometry) {
 	for i, geo := range geometrys {
 		this.dealOneGeo(geo, i)
 	}
 	// fmt.Println("grid indexes:", this.indexs)
 }
 
-func (this *GridIndex) dealOneGeo(geo *shpPolyline, id int) {
-	minRow, maxRow, minCol, maxCol := this.GetGridNo(geo.box)
+func (this *GridIndex) BuildByFeas(features []Feature) {
+	for i, fea := range features {
+		this.dealOneGeo(fea.geo, i)
+	}
+	// fmt.Println("grid indexes:", this.indexs)
+}
+
+func (this *GridIndex) dealOneGeo(geo geometry.Geometry, id int) {
+	minRow, maxRow, minCol, maxCol := this.GetGridNo(geo.GetBounds())
 
 	// 最后赋值
 	for i := minRow; i <= maxRow; i++ { // 高度（y方向）代表行
@@ -68,17 +82,17 @@ func (this *GridIndex) dealOneGeo(geo *shpPolyline, id int) {
 	}
 }
 
-func (this *GridIndex) GetGridNo(bbox Rect2D) (minRow, maxRow, minCol, maxCol int) {
+func (this *GridIndex) GetGridNo(bbox base.Rect2D) (minRow, maxRow, minCol, maxCol int) {
 	// 先计算 起始点在哪个grid(行列号)
 	minCol = (int)(math.Floor((bbox.Min.X - this.min.X) / this.len))
-	minCol = IntMax(minCol, 0) // 不能小于0
+	minCol = base.IntMax(minCol, 0) // 不能小于0
 	minRow = (int)(math.Floor((bbox.Min.Y - this.min.Y) / this.len))
-	minRow = IntMax(minRow, 0) // 不能小于0
+	minRow = base.IntMax(minRow, 0) // 不能小于0
 
 	// 再计算 终止点在哪个grid(行列号)
 	maxCol = (int)(math.Floor((bbox.Max.X - this.min.X) / this.len))
-	maxCol = IntMin(maxCol, this.col-1) // 不能大于 col数
+	maxCol = base.IntMin(maxCol, this.col-1) // 不能大于 col数
 	maxRow = (int)(math.Floor((bbox.Max.Y - this.min.Y) / this.len))
-	maxRow = IntMin(maxRow, this.row-1) // 不能大于 row数
+	maxRow = base.IntMin(maxRow, this.row-1) // 不能大于 row数
 	return
 }

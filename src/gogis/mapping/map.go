@@ -1,4 +1,4 @@
-package gogis
+package mapping
 
 import (
 	"encoding/json"
@@ -133,7 +133,7 @@ func (this *Map) Open(filename string) {
 		// fmt.Println("shp file name:", layer.Shp.Filename)
 		layer.Shp.Open(layer.Shp.Filename)
 		layer.Shp.Load()
-		layer.Shp.BuildVecPyramid()
+		// layer.Shp.BuildVecPyramid()
 	}
 	this.RebuildBBox()
 }

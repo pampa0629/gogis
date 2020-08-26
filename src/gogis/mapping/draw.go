@@ -1,4 +1,4 @@
-package gogis
+package mapping
 
 import (
 	"image"

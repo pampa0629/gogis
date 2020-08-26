@@ -1,4 +1,4 @@
-package gogis
+package mapping
 
 import (
 	"sync"
@@ -34,11 +34,11 @@ func (this *Layer) Draw(canvas *Canvas) int {
 func (this *Layer) drawBatch(num int, ids []int, canvas *Canvas, wg *sync.WaitGroup) {
 	// fmt.Println("begin drawBatch:", num)
 	for i := 0; i < ONE_DRAW_COUNT && num < len(ids); i++ {
-		// line := ChangePolyline(this.Shp.geometrys[ids[num]], canvas.params)
-		if this.Shp.geoPyms[10][ids[num]] != nil {
-			line := ChangePolyline(this.Shp.geoPyms[10][ids[num]], canvas.params)
-			canvas.DrawPolyline(line)
-		}
+		line := ChangePolyline(this.Shp.geometrys[ids[num]], canvas.params)
+		// if this.Shp.geoPyms[4][ids[num]] != nil {
+		// line := ChangePolyline(this.Shp.geoPyms[10][ids[num]], canvas.params)
+		canvas.DrawPolyline(line)
+		// }
 		num++
 	}
 	// png.Encode(f, img)
