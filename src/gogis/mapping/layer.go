@@ -1,16 +1,18 @@
 package mapping
 
 import (
+	"gogis/data"
+	"gogis/geometry"
 	"sync"
 )
 
 type Layer struct {
-	Shp *ShapeFile
+	feaset data.Featureset
 }
 
-func NewLayer(shp *ShapeFile) *Layer {
+func NewLayer(feaset data.Featureset) *Layer {
 	layer := new(Layer)
-	layer.Shp = shp
+	layer.feaset = feaset
 	return layer
 }
 
@@ -18,57 +20,62 @@ func NewLayer(shp *ShapeFile) *Layer {
 const ONE_DRAW_COUNT = 100000
 
 func (this *Layer) Draw(canvas *Canvas) int {
-	ids := this.Shp.Query(canvas.params.GetBounds())
-	// fmt.Println("ids count:", len(ids))
-
-	forcount := (int)(len(ids)/ONE_DRAW_COUNT) + 1
+	feait := this.feaset.Query(canvas.params.GetBounds())
 	var wg *sync.WaitGroup = new(sync.WaitGroup)
-	for i := 0; i < forcount; i++ {
-		wg.Add(1)
-		go this.drawBatch(i*ONE_DRAW_COUNT, ids, canvas, wg)
+	for {
+		features, ok := feait.BatchNext(ONE_DRAW_COUNT)
+		if ok {
+			wg.Add(1)
+			go this.drawBatch(features, canvas, wg)
+		} else {
+			break
+		}
 	}
 	wg.Wait()
-	return len(ids)
+
+	return feait.Count()
 }
 
-func (this *Layer) drawBatch(num int, ids []int, canvas *Canvas, wg *sync.WaitGroup) {
-	// fmt.Println("begin drawBatch:", num)
-	for i := 0; i < ONE_DRAW_COUNT && num < len(ids); i++ {
-		line := ChangePolyline(this.Shp.geometrys[ids[num]], canvas.params)
-		// if this.Shp.geoPyms[4][ids[num]] != nil {
-		// line := ChangePolyline(this.Shp.geoPyms[10][ids[num]], canvas.params)
-		canvas.DrawPolyline(line)
-		// }
-		num++
-	}
-	// png.Encode(f, img)
+func (this *Layer) drawBatch(features []data.Feature, canvas *Canvas, wg *sync.WaitGroup) {
 	defer wg.Done()
+
+	for _, v := range features {
+		switch v.Geo.Type() {
+		case geometry.TGeoPolyline:
+			line := ChangePolyline(v.Geo.(*geometry.GeoPolyline), canvas.params)
+			//  todo 用矢量金字塔进行绘制
+			// if this.Shp.geoPyms[4][ids[num]] != nil {
+			// line := ChangePolyline(this.Shp.geoPyms[10][ids[num]], canvas.params)
+			canvas.DrawPolyline(line)
+		case geometry.TGeoPolygon:
+			line := ChangePolygon(v.Geo.(*geometry.GeoPolygon), canvas.params)
+			canvas.DrawPolyline(line)
+		}
+	}
 }
 
-// 把 shape格式（浮点数）的对象，转化为绘制格式（整数）的对象，方便后续绘制
-func ChangePolyline(polyline *shpPolyline, params CoordParams) *IntPolyline {
+// 把 空间对象，转化为绘制格式（整数）的对象，方便后续绘制
+func ChangePolyline(polyline *geometry.GeoPolyline, params CoordParams) *IntPolyline {
 	// fmt.Println("ChangePolyline: ", polyline)
 	var intPolyline = new(IntPolyline)
-	intPolyline.numParts = (int)(polyline.numParts)
-	intPolyline.points = make([][]Point, intPolyline.numParts)
-	pos := 0
-	for i := 0; i < (int)(polyline.numParts); i++ {
-		pntCount := 0
-		if i < (int)(polyline.numParts)-1 {
-			pntCount = (int)(polyline.parts[i+1] - polyline.parts[i])
-		} else {
-			pntCount = (int)(polyline.numPoints - polyline.parts[i])
-		}
-		intPolyline.points[i] = make([]Point, pntCount)
+	intPolyline.points = make([][]Point, len(polyline.Points))
+	for i, v := range polyline.Points {
+		intPolyline.points[i] = params.Forwards(v)
+	}
+	return intPolyline
+}
 
-		for j := 0; j < pntCount; j++ {
-			intPolyline.points[i][j] = params.Forward((Point2D)(polyline.points[pos]))
-			// intPolyline.points[i][j].X = (int)(scaleX * (polyline.points[pos].X - xmin))
-			// intPolyline.points[i][j].Y = dy - (int)(scaleY*(polyline.points[pos].Y-ymin))
-			pos++
+// todo 未来再考虑转为面，以及 面的绘制
+// 把 空间对象，转化为绘制格式（整数）的对象，方便后续绘制
+func ChangePolygon(polygon *geometry.GeoPolygon, params CoordParams) *IntPolyline {
+	// fmt.Println("ChangePolyline: ", polyline)
+	var intPolyline = new(IntPolyline)
+	intPolyline.points = make([][]Point, 0)
+	for i, _ := range polygon.Points {
+		for _, v := range polygon.Points[i] {
+			pnts := params.Forwards(v)
+			intPolyline.points = append(intPolyline.points, pnts)
 		}
 	}
-	// fmt.Println("before geometry:", polyline)
-	// fmt.Println("after geometry:", intPolyline)
 	return intPolyline
 }

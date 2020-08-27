@@ -78,7 +78,7 @@ func (this *VectorPyramid) thinBatch(start, count, level int, features []Feature
 	index := this.levels[level]
 	end := start + count
 	for i := start; i < end; i++ {
-		this.pyramids[index][i] = thinOneGeo(features[i].geo, dis)
+		this.pyramids[index][i] = thinOneGeo(features[i].Geo, dis)
 	}
 }
 

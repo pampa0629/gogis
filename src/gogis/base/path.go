@@ -7,7 +7,7 @@ import (
 )
 
 // 删除空目录
-func deleteEmptyDir(path string) {
+func DeleteEmptyDir(path string) {
 	dir, _ := ioutil.ReadDir(path)
 	if len(dir) == 0 {
 		os.RemoveAll(path)

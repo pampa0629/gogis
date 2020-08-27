@@ -175,7 +175,7 @@ func (this *ShapeFile) BatchLoad(start int, count int, features []Feature, wg *s
 	// fmt.Println(features)
 
 	for i := 0; i < count; i++ {
-		features[i].geo = loadFromByte(r, this.geoType)
+		features[i].Geo = loadFromByte(r, this.geoType)
 	}
 	// return nil
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gogis/base"
+	"gogis/data"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -19,9 +20,9 @@ import (
 
 type Map struct {
 	Name   string
-	Layers []*Layer // 0:最底层，先绘制
-	canvas *Canvas  // 画布
-	BBox   Rect2D   // 所有数据的边框
+	Layers []*Layer    // 0:最底层，先绘制
+	canvas *Canvas     // 画布
+	BBox   base.Rect2D // 所有数据的边框
 }
 
 // 复制一个map对象，用来同一个地图的并发出图
@@ -56,27 +57,14 @@ func NewMap() *Map {
 func (this *Map) RebuildBBox() {
 	this.BBox.Init()
 	for _, layer := range this.Layers {
-		bbox := new(Rect2D)
-		bbox.Min.X = layer.Shp.xmin
-		bbox.Min.Y = layer.Shp.ymin
-		bbox.Max.X = layer.Shp.xmax
-		bbox.Max.Y = layer.Shp.ymax
-		this.BBox.Union(*bbox)
+		this.BBox.Union(layer.feaset.GetBounds())
 	}
 }
 
-func (this *Map) AddLayer(shp *ShapeFile) {
-	layer := NewLayer(shp)
+func (this *Map) AddLayer(feaset data.Featureset) {
+	layer := NewLayer(feaset)
 	this.Layers = append(this.Layers, layer)
-	bbox := new(Rect2D)
-	bbox.Min.X = shp.shpHeader.xmin
-	bbox.Min.Y = shp.shpHeader.ymin
-	bbox.Max.X = shp.shpHeader.xmax
-	bbox.Max.Y = shp.shpHeader.ymax
-	// fmt.Println("bbox1:", this.BBox)
-	// fmt.Println("bbox2:", bbox)
-	this.BBox.Union(*bbox)
-	// fmt.Println("bbox3:", this.BBox)
+	this.BBox.Union(feaset.GetBounds())
 }
 
 // 计算各类参数，为绘制做好准备
@@ -129,13 +117,14 @@ func (this *Map) Save(filename string) {
 func (this *Map) Open(filename string) {
 	data, _ := ioutil.ReadFile(filename)
 	json.Unmarshal(data, this)
+	// todo 好好设计一下地图文档的存储和读取
 	// fmt.Println("map:", this)
-	for _, layer := range this.Layers {
-		// fmt.Println("shp file name:", layer.Shp.Filename)
-		layer.Shp.Open(layer.Shp.Filename)
-		layer.Shp.Load()
-		// layer.Shp.BuildVecPyramid()
-	}
+	// for _, layer := range this.Layers {
+	// fmt.Println("shp file name:", layer.Shp.Filename)
+	// layer.Shp.Open(layer.Shp.Filename)
+	// layer.Shp.Load()
+	// layer.Shp.BuildVecPyramid()
+	// }
 	this.RebuildBBox()
 }
 
@@ -202,10 +191,10 @@ func (this *Map) cacheOneLevel(level int, path string, wg *sync.WaitGroup) {
 			go this.cacheOneTile(level, i, j, rowPath, wg2)
 		}
 		wg2.Wait()
-		deleteEmptyDir(rowPath)
+		base.DeleteEmptyDir(rowPath)
 	}
 
-	deleteEmptyDir(levelPath)
+	base.DeleteEmptyDir(levelPath)
 }
 
 // 具体生成一个瓦片
@@ -245,7 +234,7 @@ func (this *Map) checkDrawn() bool {
 	return false
 }
 
-func (this *Map) calcBBox(level int, row int, col int) (bbox Rect2D) {
+func (this *Map) calcBBox(level int, row int, col int) (bbox base.Rect2D) {
 	dis := 180.0 / (math.Pow(2, float64(level)))
 	bbox.Min.X = float64(col)*dis - 180
 	bbox.Max.X = bbox.Min.X + dis
@@ -259,7 +248,7 @@ func (this *Map) calcBBox(level int, row int, col int) (bbox Rect2D) {
 func (this *Map) calcCacheLevels() (minLevel, maxLevel int) {
 	geoCount := 0
 	for _, layer := range this.Layers {
-		geoCount += len(layer.Shp.geometrys)
+		geoCount += layer.feaset.Count()
 	}
 
 	return base.CalcMinMaxLevels(this.BBox, geoCount)

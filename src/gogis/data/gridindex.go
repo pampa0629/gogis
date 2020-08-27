@@ -67,7 +67,7 @@ func (this *GridIndex) BuildByGeos(geometrys []geometry.Geometry) {
 
 func (this *GridIndex) BuildByFeas(features []Feature) {
 	for i, fea := range features {
-		this.dealOneGeo(fea.geo, i)
+		this.dealOneGeo(fea.Geo, i)
 	}
 	// fmt.Println("grid indexes:", this.indexs)
 }

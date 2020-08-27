@@ -8,6 +8,7 @@ import (
 
 	"gogis/base"
 	"gogis/data"
+	"gogis/mapping"
 
 	"os"
 	"sync"
@@ -155,9 +156,9 @@ import (
 
 // var filename = "C:/temp/data/australia.shp"
 
-var filename = "C:/temp/DLTB.shp"
+// var filename = "C:/temp/DLTB.shp"
 
-// var filename = "C:/temp/JBNTBHTB.shp"
+var filename = "C:/temp/JBNTBHTB.shp"
 
 // func testVecPyramid() {
 // 	shp := new(gogis.ShapeFile)
@@ -185,6 +186,7 @@ func main() {
 	// return
 
 	startTime := time.Now().UnixNano()
+
 	// 打开shape文件
 	shp := new(data.ShapeStore)
 	// var params data.ConnParams
@@ -193,19 +195,19 @@ func main() {
 
 	shp.Open(params)
 
-	// shp.Load()
-
 	// // 创建地图
-	// gmap := gogis.NewMap()
-	// gmap.AddLayer(shp)
-	// // 设置位图大小
-	// gmap.Prepare(1024, 768)
+	gmap := mapping.NewMap()
+	names := shp.FeaturesetNames()
+	feaset, _ := shp.GetFeatureset(names[0])
+	gmap.AddLayer(feaset)
+	// 设置位图大小
+	gmap.Prepare(1024, 768)
 
-	// // // gmap.Zoom(5)
-	// // 绘制
-	// gmap.Draw()
-	// // // 输出图片文件
-	// gmap.Output("c:/temp/result2.png", "png")
+	gmap.Zoom(5)
+	// 绘制
+	gmap.Draw()
+	// // 输出图片文件
+	gmap.Output("c:/temp/result2.png", "png")
 
 	// // gmap.Save("c:/temp/map.txt")
 

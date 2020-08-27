@@ -1,6 +1,7 @@
 package mapping
 
 import (
+	"gogis/base"
 	"image"
 	"image/color"
 	"math"
@@ -8,14 +9,14 @@ import (
 
 // 坐标转化参数
 type CoordParams struct {
-	scale      float64 // 图片距离/地图距离
-	mapCenter  Point2D // 地图中心点
-	drawCenter Point   // 图片中心点
-	dx, dy     int     // 图片的高度
+	scale      float64      // 图片距离/地图距离
+	mapCenter  base.Point2D // 地图中心点
+	drawCenter Point        // 图片中心点
+	dx, dy     int          // 图片的高度
 }
 
 // 根据地图的box和要绘制的大小，来初始化参数
-func (this *CoordParams) Init(bbox Rect2D, dx int, dy int) {
+func (this *CoordParams) Init(bbox base.Rect2D, dx int, dy int) {
 	scaleX := (float64)(dx) / (bbox.Max.X - bbox.Min.X)
 	scaleY := (float64)(dy) / (bbox.Max.Y - bbox.Min.Y)
 	this.scale = math.Min(scaleX, scaleY)
@@ -31,8 +32,8 @@ func (this *CoordParams) Init(bbox Rect2D, dx int, dy int) {
 }
 
 // 得到当前地图的范围
-func (this *CoordParams) GetBounds() Rect2D {
-	var bbox Rect2D
+func (this *CoordParams) GetBounds() base.Rect2D {
+	var bbox base.Rect2D
 	bbox.Min.X = this.mapCenter.X - float64(this.drawCenter.X)/this.scale
 	bbox.Min.Y = this.mapCenter.Y - float64(this.drawCenter.Y)/this.scale
 	bbox.Max.X = this.mapCenter.X + float64(this.drawCenter.X)/this.scale
@@ -44,11 +45,19 @@ func (this *CoordParams) GetBounds() Rect2D {
 // 正向转化一个点坐标：从地图坐标变为图片坐标
 // 绘制坐标 x = (pnt2D - mapCenter)*scale + drawCenter
 // 		    y = dy - ((pnt2D - mapCenter)*scale + drawCenter)
-func (this *CoordParams) Forward(pnt Point2D) Point {
+func (this *CoordParams) Forward(pnt base.Point2D) Point {
 	var drawPnt Point
 	drawPnt.X = (int)((pnt.X-this.mapCenter.X)*this.scale) + this.drawCenter.X
 	drawPnt.Y = this.dy - ((int)((pnt.Y-this.mapCenter.Y)*this.scale) + this.drawCenter.Y)
 	return drawPnt
+}
+
+func (this *CoordParams) Forwards(pnts []base.Point2D) []Point {
+	drawPnts := make([]Point, len(pnts))
+	for i, v := range pnts {
+		drawPnts[i] = this.Forward(v)
+	}
+	return drawPnts
 }
 
 // 反向转化坐标
@@ -64,14 +73,6 @@ type Canvas struct {
 	// dx, dy         int
 }
 
-// 求绝对值
-func abs(x int) int {
-	if x >= 0 {
-		return x
-	}
-	return -x
-}
-
 type Point image.Point
 
 // A Point is an X, Y coordinate pair. The axes increase right and down.
@@ -80,13 +81,14 @@ type Point image.Point
 // }
 
 type IntPolyline struct {
-	numParts int
-	points   [][]Point
+	// numParts int
+	points [][]Point
 }
 
 func (this *Canvas) DrawPolyline(polyline *IntPolyline) {
-	for i := 0; i < polyline.numParts; i++ {
-		for j := 0; j < len(polyline.points[i])-1; j++ {
+	for i, v := range polyline.points {
+		// for i := 0; i < polyline.points; i++ {
+		for j := 0; j < len(v)-1; j++ {
 			x0 := polyline.points[i][j].X
 			y0 := polyline.points[i][j].Y
 			x1 := polyline.points[i][j+1].X
@@ -98,6 +100,10 @@ func (this *Canvas) DrawPolyline(polyline *IntPolyline) {
 	}
 }
 
+// type IntPolygon struct {
+// 	points [][]Point
+// }
+
 // Putpixel describes a function expected to draw a point on a bitmap at (x, y) coordinates.
 type Putpixel func(x, y int)
 
@@ -106,8 +112,8 @@ type Putpixel func(x, y int)
 // TODO: handle int overflow etc.
 // func (this *DC) DrawLine(x0, y0, x1, y1 int, brush Putpixel) {
 func DrawLine(x0, y0, x1, y1 int, brush Putpixel) {
-	dx := abs(x1 - x0)
-	dy := abs(y1 - y0)
+	dx := base.Abs(x1 - x0)
+	dy := base.Abs(y1 - y0)
 	sx, sy := 1, 1
 	if x0 >= x1 {
 		sx = -1

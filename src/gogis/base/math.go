@@ -2,6 +2,14 @@ package base
 
 import "math"
 
+// 求绝对值
+func Abs(x int) int {
+	if x >= 0 {
+		return x
+	}
+	return -x
+}
+
 func IntMin(x, y int) int {
 	if x < y {
 		return x

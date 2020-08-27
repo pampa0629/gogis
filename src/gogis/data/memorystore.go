@@ -46,6 +46,10 @@ type MemFeaItr struct {
 	pos    int        // 当前位置
 }
 
+func (this *MemFeaItr) Count() int {
+	return len(this.ids)
+}
+
 func (this *MemFeaItr) Next() (Feature, bool) {
 	if this.pos < len(this.ids) {
 		oldpos := this.pos
@@ -53,6 +57,29 @@ func (this *MemFeaItr) Next() (Feature, bool) {
 		return this.feaset.features[this.ids[oldpos]], true
 	} else {
 		return *new(Feature), false
+	}
+}
+
+func getFeasByIds(features []Feature, ids []int) []Feature {
+	newfeas := make([]Feature, len(ids))
+	for i, v := range ids {
+		newfeas[i] = features[v]
+	}
+	return newfeas
+}
+
+func (this *MemFeaItr) BatchNext(count int) ([]Feature, bool) {
+	len := len(this.ids)
+	if this.pos < len {
+		oldpos := this.pos
+		if count+this.pos > len {
+			count = len - this.pos
+		}
+		this.pos += count
+		return getFeasByIds(this.feaset.features, this.ids[oldpos:oldpos+count]), true
+		// return this.feaset.features[oldpos : oldpos+count], true
+	} else {
+		return nil, false
 	}
 }
 
@@ -67,6 +94,11 @@ type MemFeaset struct {
 
 func (this *MemFeaset) Open(name string) (bool, error) {
 	return true, nil
+}
+
+// 对象个数
+func (this *MemFeaset) Count() int {
+	return len(this.features)
 }
 
 func (this *MemFeaset) GetName() string {

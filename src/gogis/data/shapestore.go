@@ -69,7 +69,7 @@ func (this *ShapeFeaset) GetBounds() base.Rect2D {
 }
 
 func (this *ShapeFeaset) Query(bbox base.Rect2D) FeatureIterator {
-	return this.Query(bbox)
+	return this.MemFeaset.Query(bbox)
 }
 
 // 清空内存数据
@@ -100,5 +100,5 @@ func (this *ShapeFeaset) load() {
 	wg.Wait()
 
 	this.BuildSpatialIndex()
-	this.BuildPyramids()
+	// this.BuildPyramids()
 }

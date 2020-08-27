@@ -26,6 +26,7 @@ type Datastore interface {
 type Featureset interface {
 	Open(name string) (bool, error)
 	GetName() string
+	Count() int // 对象个数
 	GetBounds() base.Rect2D
 	Query(bbox base.Rect2D) FeatureIterator
 	Close()
@@ -33,14 +34,16 @@ type Featureset interface {
 
 // 集合对象迭代器，用来遍历对象
 type FeatureIterator interface {
-	// HasNext() bool
+	Count() int
 	Next() (Feature, bool)
+	// 只要读取到一个数据，达不到count的要求，也返回true
+	BatchNext(count int) ([]Feature, bool)
 }
 
 // 一个矢量对象（带属性）
 type Feature struct {
-	geo    geometry.Geometry
-	fields map[string]interface{}
+	Geo    geometry.Geometry
+	Fields map[string]interface{}
 }
 
 // 栅格数据集合 todo
