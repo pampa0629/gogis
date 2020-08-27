@@ -9,6 +9,7 @@ import (
 )
 
 // 矢量金字塔
+// todo 提供本地缓存,避免每次都重新生成
 type VectorPyramid struct {
 	pyramids           [][]geometry.Geometry
 	minLevel, maxLevel int

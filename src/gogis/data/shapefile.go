@@ -144,7 +144,7 @@ func (this *ShapeFile) Open(filename string) bool {
 		this.records[i].length = base.ExEndian(this.records[i].length)
 	}
 	// fmt.Println("read file length:", n)
-	// fmt.Println("shp records:", shp.records)
+	fmt.Println("shp record count&type:", this.recordNum, this.geoType)
 
 	return true
 }
@@ -209,6 +209,7 @@ func loadShpOnePoint(r io.Reader) geometry.Geometry {
 	return &geopoint
 }
 
+// 未来考虑是否放到geometry的各个类型中实现
 func loadShpOnePolyline(r io.Reader) geometry.Geometry {
 	var polyline geometry.GeoPolyline
 	bbox, numParts, numPoints := loadShpOnePolyHeader(r)
@@ -223,10 +224,11 @@ func loadShpOnePolyline(r io.Reader) geometry.Geometry {
 	polyline.Points = make([][]base.Point2D, numParts)
 	for i := int32(0); i < numParts; i++ {
 		polyline.Points[i] = make([]base.Point2D, parts[i+1]-parts[i])
-		for j, _ := range polyline.Points[i] {
-			binary.Read(r, binary.LittleEndian, &polyline.Points[i][j].X)
-			binary.Read(r, binary.LittleEndian, &polyline.Points[i][j].Y)
-		}
+		binary.Read(r, binary.LittleEndian, polyline.Points[i])
+		// for j, _ := range polyline.Points[i] {
+		// 	binary.Read(r, binary.LittleEndian, &polyline.Points[i][j].X)
+		// 	binary.Read(r, binary.LittleEndian, &polyline.Points[i][j].Y)
+		// }
 	}
 
 	return &polyline
@@ -247,11 +249,13 @@ func loadShpOnePolygon(r io.Reader) geometry.Geometry {
 	for i := int32(0); i < numParts; i++ {
 		polygon.Points[i] = make([][]base.Point2D, 1)
 		polygon.Points[i][0] = make([]base.Point2D, parts[i+1]-parts[i])
-		for j, _ := range polygon.Points[i][0] {
-			binary.Read(r, binary.LittleEndian, &polygon.Points[i][0][j].X)
-			binary.Read(r, binary.LittleEndian, &polygon.Points[i][0][j].Y)
-		}
+		binary.Read(r, binary.LittleEndian, polygon.Points[i][0])
+		// for j, _ := range polygon.Points[i][0] {
+		// 	binary.Read(r, binary.LittleEndian, &polygon.Points[i][0][j].X)
+		// 	binary.Read(r, binary.LittleEndian, &polygon.Points[i][0][j].Y)
+		// }
 	}
+	// fmt.Println(polygon)
 	return &polygon
 }
 

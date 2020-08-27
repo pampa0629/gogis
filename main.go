@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
+	"io"
 
+	"gogis/base"
 	"gogis/data"
 
 	"os"
@@ -151,9 +155,9 @@ import (
 
 // var filename = "C:/temp/data/australia.shp"
 
-var filename = "C:/temp/DLTB.shp"
+// var filename = "C:/temp/DLTB.shp"
 
-// var filename = "C:/temp/JBNTBHTB.shp"
+var filename = "C:/temp/JBNTBHTB.shp"
 
 // func testVecPyramid() {
 // 	shp := new(gogis.ShapeFile)
@@ -212,18 +216,20 @@ func main() {
 }
 
 type DataTest struct {
-	inter interface{}
+	a, b int32
 }
 
-func testFun(ds []DataTest) {
-	fmt.Println(ds)
-	ds[0].inter = 1
+func testFun(ds []DataTest, r io.Reader) {
+	binary.Read(r, binary.LittleEndian, ds)
 	fmt.Println(ds)
 }
 
 func test() {
-	ds := make([]DataTest, 1)
-	testFun(ds)
+	var data []int32 = []int32{1, 2, 3, 4, 5, 6}
+	r := bytes.NewBuffer(base.ByteSlice(data))
+
+	ds := make([]DataTest, 3)
+	testFun(ds, r)
 }
 
 const readSize = (int64)(50000000)
