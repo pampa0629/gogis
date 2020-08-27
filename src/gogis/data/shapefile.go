@@ -215,11 +215,12 @@ func loadShpOnePolyline(r io.Reader) geometry.Geometry {
 	bbox, numParts, numPoints := loadShpOnePolyHeader(r)
 	polyline.BBox = bbox
 
-	parts := make([]int32, numParts+1)
-	for i := int32(0); i < numParts; i++ {
-		binary.Read(r, binary.LittleEndian, &parts[i])
-	}
-	parts[numParts] = numPoints
+	parts := make([]int32, numParts)
+	binary.Read(r, binary.LittleEndian, parts)
+	// for i := int32(0); i < numParts; i++ {
+	// 	binary.Read(r, binary.LittleEndian, &parts[i])
+	// }
+	parts = append(parts, numPoints) // 最后增加一个，方便后面的计算
 
 	polyline.Points = make([][]base.Point2D, numParts)
 	for i := int32(0); i < numParts; i++ {
@@ -263,10 +264,12 @@ func loadShpOnePolygon(r io.Reader) geometry.Geometry {
 func loadShpOnePolyHeader(r io.Reader) (bbox base.Rect2D, numParts, numPoints int32) {
 	var shptype int32
 	binary.Read(r, binary.LittleEndian, &shptype)
-	binary.Read(r, binary.LittleEndian, &bbox.Min.X)
-	binary.Read(r, binary.LittleEndian, &bbox.Min.Y)
-	binary.Read(r, binary.LittleEndian, &bbox.Max.X)
-	binary.Read(r, binary.LittleEndian, &bbox.Max.Y)
+	// 这里合并处理
+	binary.Read(r, binary.LittleEndian, &bbox)
+	// binary.Read(r, binary.LittleEndian, &bbox.Min.X)
+	// binary.Read(r, binary.LittleEndian, &bbox.Min.Y)
+	// binary.Read(r, binary.LittleEndian, &bbox.Max.X)
+	// binary.Read(r, binary.LittleEndian, &bbox.Max.Y)
 	binary.Read(r, binary.LittleEndian, &numParts)
 	binary.Read(r, binary.LittleEndian, &numPoints)
 	return bbox, numParts, numPoints
