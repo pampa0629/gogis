@@ -20,7 +20,7 @@ func NewLayer(feaset data.Featureset) *Layer {
 const ONE_DRAW_COUNT = 100000
 
 func (this *Layer) Draw(canvas *Canvas) int {
-	feait := this.feaset.Query(canvas.params.GetBounds())
+	feait := this.feaset.QueryByBounds(canvas.params.GetBounds())
 	var wg *sync.WaitGroup = new(sync.WaitGroup)
 	for {
 		features, ok := feait.BatchNext(ONE_DRAW_COUNT)

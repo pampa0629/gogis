@@ -7,22 +7,16 @@ import (
 	"gogis/base"
 	"gogis/geometry"
 	"io"
+	"io/ioutil"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
-	"unsafe"
+	"time"
+
+	"github.com/LindsayBradford/go-dbf/godbf"
 )
 
-// type shpPolyline struct {
-// 	shpType                  // 图形类型，==3
-// 	bbox       base.Rect2D    // 当前线状目标的坐标范围
-// 	numParts  int32          // 当前线目标所包含的子线段的个数
-// 	numPoints int32          // 当前线目标所包含的顶点个数
-// 	parts     []int32        // 每个子线段的第一个坐标点在 Points 的位置
-// 	points    []base.Point2D // 记录所有坐标点的数组
-// }
-
-// 枚举怎么弄呢？
 type shpType int32
 
 const (
@@ -45,65 +39,59 @@ const (
 
 type shpHeader struct {
 	// big endian
-	code    int32
-	unuseds [5]int32
-	length  int32
+	Code    int32
+	Unuseds [5]int32
+	Length  int32
 	// little endian
-	version int32
-	geoType shpType
-	unused  int32 // 为了八字节对齐，增加4个字节；实际shape文件中并不存储此项内容
-	xmin    float64
-	ymin    float64
-	xmax    float64
-	ymax    float64
-	zmin    float64
-	zmax    float64
-	mmin    float64
-	mmax    float64
+	Version int32
+	GeoType shpType
+	Xmin    float64
+	Ymin    float64
+	Xmax    float64
+	Ymax    float64
+	Zmin    float64
+	Zmax    float64
+	Mmin    float64
+	Mmax    float64
+}
+
+func (this *shpHeader) read(r io.Reader) {
+	binary.Read(r, binary.LittleEndian, this)
+	this.Code = base.ExEndian(this.Code)
+	this.Length = base.ExEndian(this.Length)
+
+	if this.Code != 9994 {
+		fmt.Println("shape file code error")
+	}
+	fmt.Println("shp header:", this)
 }
 
 type shxRecordHeader struct {
-	pos    int32 // big endian 单位：双字节
-	length int32 // big endian 单位：双字节
-}
-
-type shpRecordHeadser struct {
-	num    int32 // big endian
-	length int32 // big endian 单位：双字节
+	Pos    int32 // big endian 单位：双字节
+	Length int32 // big endian 单位：双字节
 }
 
 type ShapeFile struct {
-	Filename string
-	shpHeader
+	Filename  string            //  shp主文件名
+	shpHeader                   // 文件头
 	recordNum int               // 记录个数
 	records   []shxRecordHeader // 记录头 数组
+	table     *godbf.DbfTable
 }
 
-func readHeader(f *os.File, header *shpHeader) {
-	p := (*[104]byte)(unsafe.Pointer(header)) // 对齐，所有多四个字节
-	// n, err := f.Read((*p)[:]) 为啥两种写法都OK呢？
-	_, err := f.Read(p[0:36])
-	// fmt.Println("read shape file header num:", n)
-	if err != nil && err != io.EOF {
-		fmt.Println("read shape file header error", err)
-	}
+// dbf 字段类型
+// const (
+// 	Character DbaseDataType = 'C'
+// 	Logical   DbaseDataType = 'L'
+// 	Date      DbaseDataType = 'D'
+// 	Numeric   DbaseDataType = 'N'
+// 	Float     DbaseDataType = 'F'
+// )
 
-	header.code = base.ExEndian(header.code)
-	if header.code != 9994 {
-		fmt.Println("shape file code error")
-	}
-	header.length = base.ExEndian(header.length)
-
-	// fmt.Printf("read shape file data:%x\n", p)
-
-	f.Read(p[40:104])
-	// fmt.Println("read shape file header:", header)
-}
-
-// 清空其它内存数据
+// 清空内存
 func (this *ShapeFile) Close() {
-	// shp.f.Close()
-
+	this.records = this.records[:0]
+	this.table.Close()
 }
 
 func (this *ShapeFile) Open(filename string) bool {
@@ -115,38 +103,50 @@ func (this *ShapeFile) Open(filename string) bool {
 	if err != nil {
 		fmt.Println("open shape file error:", err)
 	}
-
-	// shp.f = bufio.NewReader(f)
-	readHeader(shp, &this.shpHeader)
+	this.shpHeader.read(shp)
 
 	// shx 文件
 	shxName := strings.TrimSuffix(filename, ".shp") + ".shx"
-	shx, _ := os.Open(shxName)
-	defer shx.Close()
-
-	var shxHeader shpHeader
-	readHeader(shx, &shxHeader)
-	info, _ := shx.Stat()
-	// fmt.Println("shx file size:", info.Size())
-	this.recordNum = (int)(info.Size()-100) / 8
-	// fmt.Println("record num:", this.recordNum)
-
-	// this.geometrys = make([]*shpPolyline, this.recordNum)
-
+	data, _ := ioutil.ReadFile(shxName)
 	// 读取shx中的记录头信息
-	// recordNum int32             // 记录个数
-	// records   []shxRecordHeader // 记录头 数组
+	this.recordNum = (int)(len(data)-100) / 8
 	this.records = make([]shxRecordHeader, this.recordNum)
-	// n, _ := shx.Read(ByteSlice(this.records))
-	shx.Read(base.ByteSlice(this.records))
-	for i := 0; i < this.recordNum; i++ {
-		this.records[i].pos = base.ExEndian(this.records[i].pos)
-		this.records[i].length = base.ExEndian(this.records[i].length)
-	}
-	// fmt.Println("read file length:", n)
-	fmt.Println("shp record count&type:", this.recordNum, this.geoType)
+	r := bytes.NewReader(data[100:])
+	binary.Read(r, binary.BigEndian, this.records)
+
+	// dbf 文件
+	dbfName := strings.TrimSuffix(filename, ".shp") + ".dbf"
+	this.table, _ = godbf.NewFromFile(dbfName, "UTF8")
 
 	return true
+}
+
+func (this *ShapeFile) GetFieldInfos() (finfos []FieldInfo) {
+	fds := this.table.Fields()
+	finfos = make([]FieldInfo, len(fds))
+	for i, ds := range fds {
+		finfos[i].Name = ds.Name()
+		finfos[i].Length = int(ds.Length())
+		finfos[i].Type = dbfTypeConvertor(ds.FieldType())
+	}
+	return
+}
+
+func dbfTypeConvertor(dtype godbf.DbaseDataType) FieldType {
+	ftype := TypeUnknown
+	switch dtype {
+	case godbf.Character:
+		ftype = TypeString
+	case godbf.Logical:
+		ftype = TypeBool
+	case godbf.Date:
+		ftype = TypeTime
+	case godbf.Numeric: // 字符串数字，也可以是浮点数
+		ftype = TypeFloat
+	case godbf.Float:
+		ftype = TypeFloat
+	}
+	return ftype
 }
 
 // 加载start位置开始，批量读取geometry
@@ -155,35 +155,64 @@ func (this *ShapeFile) BatchLoad(start int, count int, features []Feature, wg *s
 	defer wg.Done()
 
 	// 先确定要读取文件的位置和长度
-	pos := uint64(this.records[start].pos) * 2
-	len := int32(0)
+	pos := uint64(this.records[start].Pos) * 2
+	length := int32(0)
 	end := start + count
 	for i := start; i < end; i++ {
-		len += this.records[i].length*2 + 8 // 8个字节是 shp记录的头
+		length += this.records[i].Length*2 + 8 // 8个字节是 shp记录的头
 	}
 
 	f, err := os.Open(this.Filename)
 	if err != nil {
-		// return errors.New("open shape file error:" + err.Error())
 		fmt.Println("open shape file error:", err.Error())
 	}
 	f.Seek(int64(pos), 0)
-	data := make([]byte, len)
+	data := make([]byte, length)
 	f.Read(data)
 	r := bytes.NewBuffer(data)
-	// fmt.Println(len, this.Filename, f)
-	// fmt.Println(features)
 
+	// 属性字段处理
+	fieldInfos := this.table.Fields()
+	fields := this.table.FieldNames()
+	fieldCount := len(fieldInfos)
 	for i := 0; i < count; i++ {
-		features[i].Geo = loadFromByte(r, this.geoType)
+		features[i].Geo = loadFromByte(r, this.GeoType)
+		features[i].Atts = make(map[string]interface{}, fieldCount)
+		for j, name := range fields {
+			features[i].Atts[name] = dbfString2Value(this.table.FieldValue(i+start, j), fieldInfos[j].FieldType())
+		}
 	}
-	// return nil
+}
+
+// 把dbf字段值，从字符串转为go语言的某个具体数据类型
+// Character DbaseDataType = 'C'
+// 	Logical   DbaseDataType = 'L'  // ? Y y N n T t F f (? 表示没有初始化)。
+// 	Date      DbaseDataType = 'D'
+// 	Numeric   DbaseDataType = 'N'
+// 	Float     DbaseDataType = 'F'
+const TIME_LAYOUT = "2006-01-02 15:04:05"
+
+func dbfString2Value(str string, ftype godbf.DbaseDataType) (v interface{}) {
+	switch ftype {
+	case godbf.Character:
+		v = str
+	case godbf.Logical:
+		v = (str == "Y" || str == "y" || str == "T" || str == "t")
+	case godbf.Date:
+		v, _ = time.Parse(TIME_LAYOUT, str)
+	case godbf.Numeric:
+		// v, _ := strconv.Atoi(str)
+		v, _ = strconv.ParseFloat(str, 64)
+	case godbf.Float:
+		v, _ = strconv.ParseFloat(str, 64)
+	}
+	return v
 }
 
 // 从内存中读取一条记录
 func loadFromByte(r io.Reader, shptype shpType) geometry.Geometry {
 	// fmt.Println("ShapeFile.loadFromByte()")
-	// 记录头
+	// shp文件中的记录头
 	var num, len int32
 	binary.Read(r, binary.BigEndian, &num)
 	binary.Read(r, binary.BigEndian, &len)
@@ -204,32 +233,32 @@ func loadShpOnePoint(r io.Reader) geometry.Geometry {
 	var geopoint geometry.GeoPoint
 	var geotype shpType
 	binary.Read(r, binary.LittleEndian, &geotype)
-	binary.Read(r, binary.LittleEndian, &geopoint.X)
-	binary.Read(r, binary.LittleEndian, &geopoint.Y)
+	binary.Read(r, binary.LittleEndian, &geopoint)
 	return &geopoint
 }
 
+// type shpPolyline struct {
+// 	shpType                  // 图形类型，==3
+// 	bbox       base.Rect2D    // 当前线状目标的坐标范围
+// 	numParts  int32          // 当前线目标所包含的子线段的个数
+// 	numPoints int32          // 当前线目标所包含的顶点个数
+// 	parts     []int32        // 每个子线段的第一个坐标点在 Points 的位置
+// 	points    []base.Point2D // 记录所有坐标点的数组
+// }
 // 未来考虑是否放到geometry的各个类型中实现
 func loadShpOnePolyline(r io.Reader) geometry.Geometry {
 	var polyline geometry.GeoPolyline
 	bbox, numParts, numPoints := loadShpOnePolyHeader(r)
 	polyline.BBox = bbox
 
-	parts := make([]int32, numParts)
+	parts := make([]int32, numParts, numParts+1)
 	binary.Read(r, binary.LittleEndian, parts)
-	// for i := int32(0); i < numParts; i++ {
-	// 	binary.Read(r, binary.LittleEndian, &parts[i])
-	// }
 	parts = append(parts, numPoints) // 最后增加一个，方便后面的计算
 
 	polyline.Points = make([][]base.Point2D, numParts)
 	for i := int32(0); i < numParts; i++ {
 		polyline.Points[i] = make([]base.Point2D, parts[i+1]-parts[i])
 		binary.Read(r, binary.LittleEndian, polyline.Points[i])
-		// for j, _ := range polyline.Points[i] {
-		// 	binary.Read(r, binary.LittleEndian, &polyline.Points[i][j].X)
-		// 	binary.Read(r, binary.LittleEndian, &polyline.Points[i][j].Y)
-		// }
 	}
 
 	return &polyline
@@ -251,12 +280,7 @@ func loadShpOnePolygon(r io.Reader) geometry.Geometry {
 		polygon.Points[i] = make([][]base.Point2D, 1)
 		polygon.Points[i][0] = make([]base.Point2D, parts[i+1]-parts[i])
 		binary.Read(r, binary.LittleEndian, polygon.Points[i][0])
-		// for j, _ := range polygon.Points[i][0] {
-		// 	binary.Read(r, binary.LittleEndian, &polygon.Points[i][0][j].X)
-		// 	binary.Read(r, binary.LittleEndian, &polygon.Points[i][0][j].Y)
-		// }
 	}
-	// fmt.Println(polygon)
 	return &polygon
 }
 
@@ -266,10 +290,6 @@ func loadShpOnePolyHeader(r io.Reader) (bbox base.Rect2D, numParts, numPoints in
 	binary.Read(r, binary.LittleEndian, &shptype)
 	// 这里合并处理
 	binary.Read(r, binary.LittleEndian, &bbox)
-	// binary.Read(r, binary.LittleEndian, &bbox.Min.X)
-	// binary.Read(r, binary.LittleEndian, &bbox.Min.Y)
-	// binary.Read(r, binary.LittleEndian, &bbox.Max.X)
-	// binary.Read(r, binary.LittleEndian, &bbox.Max.Y)
 	binary.Read(r, binary.LittleEndian, &numParts)
 	binary.Read(r, binary.LittleEndian, &numPoints)
 	return bbox, numParts, numPoints

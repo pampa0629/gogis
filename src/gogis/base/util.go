@@ -58,3 +58,19 @@ func CalcLevelDis(level int) float64 {
 // 	nmap.BBox.Max.Y -= float64(row) * dy
 // 	nmap.BBox.Min.Y = nmap.BBox.Max.Y - dy
 // }
+
+// 去掉重复元素
+func RemoveRepByMap(ids []int) []int {
+	// result := []int{}         //存放返回的不重复切片
+	result := make([]int, 0, len(ids))
+	tempMap := map[int]byte{} // 存放不重复主键
+	for _, id := range ids {
+		l := len(tempMap)
+		tempMap[id] = 0 //当e存在于tempMap中时，再次添加是添加不进去的，，因为key不允许重复
+		//如果上一行添加成功，那么长度发生变化且此时元素一定不重复
+		if len(tempMap) != l { // 加入map后，map长度变化，则元素不重复
+			result = append(result, id) //当元素不重复时，将元素添加到切片result中
+		}
+	}
+	return result
+}

@@ -48,6 +48,13 @@ func ExEndian(value int32) int32 {
 }
 
 // 大小端互换
+func ExEndianShort(value int16) int16 {
+	buf := (*[2]byte)(unsafe.Pointer(&value))
+	buf[0], buf[1] = buf[1], buf[0]
+	return value
+}
+
+// 大小端互换
 func ExEndianDouble(value float64) float64 {
 	buf := (*[8]byte)(unsafe.Pointer(&value))
 	buf[0], buf[7] = buf[7], buf[0]

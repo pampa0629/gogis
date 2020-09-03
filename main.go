@@ -1,18 +1,14 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
-	"io"
+	"strings"
 
-	"gogis/base"
 	"gogis/data"
 	"gogis/mapping"
 
-	"os"
-	"sync"
 	"time"
+	// dbf "github.com/SebastiaanKlippert/go-foxpro-dbf"
 )
 
 // func cachefile(mapname string, size int, row int, col int, ratio int) string {
@@ -154,7 +150,7 @@ import (
 // 	fmt.Printf("time: %f 秒", seconds)
 // }
 
-// var filename = "C:/temp/data/australia.shp"
+// var filename = "C:/temp/chinapnt_84.shp"
 
 // var filename = "C:/temp/DLTB.shp"
 
@@ -175,6 +171,55 @@ var filename = "C:/temp/JBNTBHTB.shp"
 // 	fmt.Printf("time: %f 毫秒", seconds)
 // }
 
+// 查询
+func testQuery() {
+	startTime := time.Now().UnixNano()
+
+	shp := new(data.ShapeStore)
+	params := data.NewCoonParams()
+	params["filename"] = filename
+
+	shp.Open(params)
+	set, _ := shp.GetFeasetByNum(0)
+
+	endTime := time.Now().UnixNano()
+	seconds := float64((endTime - startTime) / 1e6)
+	fmt.Printf("open time: %f 毫秒", seconds)
+	startTime = time.Now().UnixNano()
+
+	var def data.QueryDef
+	def.Fields = []string{"TKXS"}
+	def.Wheres = []string{"TKXS>10"}
+
+	ft := set.QueryByDef(def)
+	fmt.Println("fea count:", ft.Count())
+
+	for {
+		_, ok := ft.Next()
+		if !ok {
+			break
+		}
+		// fmt.Println(fea)
+	}
+
+	endTime = time.Now().UnixNano()
+	seconds = float64((endTime - startTime) / 1e6)
+	fmt.Printf("query time: %f 毫秒", seconds)
+}
+
+func testDBF() {
+	startTime := time.Now().UnixNano()
+
+	var dbf data.DbfFile
+	// dbfName := "c:/temp/Provinces.dbf"
+	dbfName := strings.TrimSuffix(filename, ".shp") + ".dbf"
+	dbf.Open(dbfName, "GB18030")
+
+	endTime := time.Now().UnixNano()
+	seconds := float64((endTime - startTime) / 1e6)
+	fmt.Printf("time: %f 毫秒", seconds)
+}
+
 func main() {
 	// testRest()
 	// testMap()
@@ -183,27 +228,29 @@ func main() {
 
 	// testTiff()
 	// test()
-	// return
+	testDBF()
+	// testSQL()
+	return
 
 	startTime := time.Now().UnixNano()
 
 	// 打开shape文件
 	shp := new(data.ShapeStore)
 	// var params data.ConnParams
-	params := make(map[string]string)
+	params := data.NewCoonParams()
 	params["filename"] = filename
+	// params = make(map[string]string)
 
 	shp.Open(params)
 
 	// // 创建地图
 	gmap := mapping.NewMap()
-	names := shp.FeaturesetNames()
-	feaset, _ := shp.GetFeatureset(names[0])
+	feaset, _ := shp.GetFeasetByNum(0)
 	gmap.AddLayer(feaset)
 	// 设置位图大小
 	gmap.Prepare(1024, 768)
 
-	gmap.Zoom(5)
+	// gmap.Zoom(5)
 	// 绘制
 	gmap.Draw()
 	// // 输出图片文件
@@ -217,56 +264,6 @@ func main() {
 	fmt.Printf("time: %f 毫秒", seconds)
 }
 
-type DataTest struct {
-	a, b int32
-}
-
-func testFun(ds []DataTest, r io.Reader) {
-	binary.Read(r, binary.LittleEndian, ds)
-	fmt.Println(ds)
-}
-
 func test() {
-	var data []int32 = []int32{1, 2, 3, 4, 5, 6}
-	r := bytes.NewBuffer(base.ByteSlice(data))
 
-	ds := make([]DataTest, 3)
-	testFun(ds, r)
-}
-
-const readSize = (int64)(50000000)
-
-func readFile(f *os.File, num int, wu *sync.Mutex, wg *sync.WaitGroup) {
-	data := make([]byte, readSize)
-
-	wu.Lock()
-	f.Seek(readSize*(int64)(num), 0)
-	f.Read(data)
-	fmt.Println("read file, num:", num, data[0])
-	defer wu.Unlock()
-	defer wg.Done()
-}
-
-func test2() {
-	startTime := time.Now().UnixNano()
-
-	filename := "C:/temp/data/australia.shp"
-	// filename := "C:/temp/DLTB.shp"
-	// filename := "C:/temp/JBNTBHTB.shp"
-	f, _ := os.Open(filename)
-	info, _ := f.Stat()
-	fileSize := info.Size()
-
-	var wu = new(sync.Mutex)
-	var wg = new(sync.WaitGroup)
-	count := (int)((fileSize / readSize) + 1)
-	for i := 0; i < count; i++ {
-		wg.Add(1)
-		go readFile(f, i, wu, wg)
-	}
-	wg.Wait()
-
-	endTime := time.Now().UnixNano()
-	seconds := float64((endTime - startTime) / 1e6)
-	fmt.Printf("time: %f 毫秒", seconds)
 }

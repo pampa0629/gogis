@@ -7,14 +7,14 @@ type GeoType int
 
 const (
 	// _iota
-	TGeoEmpty      = iota // 空对象
-	TGeoPoint             // 点
-	TGeoPolyline          // 线
-	TGeoPolygon           // 面
-	TGeoMultiPoint        // 多点
+	TGeoEmpty      GeoType = 0  // 空对象
+	TGeoPoint      GeoType = 1  // 点
+	TGeoPolyline   GeoType = 2  // 线
+	TGeoPolygon    GeoType = 3  // 面
+	TGeoMultiPoint GeoType = 11 // 多点
 	// TGeoMultiLineString        // 多线
 	// TGeoMultiPolygon           // 多面
-	TGeoCollection // 集合
+	TGeoCollection GeoType = 100 // 集合
 	// Point              GeoType = 0 // 点
 	// LineString         GeoType = 1 // 线
 	// Polygon            GeoType = 2 // 面
