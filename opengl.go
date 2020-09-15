@@ -11,7 +11,7 @@ const (
 	height = 500
 )
 
-func main() {
+func maino() {
 	runtime.LockOSThread()
 	window := initGlfw()
 	defer glfw.Terminate()

@@ -15,7 +15,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
-	// "github.com/chai2010/webp"
+
+	"github.com/chai2010/webp"
 )
 
 type Map struct {
@@ -100,10 +101,8 @@ func (this *Map) Output(filename string, imgType string) {
 	case "jpg", "jpeg":
 		jpeg.Encode(imgfile, this.canvas.img, nil)
 	case "webp":
-		// webp.Encode(imgfile, this.canvas.img)
+		webp.Encode(imgfile, this.canvas.img, nil)
 	}
-	// 以PNG格式保存文件
-
 }
 
 func (this *Map) Save(filename string) {
