@@ -15,6 +15,7 @@ import (
 
 	"gogis/data"
 	"gogis/mapping"
+	"gogis/server"
 
 	"time"
 
@@ -22,29 +23,6 @@ import (
 	"github.com/lukeroth/gdal"
 	// dbf "github.com/SebastiaanKlippert/go-foxpro-dbf"
 )
-
-// func cachefile(mapname string, size int, row int, col int, ratio int) string {
-// 	file := "c:/temp/cache/"
-// 	file += mapname + strconv.Itoa(size) + strconv.Itoa(row) + strconv.Itoa(col) + strconv.Itoa(ratio)
-// 	return file
-// }
-
-// func getcache(filename string) (data []byte, exist bool) {
-// 	f, err := os.Open(filename)
-// 	if err != nil && os.IsNotExist(err) {
-// 		fmt.Printf("file not exist!\n")
-// 		exist = false
-// 	} else {
-// 		fmt.Printf("file exist!\n")
-// 		info, _ := os.Stat(filename)
-// 		data = make([]byte, info.Size())
-// 		f.Read(data)
-// 		exist = true
-// 	}
-
-// 	defer f.Close()
-// 	return
-// }
 
 // func getmap(w http.ResponseWriter, r *http.Request) {
 // 	startTime := time.Now().UnixNano()
@@ -90,7 +68,7 @@ import (
 
 // var gmaps map[string]*gogis.Map
 
-// func testRest() {
+// func testRest2() {
 // 	fmt.Println("正在启动WEB服务...")
 // 	startTime := time.Now().UnixNano()
 
@@ -116,6 +94,22 @@ import (
 // 	http.ListenAndServe(":8088", nil)
 // 	fmt.Println("服务已停止")
 // }
+
+func testRest() {
+	server.StartServer()
+
+	// gmaps = make(map[string]*mapping.Map)
+	// // 这里加载所有地图
+	// names := []string{"c:/temp/DLTB.txt", "c:/temp/australia.txt", "c:/temp/JBNTBHTB.txt"}
+	// for _, name := range names {
+	// 	gmap := mapping.NewMap()
+	// 	gmap.Open(name)
+	// 	gmap.Prepare(1024, 1024) // todo ...
+	// 	title := gogis.GetTile(name)
+	// 	gmaps[title] = gmap
+	// }
+
+}
 
 func testGdal() {
 	startTime := time.Now().UnixNano()
@@ -270,37 +264,39 @@ func testTiff() {
 
 }
 
-// func testMap() {
-// 	gmap := gogis.NewMap()
-// 	gmap.Open("c:/temp/JBNTBHTB.txt")
+func testMap() {
+	gmap := mapping.NewMap()
+	gmap.Open("c:/temp/JBNTBHTB.txt")
 
-// 	startTime := time.Now().UnixNano()
-// 	gmap.Prepare(4000, 3000)
-// 	gmap.Draw()
+	startTime := time.Now().UnixNano()
+	gmap.Prepare(4000, 3000)
+	gmap.Draw()
 
-// 	// 输出图片文件
-// 	gmap.Output("c:/temp/JBNTBHTB.png", "png")
-// 	// gmap.Resize(3000, 4000)
-// 	// gmap.Draw()
+	// 输出图片文件
+	gmap.Output2File("c:/temp/JBNTBHTB.png", "png")
+	// gmap.Resize(3000, 4000)
+	// gmap.Draw()
 
-// 	// // 输出图片文件
-// 	// gmap.Output("c:/temp/result2.png")
-// 	endTime := time.Now().UnixNano()
-// 	seconds := float64((endTime - startTime) / 1e6)
-// 	fmt.Printf("time: %f 毫秒", seconds)
-// }
+	// // 输出图片文件
+	// gmap.Output("c:/temp/result2.png")
+	endTime := time.Now().UnixNano()
+	seconds := float64((endTime - startTime) / 1e6)
+	fmt.Printf("time: %f 毫秒", seconds)
+}
 
-// func testCache() {
-// 	names := []string{"c:/temp/australia.txt", "c:/temp/DLTB.txt", "c:/temp/JBNTBHTB.txt"}
+func testCache() {
+	// names := []string{"c:/temp/australia.txt", "c:/temp/DLTB.txt", "c:/temp/JBNTBHTB.txt"}
 
-// 	gmap := gogis.NewMap()
-// 	gmap.Open(names[2])
-// 	startTime := time.Now().UnixNano()
-// 	gmap.Cache("c:/temp/cache2/")
-// 	endTime := time.Now().UnixNano()
-// 	seconds := float64((endTime - startTime) / 1e9)
-// 	fmt.Printf("time: %f 秒", seconds)
-// }
+	// gmap := gogis.NewMap()
+	// gmap.Open(names[2])
+	startTime := time.Now().UnixNano()
+
+	gmap := startMap()
+	gmap.Cache("c:/temp/cache/")
+	endTime := time.Now().UnixNano()
+	seconds := float64((endTime - startTime) / 1e9)
+	fmt.Printf("time: %f 秒", seconds)
+}
 
 // func testVecPyramid() {
 // 	shp := new(gogis.ShapeFile)
@@ -368,19 +364,20 @@ func testDBF() {
 
 // var filename = "C:/temp/chinapnt_84.shp"
 
-var filename = "C:/temp/DLTB.shp"
+// var filename = "C:/temp/DLTB.shp"
 
-// var filename = "C:/temp/JBNTBHTB.shp"
+var filename = "C:/temp/JBNTBHTB.shp"
 
-func mainm() {
-	// testRest()
+func main() {
+	testRest()
+	// testMapFile()
 	// testMap()
 	// testCache()
 	// testVecPyramid()
 
 	// testTiff()
 	// testGdal()
-	drawTiff()
+	// drawTiff()
 	// test()
 	// testDBF()
 	// testSQL()
@@ -408,7 +405,7 @@ func mainm() {
 	// 绘制
 	gmap.Draw()
 	// // 输出图片文件
-	gmap.Output("c:/temp/result2.png", "png")
+	gmap.Output2File("c:/temp/result2.png", "png")
 
 	// // gmap.Save("c:/temp/map.txt")
 
@@ -418,6 +415,40 @@ func mainm() {
 	fmt.Printf("time: %f 毫秒", seconds)
 }
 
-func test() {
+func startMap() *mapping.Map {
+	// 打开shape文件
+	shp := new(data.ShapeStore)
+	// var params data.ConnParams
+	params := data.NewCoonParams()
+	params["filename"] = filename
+	// params = make(map[string]string)
 
+	shp.Open(params)
+
+	// // 创建地图
+	gmap := mapping.NewMap()
+	feaset, _ := shp.GetFeasetByNum(0)
+	gmap.AddLayer(feaset)
+	return gmap
+}
+
+func testMapFile() {
+	startTime := time.Now().UnixNano()
+
+	gmap := startMap()
+	// 设置位图大小
+	gmap.Prepare(1024, 768)
+
+	// gmap.Zoom(5)
+	// 绘制
+	gmap.Draw()
+	// // 输出图片文件
+	gmap.Output2File("c:/temp/result2.png", "png")
+
+	gmap.Save("c:/temp/map.txt")
+
+	// // 记录时间
+	endTime := time.Now().UnixNano()
+	seconds := float64((endTime - startTime) / 1e6)
+	fmt.Printf("time: %f 毫秒", seconds)
 }

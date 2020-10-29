@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head> 
+<meta charset="utf-8"> 
+<title>GOGIS</title> 
+</head>
+<body style=" margin: 0;overflow: hidden;background: #fff;width: 100%;height:100%">
+
+<div id="map">
+	
+</div>
+	
+<script type="text/javascript">
+	var map=document.getElementById("map")
+	var div = document.createElement("div")
+	var img = document.createElement("img")
+	var src = "http://localhost:8088/5/19/14"
+	var style = "position:fixed;left:" + 0*256 + "px;top:" + 0*256 +"px;"
+	var border = "0"
+	img.src = src
+	img.style = style
+	img.border = border
+	img.alt = "gogis"
+	div.appendChild(img)
+	map.appendChild(div)
+
+
+</script>	
+
+</body>
+</html>

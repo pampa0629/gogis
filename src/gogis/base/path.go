@@ -15,7 +15,7 @@ func DeleteEmptyDir(path string) {
 }
 
 // 得到文件名中的 title部分；输入：C:/temp/JBNTBHTB.shp ，返回 JBNTBHTB
-func GetTile(fullname string) string {
+func GetTitle(fullname string) string {
 	filenameall := path.Base(fullname)
 	filesuffix := path.Ext(fullname)
 	fileprefix := filenameall[0 : len(filenameall)-len(filesuffix)]

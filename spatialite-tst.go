@@ -3,8 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
-
-	_ "github.com/briansorahan/spatialite"
+	// _ "github.com/briansorahan/spatialite"
 	// _ "github.com/mattn/go-sqlite3"
 	// _ "github.com/shaxbee/go-spatialite"
 	// "github.com/shaxbee/go-spatialite/wkb"
@@ -64,7 +63,7 @@ func test2() {
 	// fmt.Println("res: ", res, err)
 }
 
-func main() {
+func mains() {
 	test2()
 	// TestSpatialite()
 	// testSqlite()

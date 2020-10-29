@@ -39,6 +39,19 @@ func (this *Rect2D) Union(rect Rect2D) {
 	this.Max.Y = math.Max(this.Max.Y, rect.Max.Y)
 }
 
+// 两个 边框是否相交
+func (this *Rect2D) IsIntersect(rect Rect2D) bool {
+	zx := math.Abs(this.Min.X + this.Max.X - rect.Min.X - rect.Max.X)
+	x := math.Abs(this.Min.X-this.Max.X) + math.Abs(rect.Min.X-rect.Max.X)
+	zy := math.Abs(this.Min.Y + this.Max.Y - rect.Min.Y - rect.Max.Y)
+	y := math.Abs(this.Min.Y-this.Max.Y) + math.Abs(rect.Min.Y-rect.Max.Y)
+	if zx <= x && zy <= y {
+		return true
+	} else {
+		return false
+	}
+}
+
 // 计算得到点串的bounds
 func ComputeBounds(points []Point2D) Rect2D {
 	var bbox Rect2D

@@ -172,15 +172,15 @@ func (this *ShapeFile) BatchLoad(start int, count int, features []Feature, wg *s
 	r := bytes.NewBuffer(data)
 
 	// 属性字段处理
-	fieldInfos := this.table.Fields()
-	fields := this.table.FieldNames()
-	fieldCount := len(fieldInfos)
+	// fieldInfos := this.table.Fields()
+	// fields := this.table.FieldNames()
+	// fieldCount := len(fieldInfos)
 	for i := 0; i < count; i++ {
 		features[i].Geo = loadFromByte(r, this.GeoType)
-		features[i].Atts = make(map[string]interface{}, fieldCount)
-		for j, name := range fields {
-			features[i].Atts[name] = dbfString2Value(this.table.FieldValue(i+start, j), fieldInfos[j].FieldType())
-		}
+		// features[i].Atts = make(map[string]interface{}, fieldCount)
+		// for j, name := range fields {
+		// 	features[i].Atts[name] = dbfString2Value(this.table.FieldValue(i+start, j), fieldInfos[j].FieldType())
+		// }
 	}
 }
 
