@@ -18,15 +18,20 @@ var gMap = mapping.NewMap()
 
 var gPath = "c:/temp/"
 
+var gEpsg = mapping.Epsg4326
+
 func startMap() {
-	shp := new(data.ShapeStore)
-	params := data.NewCoonParams()
-	params["filename"] = gPath + "JBNTBHTB.shp"
-	shp.Open(params)
+
+	feaset := data.OpenShape(gPath + "JBNTBHTB.shp")
+
+	// shp := new(data.ShapeStore)
+	// params := data.NewCoonParams()
+	// params["filename"] = gPath + "JBNTBHTB.shp"
+	// shp.Open(params)
 
 	// // 创建地图
 	// gmap := mapping.NewMap()
-	feaset, _ := shp.GetFeasetByNum(0)
+	// feaset, _ := shp.GetFeasetByNum(0)
 	gMap.AddLayer(feaset)
 	gMap.RebuildBBox()
 }
@@ -60,8 +65,12 @@ func getTile(w http.ResponseWriter, r *http.Request) {
 	col, _ := strconv.Atoi(params.Get(":col"))
 	row, _ := strconv.Atoi(params.Get(":row"))
 
+	if !gMap.BBox.IsIntersect(mapping.CalcBBox(level, col, row, gEpsg)) {
+		return
+	}
+
 	fmt.Println("get cache,", "level=", level, "col=", col, "row=", row)
-	cachefile := getFileName(level, row, col)
+	cachefile := getFileName(level, col, row)
 	data, exist := getCache(cachefile)
 	if exist {
 		w.Write(data)
@@ -71,7 +80,9 @@ func getTile(w http.ResponseWriter, r *http.Request) {
 		// 这里根据地图名字，输出并返回图片
 		// gmap, ok := gmaps[mapname]
 		// if ok {
-		tmap := gMap.CacheOneTile2Map(level, col, row, nil)
+		mapTile := mapping.NewMapTile(gMap, gEpsg)
+
+		tmap := mapTile.CacheOneTile2Map(level, col, row, nil)
 		if tmap != nil {
 			png.Encode(w, tmap.OutputImage())
 
@@ -104,7 +115,7 @@ func getPath(level int, col int) string {
 	return path
 }
 
-func getFileName(level int, row int, col int) string {
+func getFileName(level int, col int, row int) string {
 	return getPath(level, col) + strconv.Itoa(row) + ".png"
 }
 

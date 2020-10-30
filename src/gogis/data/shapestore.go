@@ -1,37 +1,85 @@
 package data
 
 import (
+	"errors"
 	"fmt"
 	"gogis/base"
+	"strconv"
 	"sync"
 )
 
-type ShapeStore struct {
-	MemoryStore // 匿名组合，实现继承效果
-	feaset      ShapeFeaset
+// 快捷方法，打开一个shape文件，得到特征集对象
+func OpenShape(filename string) Featureset {
+	shp := new(ShapeStore)
+	params := NewConnParams()
+	params["filename"] = filename
+	shp.Open(params)
+	feaset, _ := shp.GetFeasetByNum(0)
+	return feaset
 }
 
-// 打开一个shape文件，params["filename"] = "c:/temp/a.shp"
+// todo 未来还要考虑实现打开一个文件夹
+type ShapeStore struct {
+	feaset *ShapeFeaset
+	name   string //  filename
+}
+
+// 打开一个shape文件，params["filename"] = "c:/data/a.shp"
 func (this *ShapeStore) Open(params ConnParams) (bool, error) {
-	this.feasets = make([]*MemFeaset, 1)
-	this.feasets[0] = &this.feaset.MemFeaset
-	return this.feaset.Open(params["filename"])
+	this.feaset = new(ShapeFeaset)
+	this.feaset.store = this
+	this.name = params["filename"]
+	return this.feaset.Open(this.name)
+}
+
+func (this *ShapeStore) GetConnParams() ConnParams {
+	params := NewConnParams()
+	params["filename"] = this.name
+	params["type"] = string(this.GetType())
+	return params
+}
+
+// 得到存储类型
+func (this *ShapeStore) GetType() StoreType {
+	return StoreShape
+}
+
+func (this *ShapeStore) GetFeasetByNum(num int) (Featureset, error) {
+	if num == 0 {
+		return this.feaset, nil
+	}
+	return nil, errors.New(strconv.Itoa(num) + " beyond the num of feature sets")
+}
+
+func (this *ShapeStore) GetFeasetByName(name string) (Featureset, error) {
+	if this.feaset.name == name {
+		return this.feaset, nil
+	}
+	return nil, errors.New("feature set: " + name + " cannot find")
+}
+
+func (this *ShapeStore) FeaturesetNames() []string {
+	names := make([]string, 1)
+	names[0] = this.feaset.name
+	return names
 }
 
 // 关闭，释放资源
 func (this *ShapeStore) Close() {
-	this.MemoryStore.Close()
+	// this.MemoryStore.Close()
 	this.feaset.Close()
 }
 
 // shape数据集，内置内存数据集
 type ShapeFeaset struct {
 	MemFeaset
+	store *ShapeStore
 }
 
 // 打开shape文件
 func (this *ShapeFeaset) Open(filename string) (bool, error) {
-	fmt.Println("ShapeFeaset.Open()")
+	this.name = base.GetTitle(filename)
+
 	shape := new(ShapeFile)
 	res := shape.Open(filename)
 	this.bbox = base.NewRect2D(shape.Xmin, shape.Ymin, shape.Xmax, shape.Ymax)
@@ -43,6 +91,10 @@ func (this *ShapeFeaset) Open(filename string) (bool, error) {
 	// this.BuildPyramids()
 
 	return res, nil
+}
+
+func (this *ShapeFeaset) GetStore() Datastore {
+	return this.store
 }
 
 // 一次性从文件加载到内存的记录个数

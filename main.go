@@ -292,7 +292,8 @@ func testCache() {
 	startTime := time.Now().UnixNano()
 
 	gmap := startMap()
-	gmap.Cache("c:/temp/cache/")
+	mapTile := mapping.NewMapTile(gmap, mapping.Epsg4326)
+	mapTile.Cache("c:/temp/cache/")
 	endTime := time.Now().UnixNano()
 	seconds := float64((endTime - startTime) / 1e9)
 	fmt.Printf("time: %f 秒", seconds)
@@ -318,7 +319,7 @@ func testQuery() {
 	startTime := time.Now().UnixNano()
 
 	shp := new(data.ShapeStore)
-	params := data.NewCoonParams()
+	params := data.NewConnParams()
 	params["filename"] = filename
 
 	shp.Open(params)
@@ -364,13 +365,13 @@ func testDBF() {
 
 // var filename = "C:/temp/chinapnt_84.shp"
 
-// var filename = "C:/temp/DLTB.shp"
+var filename = "C:/temp/DLTB.shp"
 
-var filename = "C:/temp/JBNTBHTB.shp"
+// var filename = "C:/temp/JBNTBHTB.shp"
 
 func main() {
-	testRest()
-	// testMapFile()
+	// testRest()
+	testMapFile()
 	// testMap()
 	// testCache()
 	// testVecPyramid()
@@ -388,7 +389,7 @@ func main() {
 	// 打开shape文件
 	shp := new(data.ShapeStore)
 	// var params data.ConnParams
-	params := data.NewCoonParams()
+	params := data.NewConnParams()
 	params["filename"] = filename
 	// params = make(map[string]string)
 
@@ -417,17 +418,19 @@ func main() {
 
 func startMap() *mapping.Map {
 	// 打开shape文件
-	shp := new(data.ShapeStore)
-	// var params data.ConnParams
-	params := data.NewCoonParams()
-	params["filename"] = filename
-	// params = make(map[string]string)
+	feaset := data.OpenShape(filename)
 
-	shp.Open(params)
+	// shp := new(data.ShapeStore)
+	// // var params data.ConnParams
+	// params := data.NewCoonParams()
+	// params["filename"] = filename
+	// // params = make(map[string]string)
+
+	// shp.Open(params)
 
 	// // 创建地图
 	gmap := mapping.NewMap()
-	feaset, _ := shp.GetFeasetByNum(0)
+	// feaset, _ := shp.GetFeasetByNum(0)
 	gmap.AddLayer(feaset)
 	return gmap
 }
@@ -443,9 +446,18 @@ func testMapFile() {
 	// 绘制
 	gmap.Draw()
 	// // 输出图片文件
-	gmap.Output2File("c:/temp/result2.png", "png")
+	gmap.Output2File("c:/temp/result.png", "png")
 
-	gmap.Save("c:/temp/map.txt")
+	mapfile := "c:/temp/map.txt"
+
+	gmap.Save(mapfile)
+
+	nmap := mapping.NewMap()
+	nmap.Open(mapfile)
+	nmap.Prepare(1024, 768)
+	nmap.Draw()
+	// // 输出图片文件
+	nmap.Output2File("c:/temp/result2.png", "png")
 
 	// // 记录时间
 	endTime := time.Now().UnixNano()

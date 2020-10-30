@@ -7,12 +7,21 @@ import (
 )
 
 type Layer struct {
-	feaset data.Featureset
+	Name   string          // 图层名
+	feaset data.Featureset // 干活用的
+	Params data.ConnParams `json:"ConnParams"` // 存储和打开地图文档时用的
 }
 
 func NewLayer(feaset data.Featureset) *Layer {
 	layer := new(Layer)
 	layer.feaset = feaset
+	store := feaset.GetStore()
+	if store != nil {
+		layer.Params = store.GetConnParams()
+		layer.Params["name"] = feaset.GetName()
+		layer.Name = layer.Params["name"] // 默认图层名 等于 数据集名
+	}
+
 	return layer
 }
 

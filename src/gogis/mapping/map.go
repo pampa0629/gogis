@@ -111,7 +111,7 @@ func (this *Map) Output2File(filename string, imgType string) {
 // 工作空间文件的保存
 func (this *Map) Save(filename string) {
 	data, _ := json.Marshal(*this)
-	// fmt.Println("map json:", string(data))
+	fmt.Println("map json:", string(data))
 	f, _ := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0766)
 	f.Write(data)
 	f.Close()
@@ -119,19 +119,22 @@ func (this *Map) Save(filename string) {
 
 // 打开工作空间文件
 func (this *Map) Open(filename string) {
-	data, _ := ioutil.ReadFile(filename)
-	json.Unmarshal(data, this)
-	// todo 好好设计一下地图文档的存储和读取
-	fmt.Println("map:", this)
-	// for _, layer := range this.Layers {
-	// 	layer = nil
-	// layer.feaset
-	// 	fmt.Println("shp file name:", layer.Shp.Filename)
-	// 	layer.Shp.Open(layer.Shp.Filename)
-	// 	layer.Shp.Load()
-	// 	layer.Shp.BuildVecPyramid()
-	// }
-	this.RebuildBBox()
+	mapdata, _ := ioutil.ReadFile(filename)
+	json.Unmarshal(mapdata, this)
+	// 通过保存的参数恢复数据集
+	for i, layer := range this.Layers {
+		store := data.NewDatastore(data.StoreType(layer.Params["type"]))
+		if store != nil {
+			ok, _ := store.Open(layer.Params)
+			if ok {
+				layer.feaset, _ = store.GetFeasetByName(layer.Params["name"])
+			}
+		} else {
+			this.Layers[i] = nil // todo 应该提供恢复的机制，而不是简单置零
+		}
+	}
+
+	// this.RebuildBBox()
 }
 
 // 缩放，ratio为缩放比率，大于1为放大；小于1为缩小

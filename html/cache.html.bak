@@ -41,7 +41,8 @@ var resolutions4326 = [  0.703125,0.3515625,0.17578125,0.087890625,0.0439453125,
     tileUrlFunction: function (tileCoord) {
       var z = tileCoord[0];
       var xx = tileCoord[1];
-      var yy = Math.abs(tileCoord[2]);
+//      var yy = Math.abs(tileCoord[2]);
+      var yy = tileCoord[2];
       return "http://localhost:8088/" + z + "/" + xx + "/" + yy;
     },
     tileGrid: tileGrid,
@@ -62,8 +63,7 @@ var resolutions4326 = [  0.703125,0.3515625,0.17578125,0.087890625,0.0439453125,
           projection: proj_4326,
           tileGrid: tileGrid
         })
-      })
-	  */
+      })*/
     ],
 
     target: 'map',

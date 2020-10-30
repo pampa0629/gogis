@@ -17,18 +17,39 @@ func init() {
 // 参数有哪些，根据具体store类型而定
 type ConnParams map[string]string
 
-func NewCoonParams() ConnParams {
+func NewConnParams() ConnParams {
 	// map 必须要make一下才能用
 	return make(map[string]string)
+}
+
+// 数据存储类型定义
+type StoreType string
+
+const (
+	StoreShape  StoreType = "Shape"
+	StoreMemory StoreType = "Memory"
+)
+
+func NewDatastore(storyType StoreType) Datastore {
+	switch storyType {
+	case StoreShape:
+		return new(ShapeStore)
+	case StoreMemory:
+		return new(MemoryStore)
+	}
+	return nil
 }
 
 // 数据存储库
 type Datastore interface {
 	Open(params ConnParams) (bool, error)
-	// SetCount() int // 所有数据集的总数
+	GetType() StoreType // 得到存储类型
+	GetConnParams() ConnParams
+
 	GetFeasetByNum(num int) (Featureset, error)
 	GetFeasetByName(name string) (Featureset, error)
 	FeaturesetNames() []string
+
 	Close() // 关闭，释放资源
 }
 
@@ -37,6 +58,7 @@ type Featureset interface {
 	Open(name string) (bool, error)
 	Close()
 
+	GetStore() Datastore
 	GetName() string
 	Count() int // 对象个数
 	GetBounds() base.Rect2D

@@ -17,6 +17,15 @@ func (this *MemoryStore) Open(params ConnParams) (bool, error) {
 	return true, nil
 }
 
+func (this *MemoryStore) GetConnParams() ConnParams {
+	return nil
+}
+
+// 得到存储类型
+func (this *MemoryStore) GetType() StoreType {
+	return StoreMemory
+}
+
 func (this *MemoryStore) GetFeasetByNum(num int) (Featureset, error) {
 	if num < len(this.feasets) {
 		return this.feasets[num], nil
@@ -115,10 +124,17 @@ type MemFeaset struct {
 	features   []Feature      // 几何对象的数组
 	index      *GridIndex     // 空间索引
 	pyramid    *VectorPyramid // 矢量金字塔
+
+	// store      *MemoryStore
 }
 
 func (this *MemFeaset) Open(name string) (bool, error) {
 	return true, nil
+}
+
+// todo thinking
+func (this *MemFeaset) GetStore() Datastore {
+	return nil
 }
 
 // 对象个数
