@@ -8,32 +8,32 @@ import (
 	"strconv"
 	"time"
 
-	"gogis/data"
 	"gogis/mapping"
 
 	"github.com/drone/routes"
 )
 
-var gMap = mapping.NewMap()
+// var gMap = mapping.NewMap()
 
 var gPath = "c:/temp/"
+
+// var gTitles = []string{"DLTB"}
+
+var gTitles = []string{"JBNTBHTB", "chinapnt_84", "DLTB"}
+
+var gMaps map[string]*mapping.Map
 
 var gEpsg = mapping.Epsg4326
 
 func startMap() {
-
-	feaset := data.OpenShape(gPath + "JBNTBHTB.shp")
-
-	// shp := new(data.ShapeStore)
-	// params := data.NewCoonParams()
-	// params["filename"] = gPath + "JBNTBHTB.shp"
-	// shp.Open(params)
-
-	// // 创建地图
-	// gmap := mapping.NewMap()
-	// feaset, _ := shp.GetFeasetByNum(0)
-	gMap.AddLayer(feaset)
-	gMap.RebuildBBox()
+	fmt.Println("gTitles:", gTitles)
+	gMaps = make(map[string]*mapping.Map, len(gTitles))
+	for _, title := range gTitles {
+		gMaps[title] = mapping.NewMap()
+		mapfile := gPath + title + ".map"
+		fmt.Println("open map:", mapfile)
+		gMaps[title].Open(mapfile)
+	}
 }
 
 func StartServer() {
@@ -41,7 +41,7 @@ func StartServer() {
 	startTime := time.Now().UnixNano()
 
 	mux := routes.New()
-	mux.Get("/:level/:col/:row", getTile)
+	mux.Get("/:map/:level/:col/:row", getTile)
 	// mux.Get("/:map/:size/:row/:col/:r", getmap)
 	http.Handle("/", mux)
 
@@ -60,17 +60,22 @@ func getTile(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now().UnixNano()
 
 	params := r.URL.Query()
-	// mapname := params.Get(":map")
+	mapname := params.Get(":map")
 	level, _ := strconv.Atoi(params.Get(":level"))
 	col, _ := strconv.Atoi(params.Get(":col"))
 	row, _ := strconv.Atoi(params.Get(":row"))
 
-	if !gMap.BBox.IsIntersect(mapping.CalcBBox(level, col, row, gEpsg)) {
+	gMap := gMaps[mapname]
+
+	// fmt.Println("BBox:", gMap.BBox)
+	bbox := mapping.CalcBBox(level, col, row, gEpsg)
+	fmt.Println("map:", mapname, "level=", level, "col=", col, "row=", row, "BBox:", bbox)
+
+	if !gMap.BBox.IsIntersect(bbox) {
 		return
 	}
 
-	fmt.Println("get cache,", "level=", level, "col=", col, "row=", row)
-	cachefile := getFileName(level, col, row)
+	cachefile := getFileName(mapname, level, col, row)
 	data, exist := getCache(cachefile)
 	if exist {
 		w.Write(data)
@@ -87,7 +92,7 @@ func getTile(w http.ResponseWriter, r *http.Request) {
 			png.Encode(w, tmap.OutputImage())
 
 			// 缓存起来
-			os.MkdirAll(getPath(level, col), os.ModePerm)
+			os.MkdirAll(getPath(mapname, level, col), os.ModePerm)
 			f, err := os.Create(cachefile)
 			if err != nil {
 				fmt.Println("create file error: ", err)
@@ -109,14 +114,14 @@ func getTile(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("time: ", seconds, "毫秒")
 }
 
-func getPath(level int, col int) string {
-	path := gPath + "cache/"
+func getPath(mapname string, level int, col int) string {
+	path := gPath + "cache/" + mapname + "/"
 	path += strconv.Itoa(level) + "/" + strconv.Itoa(col) + "/"
 	return path
 }
 
-func getFileName(level int, col int, row int) string {
-	return getPath(level, col) + strconv.Itoa(row) + ".png"
+func getFileName(mapname string, level int, col int, row int) string {
+	return getPath(mapname, level, col) + strconv.Itoa(row) + ".png"
 }
 
 func getCache(filename string) (data []byte, exist bool) {

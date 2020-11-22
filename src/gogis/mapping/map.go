@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gogis/base"
 	"gogis/data"
+	"gogis/draw"
 	"image"
 	"image/jpeg"
 	"image/png"
@@ -19,9 +20,9 @@ import (
 
 type Map struct {
 	Name   string
-	Layers []*Layer    // 0:最底层，先绘制
-	canvas *Canvas     // 画布
-	BBox   base.Rect2D // 所有数据的边框
+	Layers []*Layer     // 0:最底层，先绘制
+	canvas *draw.Canvas // 画布
+	BBox   base.Rect2D  // 所有数据的边框
 }
 
 // 复制一个map对象，用来同一个地图的并发出图
@@ -30,8 +31,8 @@ func (this *Map) Copy() (nmap *Map) {
 	nmap.Layers = this.Layers
 	nmap.BBox = this.BBox
 	nmap.Name = this.Name
-	nmap.canvas = new(Canvas)
-	nmap.canvas.params = this.canvas.params
+	nmap.canvas = new(draw.Canvas)
+	nmap.canvas.Params = this.canvas.Params
 	return
 }
 
@@ -39,7 +40,7 @@ func (this *Map) Copy() (nmap *Map) {
 func NewMap() *Map {
 	gmap := new(Map)
 	gmap.Name = "未命名地图" + strconv.FormatInt(time.Now().Unix(), 10)
-	gmap.canvas = new(Canvas)
+	gmap.canvas = new(draw.Canvas)
 	// 新建一个 指定大小的 RGBA位图
 	// gmap.canvas.img = image.NewNRGBA(image.Rect(0, 0, dx, dy))
 	gmap.BBox.Init() // 初始化bbox
@@ -66,16 +67,14 @@ func (this *Map) AddLayer(feaset data.Featureset) {
 	this.BBox.Union(feaset.GetBounds())
 }
 
-// 计算各类参数，为绘制做好准备
+// 为绘制做好准备，第一次绘制前必须调用
 func (this *Map) Prepare(dx, dy int) {
-	this.canvas.params.Init(this.BBox, dx, dy)
+	this.canvas.Init(this.BBox, dx, dy)
 }
 
 // 返回绘制对象的个数
 func (this *Map) Draw() int {
-	// this.prepare()
-	this.canvas.img = image.NewNRGBA(image.Rect(0, 0, this.canvas.params.dx, this.canvas.params.dy))
-	// fmt.Println("in draw(), image:", this.canvas.img)
+	this.canvas.ClearDC()
 	drawCount := 0
 	for _, layer := range this.Layers {
 		drawCount += layer.Draw(this.canvas)
@@ -84,19 +83,21 @@ func (this *Map) Draw() int {
 	return drawCount
 }
 
-func (this *Map) OutputImage() *image.NRGBA {
-	return this.canvas.img
+func (this *Map) OutputImage() image.Image {
+	return this.canvas.Image()
 }
 
 // todo 输出格式，后面再增加
 func (this *Map) Output(w io.Writer, imgType string) {
 	switch imgType {
 	case "png":
-		png.Encode(w, this.canvas.img)
+		png.Encode(w, this.canvas.Image())
 	case "jpg", "jpeg":
-		jpeg.Encode(w, this.canvas.img, nil)
+		jpeg.Encode(w, this.canvas.Image(), nil)
 	case "webp":
-		webp.Encode(w, this.canvas.img, nil)
+		webp.Encode(w, this.canvas.Image(), nil)
+	default:
+		fmt.Println("不支持的图片格式：", imgType)
 	}
 }
 
@@ -112,7 +113,7 @@ func (this *Map) Output2File(filename string, imgType string) {
 func (this *Map) Save(filename string) {
 	data, _ := json.Marshal(*this)
 	fmt.Println("map json:", string(data))
-	f, _ := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0766)
+	f, _ := os.Create(filename)
 	f.Write(data)
 	f.Close()
 }
@@ -121,6 +122,8 @@ func (this *Map) Save(filename string) {
 func (this *Map) Open(filename string) {
 	mapdata, _ := ioutil.ReadFile(filename)
 	json.Unmarshal(mapdata, this)
+	fmt.Println("opened map:", this)
+	fmt.Println("layers'count:", len(this.Layers))
 	// 通过保存的参数恢复数据集
 	for i, layer := range this.Layers {
 		store := data.NewDatastore(data.StoreType(layer.Params["type"]))
@@ -132,6 +135,7 @@ func (this *Map) Open(filename string) {
 		} else {
 			this.Layers[i] = nil // todo 应该提供恢复的机制，而不是简单置零
 		}
+		fmt.Println("openmap, layer style:", layer.Style)
 	}
 
 	// this.RebuildBBox()
@@ -139,5 +143,5 @@ func (this *Map) Open(filename string) {
 
 // 缩放，ratio为缩放比率，大于1为放大；小于1为缩小
 func (this *Map) Zoom(ratio float64) {
-	this.canvas.params.scale *= ratio
+	this.canvas.Params.Scale *= ratio
 }

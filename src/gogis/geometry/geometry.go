@@ -1,6 +1,9 @@
 package geometry
 
-import "gogis/base"
+import (
+	"gogis/base"
+	"gogis/draw"
+)
 
 // 几何对象类型定义
 type GeoType int
@@ -9,7 +12,7 @@ const (
 	// _iota
 	TGeoEmpty      GeoType = 0  // 空对象
 	TGeoPoint      GeoType = 1  // 点
-	TGeoPolyline   GeoType = 2  // 线
+	TGeoPolyline   GeoType = 5  // 线2，等同于多线5
 	TGeoPolygon    GeoType = 3  // 面
 	TGeoMultiPoint GeoType = 11 // 多点
 	// TGeoMultiLineString        // 多线
@@ -31,18 +34,20 @@ const (
 	WKB     GeoMode = 0
 	WKT     GeoMode = 1
 	GeoJson GeoMode = 2
+	// Shape   GeoMode = 3 // shape格式的二进制存储
 )
 
 type Geometry interface {
 	Type() GeoType
 	GetBounds() base.Rect2D
+	Draw(canvas *draw.Canvas)
+	From(data []byte, mode GeoMode) bool
+	To(mode GeoMode) []byte
 	// ID() int64
-	// Draw() // todo 绘制参数
-	// From(data []byte, mode GeoMode) bool
-	// To(mode GeoMode) []byte
+	// HitTest() bool
 }
 
-type Point2D struct {
-	X float64
-	Y float64
-}
+// type Point2D struct {
+// 	X float64
+// 	Y float64
+// }

@@ -120,25 +120,11 @@ func (this *MapTile) CacheOneTile2Map(level int, col int, row int, wg *sync.Wait
 	// 只有真正绘制对象了，才缓存为文件
 	if drawCount > 0 {
 		// 还得看一下 image中是否 赋值了
-		if tmap.checkDrawn() {
+		if tmap.canvas.CheckDrawn() {
 			return tmap
 		}
 	}
 	return nil
-}
-
-// 检查是否真正在image中赋值了
-func (this *Map) checkDrawn() bool {
-	// return true
-	if this.canvas.img.Pix != nil {
-		// fmt.Println("tile image:", this.canvas.img)
-		for _, v := range this.canvas.img.Pix {
-			if v != 0 {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // 根据层级和边框范围，计算得到最大、最小行列数
@@ -163,7 +149,7 @@ func calcColRow(level int, bbox base.Rect2D, espg EPSG) (minCol, maxCol, minRow,
 func CalcBBox(level int, col int, row int, espg EPSG) (bbox base.Rect2D) {
 	if espg == Epsg4326 {
 		dis := 180.0 / (math.Pow(2, float64(level)))
-		bbox.Min.X = float64(col)*dis + 180.0
+		bbox.Min.X = float64(col)*dis - 180.0
 		bbox.Max.X = bbox.Min.X + dis
 
 		bbox.Max.Y = 90 - float64(row)*dis

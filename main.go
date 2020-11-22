@@ -266,19 +266,18 @@ func testTiff() {
 
 func testMap() {
 	gmap := mapping.NewMap()
-	gmap.Open("c:/temp/JBNTBHTB.txt")
+	mapname := gPath + gTitle + ".map"
+
+	fmt.Println("mapname:", mapname)
+	gmap.Open(mapname) // chinapnt_84 JBNTBHTB
 
 	startTime := time.Now().UnixNano()
-	gmap.Prepare(4000, 3000)
+	gmap.Prepare(1024, 768)
+	// gmap.Zoom(50)
 	gmap.Draw()
 
 	// 输出图片文件
-	gmap.Output2File("c:/temp/JBNTBHTB.png", "png")
-	// gmap.Resize(3000, 4000)
-	// gmap.Draw()
-
-	// // 输出图片文件
-	// gmap.Output("c:/temp/result2.png")
+	gmap.Output2File(gPath+gTitle+".png", "png")
 	endTime := time.Now().UnixNano()
 	seconds := float64((endTime - startTime) / 1e6)
 	fmt.Printf("time: %f 毫秒", seconds)
@@ -363,16 +362,22 @@ func testDBF() {
 	fmt.Printf("time: %f 毫秒", seconds)
 }
 
-// var filename = "C:/temp/chinapnt_84.shp"
+var gPath = "C:/temp/"
 
-var filename = "C:/temp/DLTB.shp"
+// var gTitle = "chinapnt_84"
 
-// var filename = "C:/temp/JBNTBHTB.shp"
+// var gTitle = "DLTB"
+
+var gTitle = "JBNTBHTB"
+
+var gExt = ".shp"
+
+var filename = gPath + gTitle + gExt
 
 func main() {
 	// testRest()
-	testMapFile()
-	// testMap()
+	// testMapFile()
+	testMap()
 	// testCache()
 	// testVecPyramid()
 
@@ -446,9 +451,9 @@ func testMapFile() {
 	// 绘制
 	gmap.Draw()
 	// // 输出图片文件
-	gmap.Output2File("c:/temp/result.png", "png")
+	gmap.Output2File(gPath+gTitle+".png", "png")
 
-	mapfile := "c:/temp/map.txt"
+	mapfile := gPath + gTitle + ".map"
 
 	gmap.Save(mapfile)
 
@@ -457,7 +462,7 @@ func testMapFile() {
 	nmap.Prepare(1024, 768)
 	nmap.Draw()
 	// // 输出图片文件
-	nmap.Output2File("c:/temp/result2.png", "png")
+	nmap.Output2File(gPath+gTitle+"2.png", "png")
 
 	// // 记录时间
 	endTime := time.Now().UnixNano()

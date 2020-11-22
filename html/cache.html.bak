@@ -21,10 +21,12 @@
   var mapWidth4326 = ol.extent.getWidth(proj_4326.getExtent());
 
 //  var resolutions4326 = [
-var resolutions4326 = [  0.703125,0.3515625,0.17578125,0.087890625,0.0439453125,
-				0.02197265625,0.010986328125,0.0054931640625,0.00274658203125,0.001373291015625,
-				0.0006866455078125,0.00034332275390625,0.000171661376953125,0.0000858306884765625];
-				// ,0.00004291534423828125];
+var resolutions4326 = [  0.703125,
+				0.3515625,0.17578125,0.087890625,0.0439453125,0.02197265625,
+				0.010986328125,0.0054931640625,0.00274658203125,0.001373291015625,0.0006866455078125,
+				0.00034332275390625,0.000171661376953125,0.0000858306884765625,0.00004291534423828125,0.000021457672119140625,
+				0.0000107288360595703125,0.00000536441802978515625];
+				// ];
 
   /**
    * 网格标注
@@ -37,28 +39,64 @@ var resolutions4326 = [  0.703125,0.3515625,0.17578125,0.087890625,0.0439453125,
     origin: ol.extent.getTopLeft(proj_4326Extent),
   });
 
-  var tilesource = new ol.source.TileImage({
+  var tilesource1 = new ol.source.TileImage({
     tileUrlFunction: function (tileCoord) {
       var z = tileCoord[0];
       var xx = tileCoord[1];
 //      var yy = Math.abs(tileCoord[2]);
       var yy = tileCoord[2];
-      return "http://localhost:8088/" + z + "/" + xx + "/" + yy;
+      return "http://localhost:8088/JBNTBHTB/" + z + "/" + xx + "/" + yy;
     },
     tileGrid: tileGrid,
     projection: proj_4326,
   });
 
-  var AMap = new ol.layer.Tile({
-    source: tilesource,
+  var map1 = new ol.layer.Tile({
+    source: tilesource1,
+    projection: proj_4326,
+  });
+
+    var tilesource2 = new ol.source.TileImage({
+    tileUrlFunction: function (tileCoord) {
+      var z = tileCoord[0];
+      var xx = tileCoord[1];
+//      var yy = Math.abs(tileCoord[2]);
+      var yy = tileCoord[2];
+      return "http://localhost:8088/DLTB/" + z + "/" + xx + "/" + yy;
+    },
+    tileGrid: tileGrid,
+    projection: proj_4326,
+  });
+
+  var map2 = new ol.layer.Tile({
+    source: tilesource2,
+    projection: proj_4326,
+  });
+
+    var tilesource3 = new ol.source.TileImage({
+    tileUrlFunction: function (tileCoord) {
+      var z = tileCoord[0];
+      var xx = tileCoord[1];
+//      var yy = Math.abs(tileCoord[2]);
+      var yy = tileCoord[2];
+      return "http://localhost:8088/chinapnt_84/" + z + "/" + xx + "/" + yy;
+    },
+    tileGrid: tileGrid,
+    projection: proj_4326,
+  });
+
+  var map3 = new ol.layer.Tile({
+    source: tilesource3,
     projection: proj_4326,
   });
 
   var map = new ol.Map({
     layers: [
-      AMap,
+    //  map1,
+	  map2,
+	  map3,
       // 加载本地瓦片
-/*      new ol.layer.Tile({
+   /*   new ol.layer.Tile({
         source: new ol.source.TileDebug({
           projection: proj_4326,
           tileGrid: tileGrid
@@ -73,7 +111,7 @@ var resolutions4326 = [  0.703125,0.3515625,0.17578125,0.087890625,0.0439453125,
       resulotions: resolutions4326,
       zoom: 1,
       minZoom: 0,
-      maxZoom: 13
+      maxZoom: 17
     }),
   });
 

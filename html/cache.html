@@ -39,28 +39,64 @@ var resolutions4326 = [  0.703125,
     origin: ol.extent.getTopLeft(proj_4326Extent),
   });
 
-  var tilesource = new ol.source.TileImage({
+  var tilesource1 = new ol.source.TileImage({
     tileUrlFunction: function (tileCoord) {
       var z = tileCoord[0];
       var xx = tileCoord[1];
 //      var yy = Math.abs(tileCoord[2]);
       var yy = tileCoord[2];
-      return "http://localhost:8088/" + z + "/" + xx + "/" + yy;
+      return "http://localhost:8088/JBNTBHTB/" + z + "/" + xx + "/" + yy;
     },
     tileGrid: tileGrid,
     projection: proj_4326,
   });
 
-  var AMap = new ol.layer.Tile({
-    source: tilesource,
+  var map1 = new ol.layer.Tile({
+    source: tilesource1,
+    projection: proj_4326,
+  });
+
+    var tilesource2 = new ol.source.TileImage({
+    tileUrlFunction: function (tileCoord) {
+      var z = tileCoord[0];
+      var xx = tileCoord[1];
+//      var yy = Math.abs(tileCoord[2]);
+      var yy = tileCoord[2];
+      return "http://localhost:8088/DLTB/" + z + "/" + xx + "/" + yy;
+    },
+    tileGrid: tileGrid,
+    projection: proj_4326,
+  });
+
+  var map2 = new ol.layer.Tile({
+    source: tilesource2,
+    projection: proj_4326,
+  });
+
+    var tilesource3 = new ol.source.TileImage({
+    tileUrlFunction: function (tileCoord) {
+      var z = tileCoord[0];
+      var xx = tileCoord[1];
+//      var yy = Math.abs(tileCoord[2]);
+      var yy = tileCoord[2];
+      return "http://localhost:8088/chinapnt_84/" + z + "/" + xx + "/" + yy;
+    },
+    tileGrid: tileGrid,
+    projection: proj_4326,
+  });
+
+  var map3 = new ol.layer.Tile({
+    source: tilesource3,
     projection: proj_4326,
   });
 
   var map = new ol.Map({
     layers: [
-      AMap,
+      map1,
+	  map2,
+	  map3,
       // º”‘ÿ±æµÿÕﬂ∆¨
-/*      new ol.layer.Tile({
+   /*   new ol.layer.Tile({
         source: new ol.source.TileDebug({
           projection: proj_4326,
           tileGrid: tileGrid

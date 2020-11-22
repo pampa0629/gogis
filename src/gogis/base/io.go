@@ -100,3 +100,28 @@ func ReadFloat64(f *os.File) (data float64) {
 	_, _ = f.Read(p[:])
 	return
 }
+
+// int32 转化为 bytes
+func Int2Bytes(value int32) []byte {
+	var buf bytes.Buffer
+
+	// 数字转 []byte
+	binary.Write(&buf, binary.LittleEndian, value)
+	return buf.Bytes()
+}
+
+// bytes 转为 int32
+func Bytes2Int(data []byte) (value int32) {
+	buf := bytes.NewBuffer(data)
+	binary.Read(buf, binary.LittleEndian, &value)
+	return
+}
+
+// double 转为 bytes
+func Double2Bytes(value float64) []byte {
+	var buf bytes.Buffer
+
+	// 数字转 []byte
+	binary.Write(&buf, binary.LittleEndian, value)
+	return buf.Bytes()
+}
