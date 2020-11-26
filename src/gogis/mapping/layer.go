@@ -5,6 +5,7 @@ import (
 	"gogis/data"
 	"gogis/draw"
 	"sync"
+	"time"
 )
 
 type Layer struct {
@@ -34,11 +35,15 @@ func NewLayer(feaset data.Featureset) *Layer {
 const ONE_DRAW_COUNT = 100000
 
 func (this *Layer) Draw(canvas *draw.Canvas) int {
-	// this.Style.LineColor = color.RGBA{255, 2, 2, 255}
-	// fmt.Println("layer style:", this.Style)
 	canvas.SetStyle(this.Style)
 
+	startTime := time.Now().UnixNano()
 	feait := this.feaset.QueryByBounds(canvas.Params.GetBounds())
+	endTime := time.Now().UnixNano()
+	seconds := float64((endTime - startTime) / 1e6)
+	fmt.Println("查询时间: ", seconds, "毫秒")
+	fmt.Println("查询得到对象: ", feait.Count(), " 个")
+
 	var wg *sync.WaitGroup = new(sync.WaitGroup)
 	for {
 		features, ok := feait.BatchNext(ONE_DRAW_COUNT)

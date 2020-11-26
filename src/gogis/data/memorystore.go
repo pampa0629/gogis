@@ -122,7 +122,7 @@ type MemFeaset struct {
 	bbox       base.Rect2D
 	fieldInfos []FieldInfo
 	features   []Feature      // 几何对象的数组
-	index      *GridIndex     // 空间索引
+	index      SpatialIndex   // 空间索引
 	pyramid    *VectorPyramid // 矢量金字塔
 
 	// store      *MemoryStore
@@ -226,24 +226,7 @@ func IsAllMatch(fea Feature, comps []FieldComp, ftypes []FieldType) bool {
 func (this *MemFeaset) QueryByBounds(bbox base.Rect2D) FeatureIterator {
 	var feaitr MemFeaItr
 	feaitr.feaset = this
-	// feaitr.ids = make([]int, 0)
-
-	minRow, maxRow, minCol, maxCol := this.index.GetGridNo(bbox)
-	// 预估一下可能的ids容量
-	cap := (maxRow - minRow) * (maxCol - minCol) * ONE_GRID_COUNT
-	ids := make([]int, 0, cap)
-
-	// 最后赋值
-	for i := minRow; i <= maxRow; i++ { // 高度（y方向）代表行
-		for j := minCol; j <= maxCol; j++ {
-			// feaitr.ids = append(feaitr.ids, this.index.indexs[i][j]...)
-			ids = append(ids, this.index.indexs[i][j]...)
-		}
-	}
-
-	// 去掉重复id
-	feaitr.ids = base.RemoveRepByMap(ids)
-
+	feaitr.ids = this.index.Query(bbox)
 	return &feaitr
 }
 
@@ -265,23 +248,18 @@ func (this *MemFeaset) Close() {
 // 构建空间索引
 func (this *MemFeaset) BuildSpatialIndex() {
 	if this.index == nil {
-		this.index = new(GridIndex)
+		startTime := time.Now().UnixNano()
+
+		// this.index = new(GridIndex)
+		this.index = new(QTreeIndex)
+
 		this.index.Init(this.bbox, len(this.features))
 		this.index.BuildByFeas(this.features)
-	}
-}
 
-// 计算索引重复度，为后续有可能增加多级格网做准备
-func (this *MemFeaset) calcRepeatability() float64 {
-	indexCount := 0.0
-	for i := 0; i < this.index.row; i++ {
-		for j := 0; j < this.index.col; j++ {
-			indexCount += float64(len(this.index.indexs[i][j]))
-		}
+		endTime := time.Now().UnixNano()
+		seconds := float64((endTime - startTime) / 1e6)
+		fmt.Printf("索引构建时间: %f 毫秒", seconds)
 	}
-	repeat := indexCount / float64(len(this.features))
-	fmt.Println("shp index重复度为:", repeat)
-	return repeat
 }
 
 func (this *MemFeaset) BuildPyramids() {

@@ -87,7 +87,12 @@ func (this *ShapeFeaset) Open(filename string) (bool, error) {
 	this.loadShape(shape)
 	shape.Close()
 
+	// startTime := time.Now().UnixNano()
 	this.BuildSpatialIndex()
+	// endTime := time.Now().UnixNano()
+	// seconds := float64((endTime - startTime) / 1e6)
+	// fmt.Printf("创建索引时间: %f 毫秒", seconds)
+
 	// this.BuildPyramids()
 
 	return res, nil

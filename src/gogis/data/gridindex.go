@@ -1,3 +1,4 @@
+// 格网索引
 package data
 
 import (
@@ -96,4 +97,35 @@ func (this *GridIndex) GetGridNo(bbox base.Rect2D) (minRow, maxRow, minCol, maxC
 	maxRow = (int)(math.Floor((bbox.Max.Y - this.min.Y) / this.len))
 	maxRow = base.IntMin(maxRow, this.row-1) // 不能大于 row数
 	return
+}
+
+func (this *GridIndex) Query(bbox base.Rect2D) (ids []int) {
+	minRow, maxRow, minCol, maxCol := this.GetGridNo(bbox)
+	// 预估一下可能的ids容量
+	cap := (maxRow - minRow) * (maxCol - minCol) * ONE_GRID_COUNT
+	ids = make([]int, 0, cap)
+
+	// 最后赋值
+	for i := minRow; i <= maxRow; i++ { // 高度（y方向）代表行
+		for j := minCol; j <= maxCol; j++ {
+			ids = append(ids, this.indexs[i][j]...)
+		}
+	}
+
+	// 去掉重复id
+	ids = base.RemoveRepByMap(ids)
+	return
+}
+
+// 计算索引重复度，为后续有可能增加多级格网做准备
+func (this *GridIndex) calcRepeatability(count int) float64 {
+	indexCount := 0.0
+	for i := 0; i < this.row; i++ {
+		for j := 0; j < this.col; j++ {
+			indexCount += float64(len(this.indexs[i][j]))
+		}
+	}
+	repeat := indexCount / float64(count)
+	fmt.Println("GridIndex重复度为:", repeat)
+	return repeat
 }

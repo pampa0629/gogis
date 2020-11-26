@@ -2,8 +2,23 @@ package base
 
 import (
 	"fmt"
+	"math"
 )
 
+// 计算得到点串的bounds
+func ComputeBounds(points []Point2D) Rect2D {
+	var bbox Rect2D
+	bbox.Init()
+	for _, pnt := range points {
+		bbox.Min.X = math.Min(bbox.Min.X, pnt.X)
+		bbox.Min.Y = math.Min(bbox.Min.Y, pnt.Y)
+		bbox.Max.X = math.Max(bbox.Max.X, pnt.X)
+		bbox.Max.Y = math.Max(bbox.Max.Y, pnt.Y)
+	}
+	return bbox
+}
+
+// todo 这个函数得换个包放置
 // 根据bbox和对象数量，计算缓存的最小最大合适层级
 // 再小的层级没有必要（图片上的显示范围太小）；再大的层级则瓦片上对象太稀疏
 func CalcMinMaxLevels(bbox Rect2D, geoCount int) (minLevel, maxLevel int) {

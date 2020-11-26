@@ -66,11 +66,11 @@ func (this *Canvas) CheckDrawn() bool {
 
 func (this *Canvas) SetStyle(style Style) {
 	this.style = style
+	this.dc.SetFillStyle(gg.NewSolidPattern(style.FillColor))
+
 	this.dc.SetColor(style.LineColor)
 	this.dc.SetLineWidth(style.LineWidth)
 	this.dc.SetDash(style.LineDash...)
-
-	this.dc.SetFillStyle(gg.NewSolidPattern(style.FillColor))
 }
 
 func (this *Canvas) Stroke() {

@@ -40,6 +40,7 @@ const (
 type Geometry interface {
 	Type() GeoType
 	GetBounds() base.Rect2D
+	// todo 绘制能力考虑作为接口单独拿出去
 	Draw(canvas *draw.Canvas)
 	From(data []byte, mode GeoMode) bool
 	To(mode GeoMode) []byte
