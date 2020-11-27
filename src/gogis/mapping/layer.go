@@ -2,10 +2,10 @@ package mapping
 
 import (
 	"fmt"
+	"gogis/base"
 	"gogis/data"
 	"gogis/draw"
 	"sync"
-	"time"
 )
 
 type Layer struct {
@@ -37,11 +37,9 @@ const ONE_DRAW_COUNT = 100000
 func (this *Layer) Draw(canvas *draw.Canvas) int {
 	canvas.SetStyle(this.Style)
 
-	startTime := time.Now().UnixNano()
+	tr := base.NewTimeRecorder()
 	feait := this.feaset.QueryByBounds(canvas.Params.GetBounds())
-	endTime := time.Now().UnixNano()
-	seconds := float64((endTime - startTime) / 1e6)
-	fmt.Println("查询时间: ", seconds, "毫秒")
+	tr.Output("query")
 	fmt.Println("查询得到对象: ", feait.Count(), " 个")
 
 	var wg *sync.WaitGroup = new(sync.WaitGroup)

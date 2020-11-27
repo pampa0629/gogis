@@ -13,6 +13,7 @@ import (
 	"sync"
 	"unsafe"
 
+	"gogis/base"
 	"gogis/data"
 	"gogis/mapping"
 	"gogis/server"
@@ -346,9 +347,9 @@ var gPath = "C:/temp/"
 
 // var gTitle = "chinapnt_84"
 
-var gTitle = "DLTB"
+// var gTitle = "DLTB"
 
-// var gTitle = "JBNTBHTB"
+var gTitle = "JBNTBHTB"
 
 var gExt = ".shp"
 
@@ -363,16 +364,15 @@ func testMap() {
 	gmap.Layers[0].Style.LineColor = color.RGBA{255, 0, 0, 255}
 	// return
 
-	startTime := time.Now().UnixNano()
+	tr := base.NewTimeRecorder()
+
 	gmap.Prepare(1024, 768)
 	gmap.Zoom(2)
 	gmap.Draw()
 
 	// 输出图片文件
 	gmap.Output2File(gPath+gTitle+".png", "png")
-	endTime := time.Now().UnixNano()
-	seconds := float64((endTime - startTime) / 1e6)
-	fmt.Printf("time: %f 毫秒", seconds)
+	tr.Output("draw map")
 }
 
 func main() {

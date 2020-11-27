@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"time"
 
+	"gogis/base"
 	"gogis/mapping"
 
 	"github.com/drone/routes"
@@ -38,7 +38,7 @@ func startMap() {
 
 func StartServer() {
 	fmt.Println("正在启动WEB服务...")
-	startTime := time.Now().UnixNano()
+	tr := base.NewTimeRecorder()
 
 	mux := routes.New()
 	mux.Get("/:map/:level/:col/:row", getTile)
@@ -48,16 +48,14 @@ func StartServer() {
 	// gMap.Open(gPath + "JBNTBHTB.txt")
 	startMap()
 
-	endTime := time.Now().UnixNano()
-	seconds := float64((endTime - startTime) / 1e6)
-	fmt.Println("WEB服务启动完毕，花费时间：...", seconds)
+	tr.Output("start web server finished,")
 
 	http.ListenAndServe(":8088", nil)
 	fmt.Println("服务已停止")
 }
 
 func getTile(w http.ResponseWriter, r *http.Request) {
-	startTime := time.Now().UnixNano()
+	tr := base.NewTimeRecorder()
 
 	params := r.URL.Query()
 	mapname := params.Get(":map")
@@ -109,9 +107,7 @@ func getTile(w http.ResponseWriter, r *http.Request) {
 		// }
 	}
 
-	endTime := time.Now().UnixNano()
-	seconds := float64((endTime - startTime) / 1e6)
-	fmt.Println("time: ", seconds, "毫秒")
+	tr.Output("get tile")
 }
 
 func getPath(mapname string, level int, col int) string {

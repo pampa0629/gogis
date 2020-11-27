@@ -3,7 +3,26 @@ package base
 import (
 	"fmt"
 	"math"
+	"time"
 )
+
+type TimeRecorder struct {
+	start int64
+}
+
+func NewTimeRecorder() (rt *TimeRecorder) {
+	rt = new(TimeRecorder)
+	rt.start = time.Now().UnixNano()
+	return
+}
+
+func (this *TimeRecorder) Output(dosome string) {
+	endTime := time.Now().UnixNano()
+	seconds := float64((endTime - this.start) / 1e6)
+	fmt.Println(dosome, " time: ", seconds, "millisecond")
+}
+
+// ================================================== //
 
 // 计算得到点串的bounds
 func ComputeBounds(points []Point2D) Rect2D {
@@ -17,6 +36,8 @@ func ComputeBounds(points []Point2D) Rect2D {
 	}
 	return bbox
 }
+
+// ================================================== //
 
 // todo 这个函数得换个包放置
 // 根据bbox和对象数量，计算缓存的最小最大合适层级
@@ -74,6 +95,8 @@ func CalcLevelDis(level int) float64 {
 // 	nmap.BBox.Min.Y = nmap.BBox.Max.Y - dy
 // }
 
+// ================================================== //
+
 // 去掉重复元素
 func RemoveRepByMap(ids []int) []int {
 	// result := []int{}         //存放返回的不重复切片
@@ -88,4 +111,18 @@ func RemoveRepByMap(ids []int) []int {
 		}
 	}
 	return result
+}
+
+// ================================================== //
+// 返回最大值对应的序号
+func Max(values []float64) (no int) {
+	maxValue := values[0]
+	no = 0
+	for i := 1; i < len(values); i++ {
+		if values[i] > maxValue {
+			maxValue = values[i]
+			no = i
+		}
+	}
+	return
 }

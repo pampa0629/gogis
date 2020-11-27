@@ -2,7 +2,6 @@ package data
 
 import (
 	"errors"
-	"fmt"
 	"gogis/base"
 	"strconv"
 	"time"
@@ -248,17 +247,15 @@ func (this *MemFeaset) Close() {
 // 构建空间索引
 func (this *MemFeaset) BuildSpatialIndex() {
 	if this.index == nil {
-		startTime := time.Now().UnixNano()
+		tr := base.NewTimeRecorder()
 
 		// this.index = new(GridIndex)
-		this.index = new(QTreeIndex)
-
+		// this.index = new(QTreeIndex)
+		this.index = new(RTreeIndex)
 		this.index.Init(this.bbox, len(this.features))
 		this.index.BuildByFeas(this.features)
 
-		endTime := time.Now().UnixNano()
-		seconds := float64((endTime - startTime) / 1e6)
-		fmt.Printf("索引构建时间: %f 毫秒", seconds)
+		tr.Output("build spatial index")
 	}
 }
 

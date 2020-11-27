@@ -73,7 +73,7 @@ func (this *QTreeNode) AddOneGeo(bbox base.Rect2D, id int) {
 
 	if !this.isSplit {
 		// 未分叉前，直接加对象即可
-		this.AddOneWhenNoSplit(bbox, id)
+		this.AddOneWhenNoSplited(bbox, id)
 	} else {
 		// 已分叉后，则需要判断geo的bounds来确定是给自己ids，还是往下面的某个子节点中添加
 		this.AddOneWhenSplited(bbox, id)
@@ -81,8 +81,8 @@ func (this *QTreeNode) AddOneGeo(bbox base.Rect2D, id int) {
 }
 
 // 未分叉时，添加对象
-func (this *QTreeNode) AddOneWhenNoSplit(bbox base.Rect2D, id int) {
-	// fmt.Println("QTreeNode.AddOneWhenNoSplit(),id:", id)
+func (this *QTreeNode) AddOneWhenNoSplited(bbox base.Rect2D, id int) {
+	// fmt.Println("QTreeNode.AddOneWhenNoSplited(),id:", id)
 	// this.String()
 
 	// 未分叉时，先往ids中加
@@ -125,7 +125,7 @@ func (this *QTreeNode) Split() {
 	this.createChildNodes()
 	this.isSplit = true
 
-	// 先复制 数据
+	// 把自己管理的数据，复制一份，并清空自己的
 	ids := make([]int, len(this.ids))
 	copy(ids, this.ids)
 	this.ids = this.ids[0:0]
@@ -158,7 +158,7 @@ func (this *QTreeNode) AddOneWhenSplited(bbox base.Rect2D, id int) {
 }
 
 // 判断某个对象应该放到哪个子节点中，或者不能下放(返回nil)
-// 当只被单个子节点包裹时，才能放给TA
+// 当只被单个子节点覆盖时，才能放给TA
 func (this *QTreeNode) whichChildNode(bbox base.Rect2D) *QTreeNode {
 	// fmt.Println("QTreeNode.whichChildNode()")
 
@@ -174,7 +174,6 @@ func (this *QTreeNode) whichChildNode(bbox base.Rect2D) *QTreeNode {
 
 func (this *QTreeNode) getChildNodes() (nodes []*QTreeNode) {
 	// fmt.Println("QTreeNode.getChildNodes()")
-
 	nodes = make([]*QTreeNode, 4)
 	nodes[0] = this.leftUp
 	nodes[1] = this.leftDown
@@ -183,49 +182,52 @@ func (this *QTreeNode) getChildNodes() (nodes []*QTreeNode) {
 	return
 }
 
+// 清空；同时迭代清空所管理的子节点
 func (this *QTreeNode) Clear() {
+	this.ids = this.ids[:]
+	this.bboxs = this.bboxs[:]
 	if this.isSplit {
 		nodes := this.getChildNodes()
 		for _, v := range nodes {
 			v.Clear()
 		}
 	}
-	this.ids = this.ids[:]
-	this.bboxs = this.bboxs[:]
 }
 
 // 范围查询，返回id数组
 func (this *QTreeNode) Query(bbox base.Rect2D) (ids []int) {
-	// fmt.Println("QTreeNode.Query(),bbox:", bbox)
-	// this.WholeString()
+	// 有交集再继续
+	if this.bbox.IsIntersect(bbox) {
 
-	ids = make([]int, 0)
-	// 查询的时候，一层层处理
-	// 先把根节点的都纳入
-	ids = append(ids, this.ids...)
-	// 还有子节点时，就把bbox切开，再放到下面子节点去处理
-	if this.isSplit {
-		center := this.bbox.Center()
-		bboxes := SplitBoxes(bbox, center.X, center.Y)
-		for i, v := range bboxes {
-			splitNode := this.whichChildNode2(v)
-			if splitNode != nil {
-				// splitNode.String() //
-				ids = append(ids, splitNode.Query(v)...)
-			} else {
-				// 不应该出现的情况
-				fmt.Println("error:cannot find child node")
-				fmt.Println("i:", i, "box:", v)
-				this.String()
-				this.leftUp.String()
-				this.leftDown.String()
-				this.rightUp.String()
-				this.rightDown.String()
+		ids = make([]int, 0)
+		// 查询的时候，一层层处理
+		// 先把根节点的都纳入
+		ids = append(ids, this.ids...)
+		// 有子节点时，每个子节点也都需要处理
+		if this.isSplit {
+			// center := this.bbox.Center()
+			// bboxes := SplitBoxes(bbox, center.X, center.Y)
+			nodes := this.getChildNodes()
+			for _, v := range nodes {
+				ids = append(ids, v.Query(bbox)...)
+				// splitNode := this.whichChildNode2(v)
+				// if splitNode != nil {
+				// 	// splitNode.String() //
+				// 	ids = append(ids, splitNode.Query(v)...)
+				// } else {
+				// 	// 不应该出现的情况
+				// 	fmt.Println("error:cannot find child node")
+				// 	fmt.Println("i:", i, "box:", v)
+				// 	this.String()
+				// 	this.leftUp.String()
+				// 	this.leftDown.String()
+				// 	this.rightUp.String()
+				// 	this.rightDown.String()
+				// }
 			}
-
 		}
 	}
-	// fmt.Println("query count:", len(ids))
+
 	return
 }
 
@@ -266,89 +268,71 @@ func (this *QTreeIndex) BuildByFeas(features []Feature) {
 	}
 }
 
-// 范围查询，返回id数组
-func (this *QTreeIndex) Query(bbox base.Rect2D) (ids []int) {
-	// startTime := time.Now().UnixNano()
+// // 把一个box 按 x/y 切两刀, 可能得到两个小box,也有可能得到四个box；都没切到，返回原bbox
+// func SplitBoxes(bbox base.Rect2D, x float64, y float64) (bboxes []base.Rect2D) {
+// 	hx, hy := false, false // 是否切中bbox
+// 	// 竖着切中了
+// 	if bbox.Max.X > x && x > bbox.Min.X {
+// 		hx = true
+// 	}
+// 	// 横着切中了
+// 	if bbox.Max.Y > y && y > bbox.Min.Y {
+// 		hy = true
+// 	}
+// 	if hx && hy {
+// 		bboxes = append(bboxes, SplitBoxByXY(bbox, x, y)...)
+// 	} else if hx {
+// 		bboxes = append(bboxes, SplitBoxByX(bbox, x)...)
+// 	} else if hy {
+// 		bboxes = append(bboxes, SplitBoxByY(bbox, y)...)
+// 	} else {
+// 		bboxes = append(bboxes, bbox)
+// 	}
+// 	return
+// }
 
-	// 这里加一个空间判断
-	if this.bbox.IsIntersect(bbox) {
-		ids = this.QTreeNode.Query(bbox)
-	}
-	fmt.Println("query count:", len(ids))
+// // 竖着切一刀，分割box，返回左右两个box
+// func SplitBoxByX(bbox base.Rect2D, x float64) (bboxes []base.Rect2D) {
+// 	bboxes = make([]base.Rect2D, 2)
+// 	bboxes[0], bboxes[1] = bbox, bbox
+// 	// 0: left
+// 	bboxes[0].Max.X = x
+// 	// 1: right
+// 	bboxes[1].Min.X = x
+// 	return
+// }
 
-	// endTime := time.Now().UnixNano()
-	// seconds := float64((endTime - startTime) / 1e6)
-	// fmt.Printf("查询时间: %f 毫秒", seconds)
-	return
-}
+// // 横着切一刀，分割box，返回上下两个box
+// func SplitBoxByY(bbox base.Rect2D, y float64) (bboxes []base.Rect2D) {
+// 	bboxes = make([]base.Rect2D, 2)
+// 	bboxes[0], bboxes[1] = bbox, bbox
+// 	// 0: up
+// 	bboxes[0].Min.Y = y
+// 	// 1: down
+// 	bboxes[1].Max.Y = y
+// 	return
+// }
 
-// 把一个box 按 x/y 切两刀, 可能得到两个小box,也有可能得到四个box
-// 没有的地方，返回nil
-func SplitBoxes(bbox base.Rect2D, x float64, y float64) (bboxes []base.Rect2D) {
-	hx, hy := false, false // 是否切中bbox
-	// 竖着切中了
-	if bbox.Max.X > x && x > bbox.Min.X {
-		hx = true
-	}
-	// 横着切中了
-	if bbox.Max.Y > y && y > bbox.Min.Y {
-		hy = true
-	}
-	if hx && hy {
-		bboxes = append(bboxes, SplitBoxByXY(bbox, x, y)...)
-	} else if hx {
-		bboxes = append(bboxes, SplitBoxByX(bbox, x)...)
-	} else if hy {
-		bboxes = append(bboxes, SplitBoxByY(bbox, y)...)
-	} else {
-		bboxes = append(bboxes, bbox)
-	}
-
-	return
-}
-
-// 竖着切一刀，分割box，返回左右两个box
-func SplitBoxByX(bbox base.Rect2D, x float64) (bboxes []base.Rect2D) {
-	bboxes = make([]base.Rect2D, 2)
-	bboxes[0], bboxes[1] = bbox, bbox
-	// 0: left
-	bboxes[0].Max.X = x
-	// 1: right
-	bboxes[1].Min.X = x
-	return
-}
-
-// 横着切一刀，分割box，返回上下两个box
-func SplitBoxByY(bbox base.Rect2D, y float64) (bboxes []base.Rect2D) {
-	bboxes = make([]base.Rect2D, 2)
-	bboxes[0], bboxes[1] = bbox, bbox
-	// 0: up
-	bboxes[0].Min.Y = y
-	// 1: down
-	bboxes[1].Max.Y = y
-	return
-}
-
-// 横着，竖着都能切刀，分割box，返回上下左右四个box
-func SplitBoxByXY(bbox base.Rect2D, x float64, y float64) (bboxes []base.Rect2D) {
-	bboxes = make([]base.Rect2D, 4)
-	for i, _ := range bboxes {
-		bboxes[i] = bbox
-	}
-	// 0: leftUp
-	bboxes[0].Max.X = x
-	bboxes[0].Min.Y = y
-	// 1: leftDown
-	bboxes[1].Max.X = x
-	bboxes[1].Max.Y = y
-	// 2: rightUp
-	bboxes[2].Min.X = x
-	bboxes[2].Min.Y = y
-	// 3: rightDown
-	bboxes[3].Min.X = x
-	bboxes[3].Max.Y = y
-	return
-}
+// // 横着，竖着都能切刀，分割box，返回上下左右四个box
+// func SplitBoxByXY(bbox base.Rect2D, x float64, y float64) (bboxes []base.Rect2D) {
+// 	bboxes = make([]base.Rect2D, 4)
+// 	for i, _ := range bboxes {
+// 		bboxes[i] = bbox
+// 	}
+// 	// 0: leftUp
+// 	bboxes[0].Max.X = x
+// 	bboxes[0].Min.Y = y
+// 	// 1: leftDown
+// 	bboxes[1].Max.X = x
+// 	bboxes[1].Max.Y = y
+// 	// 2: rightUp
+// 	bboxes[2].Min.X = x
+// 	bboxes[2].Min.Y = y
+// 	// 3: rightDown
+// 	bboxes[3].Min.X = x
+// 	bboxes[3].Max.Y = y
+// 	return
+// }
 
 // 把一个box从中心点分为四份，返回其中一个bbox, ax/ay 为true时，坐标值增加
 func SplitBox(bbox base.Rect2D, ax bool, ay bool) (newBbox base.Rect2D) {

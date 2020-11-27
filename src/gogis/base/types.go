@@ -7,6 +7,17 @@ type Point2D struct {
 	Y float64
 }
 
+// 计算两点间距离
+func (this *Point2D) Distance(pnt Point2D) float64 {
+	return math.Sqrt(math.Pow(this.X-pnt.X, 2) + math.Pow(this.Y-pnt.Y, 2))
+}
+
+// 计算两点间距离平方
+// 避免开放，提高效率
+func (this *Point2D) DistanceSquare(pnt Point2D) float64 {
+	return math.Pow(this.X-pnt.X, 2) + math.Pow(this.Y-pnt.Y, 2)
+}
+
 type Rect2D struct {
 	Min, Max Point2D
 }
@@ -24,6 +35,14 @@ func NewRect2D(minx, miny, maxx, maxy float64) (value Rect2D) {
 	value.Min.Y = miny
 	value.Max.X = maxx
 	value.Max.Y = maxy
+	return
+}
+
+// 复制自己
+func (this *Rect2D) Clone() (rect *Rect2D) {
+	rect = new(Rect2D)
+	rect.Max = this.Max
+	rect.Min = this.Min
 	return
 }
 
