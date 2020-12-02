@@ -1,11 +1,13 @@
+// 不便归类的各种工具类功能
+
 package base
 
 import (
 	"fmt"
-	"math"
 	"time"
 )
 
+// 时间记录，用来方便输出某个代码段的
 type TimeRecorder struct {
 	start int64
 }
@@ -19,23 +21,11 @@ func NewTimeRecorder() (rt *TimeRecorder) {
 func (this *TimeRecorder) Output(dosome string) {
 	endTime := time.Now().UnixNano()
 	seconds := float64((endTime - this.start) / 1e6)
-	fmt.Println(dosome, " time: ", seconds, "millisecond")
+	fmt.Println(dosome, "time: ", seconds, "millisecond")
+	this.start = endTime // 支持连续输出
 }
 
 // ================================================== //
-
-// 计算得到点串的bounds
-func ComputeBounds(points []Point2D) Rect2D {
-	var bbox Rect2D
-	bbox.Init()
-	for _, pnt := range points {
-		bbox.Min.X = math.Min(bbox.Min.X, pnt.X)
-		bbox.Min.Y = math.Min(bbox.Min.Y, pnt.Y)
-		bbox.Max.X = math.Max(bbox.Max.X, pnt.X)
-		bbox.Max.Y = math.Max(bbox.Max.Y, pnt.Y)
-	}
-	return bbox
-}
 
 // ================================================== //
 
@@ -76,7 +66,7 @@ func CalcLevelDis(level int) float64 {
 }
 
 // 计算并设置 web出图合适的 绘制参数params
-// // todo
+// todo
 // func SetParams(gmap *Map, nmap *Map, size int, row int, col int) {
 // 	// 根据 row  和 col 修改 map的bbox
 // 	// dx := gmap.BBox.Dx() / 4
@@ -98,10 +88,10 @@ func CalcLevelDis(level int) float64 {
 // ================================================== //
 
 // 去掉重复元素
-func RemoveRepByMap(ids []int) []int {
+func RemoveRepByMap(ids []int64) []int64 {
 	// result := []int{}         //存放返回的不重复切片
-	result := make([]int, 0, len(ids))
-	tempMap := map[int]byte{} // 存放不重复主键
+	result := make([]int64, 0, len(ids))
+	tempMap := map[int64]byte{} // 存放不重复主键
 	for _, id := range ids {
 		l := len(tempMap)
 		tempMap[id] = 0 //当e存在于tempMap中时，再次添加是添加不进去的，，因为key不允许重复
@@ -114,15 +104,3 @@ func RemoveRepByMap(ids []int) []int {
 }
 
 // ================================================== //
-// 返回最大值对应的序号
-func Max(values []float64) (no int) {
-	maxValue := values[0]
-	no = 0
-	for i := 1; i < len(values); i++ {
-		if values[i] > maxValue {
-			maxValue = values[i]
-			no = i
-		}
-	}
-	return
-}

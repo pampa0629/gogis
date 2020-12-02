@@ -19,10 +19,11 @@ import (
 )
 
 type Map struct {
-	Name   string
-	Layers []*Layer     // 0:最底层，先绘制
-	canvas *draw.Canvas // 画布
-	BBox   base.Rect2D  // 所有数据的边框
+	Name     string
+	filename string       // 保存为map文件的文件名
+	Layers   []*Layer     // 0:最底层，先绘制
+	canvas   *draw.Canvas // 画布
+	BBox     base.Rect2D  // 所有数据的边框
 }
 
 // 复制一个map对象，用来同一个地图的并发出图
@@ -111,6 +112,15 @@ func (this *Map) Output2File(filename string, imgType string) {
 
 // 工作空间文件的保存
 func (this *Map) Save(filename string) {
+	this.filename = filename
+	// 文件类型，应修改为相对路径
+	for _, layer := range this.Layers {
+		storename := layer.Params["filename"]
+		if len(storename) > 0 {
+			layer.Params["filename"] = base.GetRelativePath(filename, storename)
+		}
+	}
+
 	data, _ := json.Marshal(*this)
 	fmt.Println("map json:", string(data))
 	f, _ := os.Create(filename)
@@ -120,6 +130,8 @@ func (this *Map) Save(filename string) {
 
 // 打开工作空间文件
 func (this *Map) Open(filename string) {
+	this.filename = filename
+
 	mapdata, _ := ioutil.ReadFile(filename)
 	json.Unmarshal(mapdata, this)
 	fmt.Println("opened map:", this)
@@ -128,6 +140,11 @@ func (this *Map) Open(filename string) {
 	for i, layer := range this.Layers {
 		store := data.NewDatastore(data.StoreType(layer.Params["type"]))
 		if store != nil {
+			// 恢复为绝对路径
+			storename := layer.Params["filename"]
+			if len(storename) > 0 {
+				layer.Params["filename"] = base.GetAbsolutePath(filename, storename)
+			}
 			ok, _ := store.Open(layer.Params)
 			if ok {
 				layer.feaset, _ = store.GetFeasetByName(layer.Params["name"])
@@ -135,7 +152,7 @@ func (this *Map) Open(filename string) {
 		} else {
 			this.Layers[i] = nil // todo 应该提供恢复的机制，而不是简单置零
 		}
-		fmt.Println("openmap, layer style:", layer.Style)
+		fmt.Println("open map file, layer style:", layer.Style)
 	}
 
 	// this.RebuildBBox()

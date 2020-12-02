@@ -1,28 +1,93 @@
 package data
 
 import (
+	"encoding/binary"
 	"fmt"
 	"gogis/base"
 	"gogis/geometry"
+	"io"
 )
+
+// 每个节点控制在多少条记录左右，多了就继续分叉
+var ONE_NODE_OBJ_COUNT = 10000
 
 // 四叉树索引
 type QTreeIndex struct {
 	QTreeNode // 根节点
 }
 
-// 每个节点控制在多少条记录左右，多了就继续分叉
-var ONE_NODE_OBJ_COUNT = 10000
+func (this *QTreeIndex) Type() SpatialIndexType {
+	return TypeQTreeIndex
+}
+
+func (this *QTreeIndex) Init(bbox base.Rect2D, num int64) {
+	// 暂时考虑四叉树层级不要超过4层，故而叶子节点个数不超过 256个
+	// 同时考虑每个叶子节点个数在[1000,10000]范围内
+	objCount := int(num / 256)
+	ONE_NODE_OBJ_COUNT = base.IntMin(base.IntMax(1000, objCount), 10000)
+	this.QTreeNode.Init(bbox, nil)
+}
+
+func (this *QTreeIndex) BuildByGeos(geometrys []geometry.Geometry) {
+	fmt.Println("QTreeIndex.BuildByGeos")
+	for i, geo := range geometrys {
+		this.AddOneGeo(geo.GetBounds(), int64(i))
+	}
+}
+
+func (this *QTreeIndex) BuildByFeas(features []Feature) {
+	fmt.Println("QTreeIndex.BuildByFeas")
+	for i, fea := range features {
+		this.AddOneGeo(fea.Geo.GetBounds(), int64(i))
+	}
+}
+
+// 保存
+func (this *QTreeNode) Save(w io.Writer) {
+	binary.Write(w, binary.LittleEndian, base.Bool2Int32(this.isSplited))
+	binary.Write(w, binary.LittleEndian, this.bbox)
+	count := int32(len(this.ids))
+	binary.Write(w, binary.LittleEndian, count)
+	binary.Write(w, binary.LittleEndian, this.ids)
+	binary.Write(w, binary.LittleEndian, this.bboxes)
+	if this.isSplited {
+		nodes := this.getChildNodes()
+		for _, v := range nodes {
+			v.Save(w)
+		}
+	}
+}
+
+// 加载
+func (this *QTreeNode) Load(r io.Reader) {
+	var isSplited int32
+	binary.Read(r, binary.LittleEndian, &isSplited)
+	this.isSplited = isSplited != 0
+	binary.Read(r, binary.LittleEndian, &this.bbox)
+	var count int32
+	binary.Read(r, binary.LittleEndian, &count)
+	this.ids = make([]int64, count)
+	this.bboxes = make([]base.Rect2D, count)
+	binary.Read(r, binary.LittleEndian, this.ids)
+	binary.Read(r, binary.LittleEndian, this.bboxes)
+	if this.isSplited {
+		this.createChildNodes()
+		nodes := this.getChildNodes()
+		for _, v := range nodes {
+			v.Load(r)
+		}
+	}
+}
 
 // 四叉树的一个节点
 type QTreeNode struct {
 	// level int
-	ids   []int         // 本节点存的对象id数组
-	bboxs []base.Rect2D // 对应的bounds
+	ids    []int64       // 本节点存的对象id数组
+	bboxes []base.Rect2D // 对应的bounds
 
-	bbox    base.Rect2D // 本节点的bounds
-	parent  *QTreeNode  // 父节点，根节点的父节点为nil
-	isSplit bool        // 是否已分叉，即生成四个子节点
+	bbox      base.Rect2D // 本节点的bounds
+	parent    *QTreeNode  // 父节点，根节点的父节点为nil
+	isSplited bool        // 是否已分叉，即生成四个子节点
 	// 对于叶节点，下面几个为nil
 	leftUp    *QTreeNode
 	leftDown  *QTreeNode
@@ -31,14 +96,80 @@ type QTreeNode struct {
 	// pos       string
 }
 
+// 构建后，检查是否有问题；没问题返回true
+// 可能存在的问题：
+// 是否分叉，与节点指针是否为空
+// 子节点的父节点，是否等于自己
+// 判断bbox的范围
+func (this *QTreeNode) Check() bool {
+	// 检查分叉与节点指针的关系
+	if this.isSplited {
+		if this.leftUp == nil || this.leftDown == nil || this.rightUp == nil || this.rightDown == nil {
+			return false
+		}
+	} else {
+		if this.leftUp != nil || this.leftDown != nil || this.rightUp != nil || this.rightDown != nil {
+			return false
+		}
+	}
+
+	// 检查子节点的父节点，是否等于自己
+	if this.isSplited {
+		nodes := this.getChildNodes()
+		for _, v := range nodes {
+			if v.parent != this {
+				return false
+			}
+		}
+	}
+
+	// bboxes的并，要被bbox所覆盖
+	if len(this.bboxes) > 0 {
+		if !this.bbox.IsCover(base.UnionBounds(this.bboxes)) {
+			return false
+		}
+	}
+
+	// 子节点bbox的并，应等于 bbox
+	if this.isSplited {
+		var bbox base.Rect2D
+		bbox.Init()
+		nodes := this.getChildNodes()
+		for _, v := range nodes {
+			bbox.Union(v.bbox)
+		}
+		if bbox != this.bbox {
+			return false
+		}
+	}
+
+	// ids和bboxes的长度要相等
+	if len(this.ids) != len(this.bboxes) {
+		return false
+	}
+
+	// 若分叉，子节点也要做同样的检查
+	if this.isSplited {
+		nodes := this.getChildNodes()
+		for _, v := range nodes {
+			if !v.Check() {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
 // 输出
 func (this *QTreeNode) String() {
-	// fmt.Println("level:", this.level, "pos:", this.pos, "Bbox:", this.bbox, "isSplit:", this.isSplit, "ids'count:", len(this.ids))
+	// fmt.Println("level:", this.level, "pos:", this.pos, "Bbox:", this.bbox, "isSplited:", this.isSplited, "ids'count:", len(this.ids))
 }
 
 func (this *QTreeNode) WholeString() {
-	// fmt.Println("level:", this.level, "pos:", this.pos, "Bbox:", this.bbox, "isSplit:", this.isSplit, "ids'count:", len(this.ids))
-	if this.isSplit {
+	this.String()
+	// fmt.Println("level:", this.level, "pos:", this.pos, "Bbox:", this.bbox, "isSplited:", this.isSplited, "ids'count:", len(this.ids))
+	if this.isSplited {
 		this.leftUp.WholeString()
 		this.leftDown.WholeString()
 		this.rightUp.WholeString()
@@ -47,8 +178,8 @@ func (this *QTreeNode) WholeString() {
 }
 
 func (this *QTreeNode) Init(bbox base.Rect2D, parent *QTreeNode) {
-	this.ids = make([]int, 0)
-	this.bboxs = make([]base.Rect2D, 0)
+	this.ids = make([]int64, 0)
+	this.bboxes = make([]base.Rect2D, 0)
 	this.parent = parent
 	// if parent == nil {
 	// 	this.level = 0
@@ -61,17 +192,17 @@ func (this *QTreeNode) Init(bbox base.Rect2D, parent *QTreeNode) {
 	this.leftDown = nil
 	this.rightDown = nil
 	this.rightUp = nil
-	this.isSplit = false
+	this.isSplited = false
 	// fmt.Println("QTreeNode.Init()")
 	// this.String()
 }
 
 // 添加一个对象
-func (this *QTreeNode) AddOneGeo(bbox base.Rect2D, id int) {
+func (this *QTreeNode) AddOneGeo(bbox base.Rect2D, id int64) {
 	// fmt.Println("QTreeNode.AddOneGeo(),bbox:", bbox, "id:", id)
 	// this.String()
 
-	if !this.isSplit {
+	if !this.isSplited {
 		// 未分叉前，直接加对象即可
 		this.AddOneWhenNoSplited(bbox, id)
 	} else {
@@ -81,13 +212,13 @@ func (this *QTreeNode) AddOneGeo(bbox base.Rect2D, id int) {
 }
 
 // 未分叉时，添加对象
-func (this *QTreeNode) AddOneWhenNoSplited(bbox base.Rect2D, id int) {
+func (this *QTreeNode) AddOneWhenNoSplited(bbox base.Rect2D, id int64) {
 	// fmt.Println("QTreeNode.AddOneWhenNoSplited(),id:", id)
 	// this.String()
 
 	// 未分叉时，先往ids中加
 	this.ids = append(this.ids, id)
-	this.bboxs = append(this.bboxs, bbox)
+	this.bboxes = append(this.bboxes, bbox)
 	// 直到满了，就分叉
 	if len(this.ids) >= ONE_NODE_OBJ_COUNT {
 		this.Split()
@@ -101,19 +232,19 @@ func (this *QTreeNode) createChildNodes() {
 
 	this.leftUp = new(QTreeNode)
 	// this.leftUp.pos = "leftUp"
-	this.leftUp.Init(SplitBox(this.bbox, false, true), this)
+	this.leftUp.Init(base.SplitBounds(this.bbox, false, true), this)
 
 	this.leftDown = new(QTreeNode)
 	// this.leftDown.pos = "leftDown"
-	this.leftDown.Init(SplitBox(this.bbox, false, false), this)
+	this.leftDown.Init(base.SplitBounds(this.bbox, false, false), this)
 
 	this.rightUp = new(QTreeNode)
 	// this.rightUp.pos = "rightUp"
-	this.rightUp.Init(SplitBox(this.bbox, true, true), this)
+	this.rightUp.Init(base.SplitBounds(this.bbox, true, true), this)
 
 	this.rightDown = new(QTreeNode)
 	// this.rightDown.pos = "rightDown"
-	this.rightDown.Init(SplitBox(this.bbox, true, false), this)
+	this.rightDown.Init(base.SplitBounds(this.bbox, true, false), this)
 }
 
 // 分叉；把所管理的所有对象过滤一遍，尽量分配到子节点中
@@ -123,24 +254,24 @@ func (this *QTreeNode) Split() {
 
 	// 先创建子节点
 	this.createChildNodes()
-	this.isSplit = true
+	this.isSplited = true
 
 	// 把自己管理的数据，复制一份，并清空自己的
-	ids := make([]int, len(this.ids))
+	ids := make([]int64, len(this.ids))
 	copy(ids, this.ids)
 	this.ids = this.ids[0:0]
-	bboxs := make([]base.Rect2D, len(this.bboxs))
-	copy(bboxs, this.bboxs)
-	this.bboxs = this.bboxs[0:0]
+	bboxes := make([]base.Rect2D, len(this.bboxes))
+	copy(bboxes, this.bboxes)
+	this.bboxes = this.bboxes[0:0]
 
 	// 再循环处理每个对象
 	for i, v := range ids {
-		this.AddOneWhenSplited(bboxs[i], v)
+		this.AddOneWhenSplited(bboxes[i], v)
 	}
 }
 
 // 已分叉时，添加对象
-func (this *QTreeNode) AddOneWhenSplited(bbox base.Rect2D, id int) {
+func (this *QTreeNode) AddOneWhenSplited(bbox base.Rect2D, id int64) {
 	// fmt.Println("QTreeNode.AddOneWhenSplited(),,bbox:", bbox, "id:", id)
 	// this.String()
 
@@ -152,7 +283,7 @@ func (this *QTreeNode) AddOneWhenSplited(bbox base.Rect2D, id int) {
 		childNode.AddOneGeo(bbox, id)
 	} else { // 不能下放，就自己收了
 		// fmt.Println("cannot find childnode")
-		this.bboxs = append(this.bboxs, bbox)
+		this.bboxes = append(this.bboxes, bbox)
 		this.ids = append(this.ids, id)
 	}
 }
@@ -185,8 +316,8 @@ func (this *QTreeNode) getChildNodes() (nodes []*QTreeNode) {
 // 清空；同时迭代清空所管理的子节点
 func (this *QTreeNode) Clear() {
 	this.ids = this.ids[:]
-	this.bboxs = this.bboxs[:]
-	if this.isSplit {
+	this.bboxes = this.bboxes[:]
+	if this.isSplited {
 		nodes := this.getChildNodes()
 		for _, v := range nodes {
 			v.Clear()
@@ -195,35 +326,26 @@ func (this *QTreeNode) Clear() {
 }
 
 // 范围查询，返回id数组
-func (this *QTreeNode) Query(bbox base.Rect2D) (ids []int) {
+func (this *QTreeNode) Query(bbox base.Rect2D) (ids []int64) {
 	// 有交集再继续
 	if this.bbox.IsIntersect(bbox) {
 
-		ids = make([]int, 0)
+		// ids = make([]int64, 0)
 		// 查询的时候，一层层处理
 		// 先把根节点的都纳入
-		ids = append(ids, this.ids...)
+		// ids = append(ids, this.ids...) // 模糊查找
+		// 精确查找
+		for i, v := range this.ids {
+			if this.bboxes[i].IsIntersect(bbox) {
+				ids = append(ids, v)
+			}
+		}
+
 		// 有子节点时，每个子节点也都需要处理
-		if this.isSplit {
-			// center := this.bbox.Center()
-			// bboxes := SplitBoxes(bbox, center.X, center.Y)
+		if this.isSplited {
 			nodes := this.getChildNodes()
 			for _, v := range nodes {
 				ids = append(ids, v.Query(bbox)...)
-				// splitNode := this.whichChildNode2(v)
-				// if splitNode != nil {
-				// 	// splitNode.String() //
-				// 	ids = append(ids, splitNode.Query(v)...)
-				// } else {
-				// 	// 不应该出现的情况
-				// 	fmt.Println("error:cannot find child node")
-				// 	fmt.Println("i:", i, "box:", v)
-				// 	this.String()
-				// 	this.leftUp.String()
-				// 	this.leftDown.String()
-				// 	this.rightUp.String()
-				// 	this.rightDown.String()
-				// }
 			}
 		}
 	}
@@ -244,120 +366,6 @@ func (this *QTreeNode) whichChildNode2(bbox base.Rect2D) *QTreeNode {
 		}
 	}
 	return nil
-}
-
-func (this *QTreeIndex) Init(bbox base.Rect2D, num int) {
-	// 暂时考虑四叉树层级不要超过4层，故而叶子节点个数不超过 256个
-	// 同时考虑每个叶子节点个数在[1000,10000]范围内
-	objCount := int(num / 256)
-	ONE_NODE_OBJ_COUNT = base.IntMin(base.IntMax(1000, objCount), 10000)
-	this.QTreeNode.Init(bbox, nil)
-}
-
-func (this *QTreeIndex) BuildByGeos(geometrys []geometry.Geometry) {
-	fmt.Println("QTreeIndex.BuildByGeos")
-	for i, geo := range geometrys {
-		this.AddOneGeo(geo.GetBounds(), i)
-	}
-}
-
-func (this *QTreeIndex) BuildByFeas(features []Feature) {
-	fmt.Println("QTreeIndex.BuildByFeas")
-	for i, fea := range features {
-		this.AddOneGeo(fea.Geo.GetBounds(), i)
-	}
-}
-
-// // 把一个box 按 x/y 切两刀, 可能得到两个小box,也有可能得到四个box；都没切到，返回原bbox
-// func SplitBoxes(bbox base.Rect2D, x float64, y float64) (bboxes []base.Rect2D) {
-// 	hx, hy := false, false // 是否切中bbox
-// 	// 竖着切中了
-// 	if bbox.Max.X > x && x > bbox.Min.X {
-// 		hx = true
-// 	}
-// 	// 横着切中了
-// 	if bbox.Max.Y > y && y > bbox.Min.Y {
-// 		hy = true
-// 	}
-// 	if hx && hy {
-// 		bboxes = append(bboxes, SplitBoxByXY(bbox, x, y)...)
-// 	} else if hx {
-// 		bboxes = append(bboxes, SplitBoxByX(bbox, x)...)
-// 	} else if hy {
-// 		bboxes = append(bboxes, SplitBoxByY(bbox, y)...)
-// 	} else {
-// 		bboxes = append(bboxes, bbox)
-// 	}
-// 	return
-// }
-
-// // 竖着切一刀，分割box，返回左右两个box
-// func SplitBoxByX(bbox base.Rect2D, x float64) (bboxes []base.Rect2D) {
-// 	bboxes = make([]base.Rect2D, 2)
-// 	bboxes[0], bboxes[1] = bbox, bbox
-// 	// 0: left
-// 	bboxes[0].Max.X = x
-// 	// 1: right
-// 	bboxes[1].Min.X = x
-// 	return
-// }
-
-// // 横着切一刀，分割box，返回上下两个box
-// func SplitBoxByY(bbox base.Rect2D, y float64) (bboxes []base.Rect2D) {
-// 	bboxes = make([]base.Rect2D, 2)
-// 	bboxes[0], bboxes[1] = bbox, bbox
-// 	// 0: up
-// 	bboxes[0].Min.Y = y
-// 	// 1: down
-// 	bboxes[1].Max.Y = y
-// 	return
-// }
-
-// // 横着，竖着都能切刀，分割box，返回上下左右四个box
-// func SplitBoxByXY(bbox base.Rect2D, x float64, y float64) (bboxes []base.Rect2D) {
-// 	bboxes = make([]base.Rect2D, 4)
-// 	for i, _ := range bboxes {
-// 		bboxes[i] = bbox
-// 	}
-// 	// 0: leftUp
-// 	bboxes[0].Max.X = x
-// 	bboxes[0].Min.Y = y
-// 	// 1: leftDown
-// 	bboxes[1].Max.X = x
-// 	bboxes[1].Max.Y = y
-// 	// 2: rightUp
-// 	bboxes[2].Min.X = x
-// 	bboxes[2].Min.Y = y
-// 	// 3: rightDown
-// 	bboxes[3].Min.X = x
-// 	bboxes[3].Max.Y = y
-// 	return
-// }
-
-// 把一个box从中心点分为四份，返回其中一个bbox, ax/ay 为true时，坐标值增加
-func SplitBox(bbox base.Rect2D, ax bool, ay bool) (newBbox base.Rect2D) {
-	min := bbox.Min
-	center := bbox.Center()
-	max := bbox.Max
-
-	if ax && ay {
-		newBbox.Min = center
-		newBbox.Max = max
-	} else if ax {
-		newBbox.Min.X = center.X
-		newBbox.Max.X = max.X
-		newBbox.Min.Y = min.Y
-		newBbox.Max.Y = center.Y
-	} else if ay {
-		newBbox.Min.X = min.X
-		newBbox.Max.X = center.X
-		newBbox.Min.Y = center.Y
-		newBbox.Max.Y = max.Y
-	} else {
-		newBbox.Min = min
-		newBbox.Max = center
-	}
-	return newBbox
 }
 
 // // 把一个box从中心点分为四份，返回其中一个bbox, ax/ay 为true时，坐标值增加

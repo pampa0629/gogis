@@ -1,74 +1,338 @@
 package data
 
 import (
+	"encoding/binary"
 	"fmt"
 	"gogis/base"
 	"gogis/geometry"
+	"io"
+	"math"
 )
 
-// 每个节点控制在多少个子节点(子对象)范围
-// var RTREE_MIN_OBJ_COUNT = 1000
-var RTREE_MAX_OBJ_COUNT = 10000
+// 每个节点直接管辖的对象（子节点或id）个数的最大最小值
+const RTREE_MIN_OBJ_COUNT = 10000
+const RTREE_MAX_OBJ_COUNT = 50000
+
+// 每个节点直接管辖的对象（子节点或id）个数
+var RTREE_OBJ_COUNT int
 
 // R树索引
 type RTreeIndex struct {
-	RTreeNode // 根节点
+	RTreeNode       // 根节点
+	idCount   int64 // 索引所管辖的id数量
 }
 
-func (this *RTreeIndex) Init(bbox base.Rect2D, num int) {
+func (this *RTreeIndex) Type() SpatialIndexType {
+	return TypeRTreeIndex
+}
+
+func (this *RTreeIndex) Init(bbox base.Rect2D, num int64) {
 	this.RTreeNode.Init(bbox)
-	objCount := num / 16 // 为啥除以这个数，我也是不知道
-	RTREE_MAX_OBJ_COUNT = base.IntMax(base.IntMin(objCount, 100000), 10000)
-	fmt.Println("rtree node obj count:", RTREE_MAX_OBJ_COUNT)
+	this.idCount = num
+	maxCountPerNode := num / 16 // 为啥除以这个数，我也是不知道
+	RTREE_OBJ_COUNT = base.IntMax(base.IntMin(int(maxCountPerNode), RTREE_MAX_OBJ_COUNT), RTREE_MIN_OBJ_COUNT)
+	// this.objCount = RTREE_OBJ_COUNT
+	fmt.Println("rtree node obj count:", RTREE_OBJ_COUNT)
 }
 
 func (this *RTreeIndex) BuildByGeos(geometrys []geometry.Geometry) {
 	for i, geo := range geometrys {
-		this.AddOneGeo(geo.GetBounds(), i)
+		// fmt.Println("start deal one geo, id:", i)
+		this.AddOneGeo(geo.GetBounds(), int64(i))
+		// fmt.Println("end  deal one geo, id:", i)
+		// this.WholeString()
 	}
-	// this.WholeString()
 }
 
 func (this *RTreeIndex) BuildByFeas(features []Feature) {
 	for i, fea := range features {
-		this.AddOneGeo(fea.Geo.GetBounds(), i)
+		this.AddOneGeo(fea.Geo.GetBounds(), int64(i))
 	}
 	// this.WholeString()
 }
 
-// 范围查询，返回id数组
-func (this *RTreeIndex) Query(bbox base.Rect2D) []int {
-	return this.RTreeNode.Query(bbox)
+func (this *RTreeIndex) Load(r io.Reader) {
+	tr := base.NewTimeRecorder()
+
+	// this.LoadHeader(r)
+	binary.Read(r, binary.LittleEndian, &this.idCount) // 8
+	this.RTreeNode.Load(r)
+
+	tr.Output("load rtree index")
 }
 
-func (this *RTreeIndex) Clear() {
-	this.RTreeNode.Clear()
+func (this *RTreeIndex) LoadHeader(r io.Reader) {
+	var headerLength, typeIndex, version int32         // 记录头100字节
+	binary.Read(r, binary.LittleEndian, &headerLength) // 4
+	binary.Read(r, binary.LittleEndian, &typeIndex)    // 4
+	binary.Read(r, binary.LittleEndian, &version)      // 4
+	// binary.Read(r, binary.LittleEndian, &this.objCount) // 4
+	binary.Read(r, binary.LittleEndian, &this.idCount) // 8
+
+	space := make([]byte, headerLength-20)
+	binary.Read(r, binary.LittleEndian, space)
 }
+
+// 保存
+func (this *RTreeIndex) Save(w io.Writer) {
+	binary.Write(w, binary.LittleEndian, this.idCount) // 8
+	// this.SaveHeader(w)
+	this.RTreeNode.Save(w)
+}
+
+// 保存索引头
+func (this *RTreeIndex) SaveHeader(w io.Writer) {
+	headerLength := int32(100)                           // 记录头100字节
+	binary.Write(w, binary.LittleEndian, headerLength)   // 4
+	binary.Write(w, binary.LittleEndian, TypeRTreeIndex) // 4
+	version := int32(1)
+	binary.Write(w, binary.LittleEndian, version) // 4
+	// binary.Write(w, binary.LittleEndian, this.objCount) // 4
+	binary.Write(w, binary.LittleEndian, this.idCount) // 8
+
+	binary.Write(w, binary.LittleEndian, [80]byte{}) //
+}
+
+// 自我检查，发现构建好的索引是否符合基本规则
+// 可能的问题包括：
+// level 没有按照0-1-2递增
+// 子节点的父节点不是自己
+// 叶子节点有nodes，非叶子节点有ids
+//     所管理数量超过 RTREE_OBJ_COUNT
+// 所管理范围不等于bbox
+// id不重复，且总数等于输入值
+func (this *RTreeIndex) Check() bool {
+	if !this.RTreeNode.CheckLevel() {
+		return false
+	}
+	if !this.RTreeNode.CheckParent() {
+		return false
+	}
+	if !this.RTreeNode.CheckManager() {
+		return false
+	}
+	if !this.RTreeNode.CheckBbox() {
+		return false
+	}
+
+	ids := map[int64]byte{} // 存放不重复主键
+	if !this.RTreeNode.CheckID(&ids) {
+		return false
+	}
+	// 总数也必须相等
+	if int64(len(ids)) != this.idCount {
+		return false
+	}
+
+	return true
+}
+
+// 范围查询，返回id数组
+// func (this *RTreeIndex) Query(bbox base.Rect2D) []int {
+// 	return this.RTreeNode.Query(bbox)
+// }
+
+// func (this *RTreeIndex) Clear() {
+// 	this.RTreeNode.Clear()
+// }
 
 // R树的一个节点
 type RTreeNode struct {
-	level  int         // 层级
+	level  int32       // 层级
 	parent *RTreeNode  // 父节点，根节点的父节点为nil
 	bbox   base.Rect2D // 本节点的bounds
 	isLeaf bool        // 是否为叶子节点；如果是叶子节点，则没有子节点，存储对象（id和bbox）数组；非子节点时，存储子节点数组
 
 	nodes []*RTreeNode // 子节点
 
-	ids    []int         // 对象id
+	ids    []int64       // 对象id
 	bboxes []base.Rect2D // 对象bounds
 }
 
+// 保存节点
+func (this *RTreeNode) Save(w io.Writer) {
+	binary.Write(w, binary.LittleEndian, this.level)
+	binary.Write(w, binary.LittleEndian, base.Bool2Int32(this.isLeaf))
+	binary.Write(w, binary.LittleEndian, this.bbox)
+	if this.isLeaf {
+		binary.Write(w, binary.LittleEndian, int32(len(this.ids)))
+		binary.Write(w, binary.LittleEndian, this.ids)
+		binary.Write(w, binary.LittleEndian, this.bboxes)
+	} else {
+		binary.Write(w, binary.LittleEndian, int32(len(this.nodes)))
+		for _, node := range this.nodes {
+			node.Save(w)
+		}
+	}
+}
+
+func (this *RTreeNode) Load(r io.Reader) {
+	binary.Read(r, binary.LittleEndian, &this.level)
+	var isLeaf int32
+	binary.Read(r, binary.LittleEndian, &isLeaf)
+	this.isLeaf = isLeaf != 0
+	binary.Read(r, binary.LittleEndian, &this.bbox)
+	var count int32
+	binary.Read(r, binary.LittleEndian, &count)
+	if this.isLeaf {
+		this.ids = make([]int64, count)
+		binary.Read(r, binary.LittleEndian, this.ids)
+		this.bboxes = make([]base.Rect2D, count)
+		binary.Read(r, binary.LittleEndian, this.bboxes)
+	} else {
+		this.nodes = make([]*RTreeNode, count)
+		for i, _ := range this.nodes {
+			node := new(RTreeNode)
+			node.Load(r)
+			node.parent = this
+			this.nodes[i] = node
+		}
+	}
+}
+
+// 检查level层级是否正确
+func (this *RTreeNode) CheckLevel() bool {
+	// 父节点比我小1
+	if this.parent != nil {
+		if this.parent.level != this.level-1 {
+			return false
+		}
+	}
+	// 子节点比我大1
+	if !this.isLeaf {
+		for _, v := range this.nodes {
+			if v.level != this.level+1 {
+				return false
+			}
+			// 迭代检查
+			if !v.CheckLevel() {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// 检查父子节点关系
+func (this *RTreeNode) CheckParent() bool {
+	// 子节点的父节点必须是自己
+	if !this.isLeaf {
+		for _, v := range this.nodes {
+			if v.parent != this {
+				return false
+			}
+			if !v.CheckParent() {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// 检查管理范围是否正确
+// 叶子节点有nodes，非叶子节点有ids
+// 所管理数量超过 RTREE_OBJ_COUNT
+func (this *RTreeNode) CheckManager() bool {
+	if this.isLeaf {
+		if len(this.nodes) > 0 {
+			return false
+		}
+		// if len(this.ids) > objCount {
+		// 	return false
+		// }
+	}
+
+	if !this.isLeaf {
+		bboxCount := len(this.bboxes)
+		idCount := len(this.ids)
+		if bboxCount > 0 || idCount > 0 || bboxCount != idCount {
+			return false
+		}
+		// if len(this.nodes) > objCount {
+		// 	return false
+		// }
+		for _, v := range this.nodes {
+			if !v.CheckManager() {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// 所管理范围不等于bbox
+func (this *RTreeNode) CheckBbox() bool {
+	if this.isLeaf {
+		if base.UnionBounds(this.bboxes) != this.bbox {
+			return false
+		}
+	}
+
+	if !this.isLeaf {
+		var bbox base.Rect2D
+		bbox.Init()
+		for _, v := range this.nodes {
+			bbox.Union(v.bbox)
+		}
+		if bbox != this.bbox {
+			return false
+		}
+
+		for _, v := range this.nodes {
+			if !v.CheckBbox() {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// id不重复，且总数等于输入值
+func (this *RTreeNode) CheckID(ids *map[int64]byte) bool {
+	if this.isLeaf {
+		for _, id := range this.ids {
+			idCount := len(*ids)
+			(*ids)[id] = 0            // 如果 id 已经存在，这里就添加不上去，从而导致ids的长度不增加
+			if len(*ids) == idCount { // id重复了，返回false
+				return false
+			}
+		}
+	} else {
+		for _, node := range this.nodes {
+			if !node.CheckID(ids) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func (this *RTreeNode) Space() (msg string) {
+	for i := int32(0); i < this.level; i++ {
+		msg += "    "
+	}
+	return
+}
+
 func (this *RTreeNode) String() {
-	fmt.Println("level:", this.level, ", isLeaf:", this.isLeaf, ", bbox:", this.bbox, ", nodes'count:", len(this.nodes), ", ids's count:", len(this.ids))
+	fmt.Println(this.Space(), "level:", this.level, ", isLeaf:", this.isLeaf, ", bbox:", this.bbox, ", nodes'count:", len(this.nodes), ", ids's count:", len(this.ids))
 	// fmt.Println("")
 }
 func (this *RTreeNode) WholeString() {
 	this.String()
-	for _, v := range this.nodes {
-		v.String()
+	if this.isLeaf {
+		for i, _ := range this.ids {
+			fmt.Println(this.Space(), "    id:", this.ids[i], "bbox:", this.bboxes[i])
+		}
+
+	} else {
+		for _, v := range this.nodes {
+			v.WholeString()
+		}
 	}
-	// fmt.Println("isRoot:", this.parent == nil, "isLeaf:", this.isLeaf, "nodes'count:", len(this.nodes), "bboxes's count:", len(this.bboxes), "ids's count:", len(this.ids))
-	// fmt.Println("")
 }
 
 func (this *RTreeNode) Init(bbox base.Rect2D) {
@@ -78,7 +342,7 @@ func (this *RTreeNode) Init(bbox base.Rect2D) {
 	this.isLeaf = true
 }
 
-func (this *RTreeNode) AddOneGeo(bbox base.Rect2D, id int) {
+func (this *RTreeNode) AddOneGeo(bbox base.Rect2D, id int64) {
 	// fmt.Println("RTreeNode.AddOneGeo()", bbox, id)
 	// this.String()
 
@@ -88,11 +352,14 @@ func (this *RTreeNode) AddOneGeo(bbox base.Rect2D, id int) {
 	//         之后还得看父节点所管理的子节点个数是否超过最大个数，若是，则引发父节点分裂；往上以此类推
 	//     若不是叶子节点，则往下找一个最合适的节点，以此类推，直到找到最合适的叶子节点来存放（之后有可能引发自己的分裂）
 	//         最合适的标准为：加入后，使得节点范围的面积增加值最小
+
+	this.bbox.Union(bbox) // 自己的范围要扩大
+
 	if this.isLeaf {
 		this.ids = append(this.ids, id)
 		this.bboxes = append(this.bboxes, bbox)
 		this.bbox.Union(bbox)
-		if len(this.ids) >= RTREE_MAX_OBJ_COUNT {
+		if len(this.ids) >= RTREE_OBJ_COUNT {
 			this.Split()
 		}
 	} else {
@@ -107,18 +374,18 @@ func (this *RTreeNode) findBestChild(bbox base.Rect2D) *RTreeNode {
 	// fmt.Println("RTreeNode.findBestChild()", bbox)
 	// this.String()
 
-	maxMoreArea := -1.0 // 新增加的面积
-	maxNode := (*RTreeNode)(nil)
+	minMoreArea := math.MaxFloat64 // 新增加的面积，一开始设置为最大值
+	minNode := (*RTreeNode)(nil)
 	for _, node := range this.nodes {
 		newBbox := node.bbox
 		newBbox.Union(bbox)
 		moreArea := newBbox.Area() - node.bbox.Area()
-		if moreArea > maxMoreArea {
-			maxMoreArea = moreArea
-			maxNode = node
+		if moreArea < minMoreArea {
+			minMoreArea = moreArea
+			minNode = node
 		}
 	}
-	return maxNode
+	return minNode
 }
 
 // 节点分裂为两个同级别的节点
@@ -152,6 +419,9 @@ func (this *RTreeNode) Split() {
 		rightNode.parent = this
 		leftNode.level = 1
 		rightNode.level = 1
+		// 根节点分裂，会导致下面所有节点的level都要加1
+		leftNode.addChildNodeLevel()
+		rightNode.addChildNodeLevel()
 		this.nodes = append(this.nodes, leftNode)
 		this.nodes = append(this.nodes, rightNode)
 	} else {
@@ -173,9 +443,35 @@ func (this *RTreeNode) Split() {
 		this.parent.nodes = append(this.parent.nodes, leftNode)
 		this.parent.nodes = append(this.parent.nodes, rightNode)
 		// 3，再判断是否会引发父节点的分裂
-		if len(this.parent.nodes) >= RTREE_MAX_OBJ_COUNT {
+		if len(this.parent.nodes) >= RTREE_OBJ_COUNT {
+			// fmt.Println("before parent split")
+			// this.String()
+			// this.getRoot().WholeString()
 			this.parent.Split()
 		}
+	}
+
+	// this.getRoot().WholeString()
+	return
+}
+
+// 得到根节点
+func (this *RTreeNode) getRoot() (root *RTreeNode) {
+	root = this
+	for {
+		if root.parent == nil {
+			break
+		}
+		root = root.parent
+	}
+	return
+}
+
+// 给下级节点增加level值，并迭代下去
+func (this *RTreeNode) addChildNodeLevel() {
+	for _, v := range this.nodes {
+		v.level += 1
+		v.addChildNodeLevel()
 	}
 }
 
@@ -183,18 +479,22 @@ func (this *RTreeNode) Split() {
 func (this *RTreeNode) SplitNoLeaf() (left, right *RTreeNode) {
 	// fmt.Println("RTreeNode.SplitNoLeaf()")
 	// this.String()
-
 	leftNodes, rightNodes, leftBbox, rightBbox := SplitNodes(this.nodes)
-	left = new(RTreeNode)
-	left.isLeaf = false
-	left.nodes = leftNodes
-	left.bbox = leftBbox
-
-	right = new(RTreeNode)
-	right.isLeaf = false
-	right.nodes = rightNodes
-	right.bbox = rightBbox
+	left = createNoLeafChildNode(leftNodes, leftBbox)
+	right = createNoLeafChildNode(rightNodes, rightBbox)
 	return
+}
+
+// 创建非叶子的子节点
+func createNoLeafChildNode(nodes []*RTreeNode, bbox base.Rect2D) *RTreeNode {
+	childNode := new(RTreeNode)
+	childNode.isLeaf = false
+	childNode.nodes = nodes
+	childNode.bbox = bbox
+	for _, v := range childNode.nodes {
+		v.parent = childNode
+	}
+	return childNode
 }
 
 // 把节点数组分为两个
@@ -227,7 +527,7 @@ func SplitNodes(nodes []*RTreeNode) (leftNodes, rightNodes []*RTreeNode, leftBbo
 }
 
 // 把对象数组分为两个
-func SplitBoxes(bboxes []base.Rect2D, ids []int) (leftBboxes []base.Rect2D, leftIds []int, rightBboxes []base.Rect2D, rightIds []int) {
+func SplitBoxes(bboxes []base.Rect2D, ids []int64) (leftBboxes []base.Rect2D, leftIds []int64, rightBboxes []base.Rect2D, rightIds []int64) {
 	// fmt.Println("RTreeNode.SplitBoxes(), boxes's count:", len(bboxes), ",ids's count:", len(ids))
 	// this.String()
 
@@ -268,7 +568,7 @@ func calcMoreArea(bbox1, bbox2 base.Rect2D) float64 {
 }
 
 // 找到两个种子，要求是两个距离足够远
-func findSeedBoxes(bboxes []base.Rect2D, ids []int) (leftBox base.Rect2D, leftId int, rightBox base.Rect2D, rightId int) {
+func findSeedBoxes(bboxes []base.Rect2D, ids []int64) (leftBox base.Rect2D, leftId int64, rightBox base.Rect2D, rightId int64) {
 	// fmt.Println("RTreeNode.findSeedBoxes(), boxes's count:", len(bboxes), ",ids's count:", len(ids))
 
 	count := len(ids)
@@ -282,11 +582,11 @@ func findSeedBoxes(bboxes []base.Rect2D, ids []int) (leftBox base.Rect2D, leftId
 	}
 
 	// 合并所有bbox
-	wholeBbox := UnionBboxes(bboxes)
+	wholeBbox := base.UnionBounds(bboxes)
 	leftPos := findNeareastPoint(wholeBbox.Min, centerPnts)
 	rightPos := findNeareastPoint(wholeBbox.Max, centerPnts)
 	if leftPos == rightPos {
-		fmt.Println("出现特例了")
+		fmt.Println("出现特例了,left pos == right pos, value is:", leftPos)
 		if leftPos > 0 {
 			rightPos = 0
 		} else {
@@ -317,12 +617,12 @@ func findNeareastPoint(pnt base.Point2D, pnts []base.Point2D) (pos int) {
 }
 
 // 找到两个种子，要求是两个距离足够远
-func findSeedBoxes2(bboxes []base.Rect2D, ids []int) (leftBox base.Rect2D, leftId int, rightBox base.Rect2D, rightId int) {
+func findSeedBoxes2(bboxes []base.Rect2D, ids []int64) (leftBox base.Rect2D, leftId int64, rightBox base.Rect2D, rightId int64) {
 	// fmt.Println("RTreeNode.findSeedBoxes2(), boxes's count:", len(bboxes), ",ids's count:", len(ids))
 
 	count := len(ids)
 	maxDist := make([]float64, count)
-	maxId := make([]int, count)
+	maxId := make([]int64, count)
 	maxBox := make([]base.Rect2D, count)
 	// 先得到所有bounds的中心点
 	centerPnts := make([]base.Point2D, count)
@@ -358,10 +658,10 @@ func findSeedNode(nodes []*RTreeNode) (leftNode, rightNode *RTreeNode) {
 	// fmt.Println("RTreeNode.findSeedNode()")
 
 	bboxes := make([]base.Rect2D, len(nodes))
-	ids := make([]int, len(nodes))
+	ids := make([]int64, len(nodes))
 	for i, v := range nodes {
 		bboxes[i] = v.bbox
-		ids[i] = i
+		ids[i] = int64(i)
 	}
 	_, leftId, _, rightId := findSeedBoxes(bboxes, ids)
 	leftNode = nodes[leftId]
@@ -380,34 +680,27 @@ func (this *RTreeNode) SplitLeaf() (left, right *RTreeNode) {
 	left.isLeaf = true
 	left.bboxes = leftBboxes
 	left.ids = leftIds
-	left.bbox = UnionBboxes(leftBboxes) // 合并bounds
+	left.bbox = base.UnionBounds(leftBboxes) // 合并bounds
 	// fmt.Println("left bboxes'count:", len(left.bboxes), " ids'count:", len(left.ids))
 
 	right = new(RTreeNode)
 	right.isLeaf = true
 	right.bboxes = rightBboxes
 	right.ids = rightIds
-	right.bbox = UnionBboxes(rightBboxes) // 合并bounds
+	right.bbox = base.UnionBounds(rightBboxes) // 合并bounds
 	// fmt.Println("right bboxes'count:", len(right.bboxes), " ids'count:", len(right.ids))
-	return
-}
-
-// 合并bbox数组
-func UnionBboxes(bboxes []base.Rect2D) (bbox base.Rect2D) {
-	bbox.Init()
-	for _, v := range bboxes {
-		bbox.Union(v)
-	}
 	return
 }
 
 // 查询
 // 从根节点开始，判断相交就往下找，直到叶子节点
-func (this *RTreeNode) Query(bbox base.Rect2D) (ids []int) {
+func (this *RTreeNode) Query(bbox base.Rect2D) (ids []int64) {
 	// fmt.Println("RTreeNode.Query(),bbox:", bbox)
 
 	if this.bbox.IsIntersect(bbox) {
 		if this.isLeaf {
+			// ids = append(ids, this.ids...) 模糊查找
+			// 精确查找
 			for i, v := range this.bboxes {
 				if bbox.IsIntersect(v) {
 					ids = append(ids, this.ids[i])
@@ -431,4 +724,5 @@ func (this *RTreeNode) Clear() {
 	for _, v := range this.nodes {
 		v.Clear()
 	}
+	this.nodes = this.nodes[0:0]
 }

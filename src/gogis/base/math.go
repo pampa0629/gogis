@@ -30,6 +30,19 @@ func IntMax(x, y int) int {
 	return y
 }
 
+// 返回最大值对应的序号
+func Max(values []float64) (no int) {
+	maxValue := values[0]
+	no = 0
+	for i := 1; i < len(values); i++ {
+		if values[i] > maxValue {
+			maxValue = values[i]
+			no = i
+		}
+	}
+	return
+}
+
 func IsMatchBool(value1 bool, op string, value2 bool) bool {
 	switch op {
 	case "=":

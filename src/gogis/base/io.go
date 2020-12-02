@@ -1,3 +1,5 @@
+// 输入输出，类型转化等功能函数
+
 package base
 
 import (
@@ -24,20 +26,20 @@ func ByteSlice(slice interface{}) (data []byte) {
 
 // 把任意结构转换为byte[]，内存地址一致，以便数据读写拷贝等用途
 // 测试不过，暂时封存
-func xxByteStruct(value interface{}, size int) (data []byte) {
-	sv := reflect.ValueOf(value)
-	fmt.Println("struct kind is:", sv.Kind())
-	if sv.Kind() != reflect.Struct {
-		panic(fmt.Sprintf("ByteStruct called with non-struct value of type %T", value))
-	}
-	h := (*reflect.SliceHeader)((unsafe.Pointer(&data)))
-	// h.Cap = sv.Cap() * int(sv.Type().Elem().Size())
-	h.Cap = size //  (int)(unsafe.Sizeof(value))
-	h.Len = size //  (int)(unsafe.Sizeof(value))
-	h.Data = (uintptr)(unsafe.Pointer(&value))
-	fmt.Println("struct len is:", h.Len)
-	return
-}
+// func xxByteStruct(value interface{}, size int) (data []byte) {
+// 	sv := reflect.ValueOf(value)
+// 	fmt.Println("struct kind is:", sv.Kind())
+// 	if sv.Kind() != reflect.Struct {
+// 		panic(fmt.Sprintf("ByteStruct called with non-struct value of type %T", value))
+// 	}
+// 	h := (*reflect.SliceHeader)((unsafe.Pointer(&data)))
+// 	// h.Cap = sv.Cap() * int(sv.Type().Elem().Size())
+// 	h.Cap = size //  (int)(unsafe.Sizeof(value))
+// 	h.Len = size //  (int)(unsafe.Sizeof(value))
+// 	h.Data = (uintptr)(unsafe.Pointer(&value))
+// 	fmt.Println("struct len is:", h.Len)
+// 	return
+// }
 
 // 大小端互换
 func ExEndian(value int32) int32 {
@@ -124,4 +126,12 @@ func Double2Bytes(value float64) []byte {
 	// 数字转 []byte
 	binary.Write(&buf, binary.LittleEndian, value)
 	return buf.Bytes()
+}
+
+// 布尔值转化为int32，方便后面对齐存储
+func Bool2Int32(value bool) (result int32) {
+	if value {
+		result = 1
+	}
+	return result
 }

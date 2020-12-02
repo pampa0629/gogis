@@ -160,3 +160,36 @@ func TestRectRect(t *testing.T) {
 	}
 
 }
+
+func TestPath(t *testing.T) {
+	{
+		p1 := "c:/user/temp/a.b"
+		r := "./c.d"
+		p2 := "c:/user/temp/c.d"
+
+		if GetRelativePath(p1, p2) != r {
+			t.Errorf("得到相对路径错误1")
+		}
+
+		a := GetAbsolutePath(p1, r)
+		if a != p2 {
+			t.Errorf("得到绝对路径错误1")
+		}
+	}
+
+	{
+		p1 := "/user/temp/a.b"
+		r := "./c.d"
+		p2 := "/user/temp/c.d"
+
+		if GetRelativePath(p1, p2) != r {
+			t.Errorf("得到相对路径错误2")
+		}
+
+		a := GetAbsolutePath(p1, r)
+		if a != p2 {
+			t.Errorf("得到绝对路径错误2")
+		}
+	}
+
+}

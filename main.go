@@ -345,11 +345,11 @@ func testDBF() {
 
 var gPath = "C:/temp/"
 
-// var gTitle = "chinapnt_84"
+var gTitle = "chinapnt_84"
 
 // var gTitle = "DLTB"
 
-var gTitle = "JBNTBHTB"
+// var gTitle = "JBNTBHTB"
 
 var gExt = ".shp"
 
@@ -367,7 +367,7 @@ func testMap() {
 	tr := base.NewTimeRecorder()
 
 	gmap.Prepare(1024, 768)
-	gmap.Zoom(2)
+	gmap.Zoom(100)
 	gmap.Draw()
 
 	// 输出图片文件
@@ -377,9 +377,9 @@ func testMap() {
 
 func main() {
 	// testRest()
-	// testMapFile()
+	testMapFile()
 	// testBox()
-	testMap()
+	// testMap()
 
 	// testCache()
 	// testVecPyramid()

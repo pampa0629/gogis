@@ -1,3 +1,5 @@
+// 点、矩形等基础类型
+
 package base
 
 import "math"
@@ -18,6 +20,7 @@ func (this *Point2D) DistanceSquare(pnt Point2D) float64 {
 	return math.Pow(this.X-pnt.X, 2) + math.Pow(this.Y-pnt.Y, 2)
 }
 
+// 矩形结构
 type Rect2D struct {
 	Min, Max Point2D
 }
@@ -144,3 +147,116 @@ func (this *Rect2D) Center() (center Point2D) {
 	center.Y = (this.Max.Y + this.Min.Y) / 2.0
 	return
 }
+
+// 计算得到点串的bounds
+func ComputeBounds(points []Point2D) (bbox Rect2D) {
+	bbox.Init()
+	for _, pnt := range points {
+		bbox.Min.X = math.Min(bbox.Min.X, pnt.X)
+		bbox.Min.Y = math.Min(bbox.Min.Y, pnt.Y)
+		bbox.Max.X = math.Max(bbox.Max.X, pnt.X)
+		bbox.Max.Y = math.Max(bbox.Max.Y, pnt.Y)
+	}
+	return
+}
+
+// 合并rect数组
+func UnionBounds(bboxes []Rect2D) (bbox Rect2D) {
+	bbox.Init()
+	for _, v := range bboxes {
+		bbox.Union(v)
+	}
+	return
+}
+
+// 把一个box从中心点分为四份，返回其中一个bbox, ax/ay 为true时，坐标值增加
+func SplitBounds(bbox Rect2D, ax bool, ay bool) (newBbox Rect2D) {
+	min := bbox.Min
+	center := bbox.Center()
+	max := bbox.Max
+
+	if ax && ay {
+		newBbox.Min = center
+		newBbox.Max = max
+	} else if ax {
+		newBbox.Min.X = center.X
+		newBbox.Max.X = max.X
+		newBbox.Min.Y = min.Y
+		newBbox.Max.Y = center.Y
+	} else if ay {
+		newBbox.Min.X = min.X
+		newBbox.Max.X = center.X
+		newBbox.Min.Y = center.Y
+		newBbox.Max.Y = max.Y
+	} else {
+		newBbox.Min = min
+		newBbox.Max = center
+	}
+	return newBbox
+}
+
+// // 把一个box 按 x/y 切两刀, 可能得到两个小box,也有可能得到四个box；都没切到，返回原bbox
+// func SplitBoxes(bbox base.Rect2D, x float64, y float64) (bboxes []base.Rect2D) {
+// 	hx, hy := false, false // 是否切中bbox
+// 	// 竖着切中了
+// 	if bbox.Max.X > x && x > bbox.Min.X {
+// 		hx = true
+// 	}
+// 	// 横着切中了
+// 	if bbox.Max.Y > y && y > bbox.Min.Y {
+// 		hy = true
+// 	}
+// 	if hx && hy {
+// 		bboxes = append(bboxes, SplitBoxByXY(bbox, x, y)...)
+// 	} else if hx {
+// 		bboxes = append(bboxes, SplitBoxByX(bbox, x)...)
+// 	} else if hy {
+// 		bboxes = append(bboxes, SplitBoxByY(bbox, y)...)
+// 	} else {
+// 		bboxes = append(bboxes, bbox)
+// 	}
+// 	return
+// }
+
+// // 竖着切一刀，分割box，返回左右两个box
+// func SplitBoxByX(bbox base.Rect2D, x float64) (bboxes []base.Rect2D) {
+// 	bboxes = make([]base.Rect2D, 2)
+// 	bboxes[0], bboxes[1] = bbox, bbox
+// 	// 0: left
+// 	bboxes[0].Max.X = x
+// 	// 1: right
+// 	bboxes[1].Min.X = x
+// 	return
+// }
+
+// // 横着切一刀，分割box，返回上下两个box
+// func SplitBoxByY(bbox base.Rect2D, y float64) (bboxes []base.Rect2D) {
+// 	bboxes = make([]base.Rect2D, 2)
+// 	bboxes[0], bboxes[1] = bbox, bbox
+// 	// 0: up
+// 	bboxes[0].Min.Y = y
+// 	// 1: down
+// 	bboxes[1].Max.Y = y
+// 	return
+// }
+
+// // 横着，竖着都能切刀，分割box，返回上下左右四个box
+// func SplitBoxByXY(bbox base.Rect2D, x float64, y float64) (bboxes []base.Rect2D) {
+// 	bboxes = make([]base.Rect2D, 4)
+// 	for i, _ := range bboxes {
+// 		bboxes[i] = bbox
+// 	}
+// 	// 0: leftUp
+// 	bboxes[0].Max.X = x
+// 	bboxes[0].Min.Y = y
+// 	// 1: leftDown
+// 	bboxes[1].Max.X = x
+// 	bboxes[1].Max.Y = y
+// 	// 2: rightUp
+// 	bboxes[2].Min.X = x
+// 	bboxes[2].Min.Y = y
+// 	// 3: rightDown
+// 	bboxes[3].Min.X = x
+// 	bboxes[3].Max.Y = y
+// 	return
+// }

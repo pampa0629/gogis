@@ -2,6 +2,7 @@ package data
 
 import (
 	"errors"
+	"fmt"
 	"gogis/base"
 	"strconv"
 	"time"
@@ -58,9 +59,9 @@ func (this *MemoryStore) Close() {
 }
 
 type MemFeaItr struct {
-	ids    []int      // id数组
+	ids    []int64    // id数组
 	feaset *MemFeaset // 数据集指针
-	pos    int        // 当前位置
+	pos    int64      // 当前位置
 	fields []string   // 字段名，空则为所有字段
 }
 
@@ -69,7 +70,7 @@ func (this *MemFeaItr) Count() int {
 }
 
 func (this *MemFeaItr) Next() (Feature, bool) {
-	if this.pos < len(this.ids) {
+	if this.pos < int64(len(this.ids)) {
 		oldpos := this.pos
 		this.pos++
 		fea := this.feaset.features[this.ids[oldpos]]
@@ -94,20 +95,20 @@ func (this *MemFeaItr) getFeaByAtts(fea Feature) Feature {
 }
 
 func (this *MemFeaItr) BatchNext(count int) ([]Feature, bool) {
-	len := len(this.ids)
+	len := int64(len(this.ids))
 	if this.pos < len {
 		oldpos := this.pos
-		if count+this.pos > len {
-			count = len - this.pos
+		if int64(count)+this.pos > len {
+			count = int(len - this.pos)
 		}
-		this.pos += count
-		return this.getFeasByIds(this.feaset.features, this.ids[oldpos:oldpos+count]), true
+		this.pos += int64(count)
+		return this.getFeasByIds(this.feaset.features, this.ids[oldpos:oldpos+int64(count)]), true
 	} else {
 		return nil, false
 	}
 }
 
-func (this *MemFeaItr) getFeasByIds(features []Feature, ids []int) []Feature {
+func (this *MemFeaItr) getFeasByIds(features []Feature, ids []int64) []Feature {
 	newfeas := make([]Feature, len(ids))
 	for i, id := range ids {
 		newfeas[i] = this.getFeaByAtts(features[id])
@@ -163,7 +164,7 @@ func (this *MemFeaset) QueryByDef(def QueryDef) FeatureIterator {
 	var feaitr MemFeaItr
 	feaitr.feaset = this
 	feaitr.fields = def.Fields
-	feaitr.ids = make([]int, 0)
+	feaitr.ids = make([]int64, 0)
 
 	// 先解析 wheres语句
 	comps, _ := def.Parser(this.fieldInfos)
@@ -175,7 +176,7 @@ func (this *MemFeaset) QueryByDef(def QueryDef) FeatureIterator {
 
 	for i, fea := range this.features {
 		if IsAllMatch(fea, comps, ftypes) {
-			feaitr.ids = append(feaitr.ids, i)
+			feaitr.ids = append(feaitr.ids, int64(i))
 		}
 	}
 
@@ -245,18 +246,20 @@ func (this *MemFeaset) Close() {
 }
 
 // 构建空间索引
-func (this *MemFeaset) BuildSpatialIndex() {
+func (this *MemFeaset) BuildSpatialIndex(indexType SpatialIndexType) SpatialIndex {
 	if this.index == nil {
 		tr := base.NewTimeRecorder()
 
-		// this.index = new(GridIndex)
-		// this.index = new(QTreeIndex)
-		this.index = new(RTreeIndex)
-		this.index.Init(this.bbox, len(this.features))
+		this.index = NewSpatialIndex(indexType)
+		this.index.Init(this.bbox, int64(len(this.features)))
 		this.index.BuildByFeas(this.features)
+		check := this.index.Check()
+		fmt.Println("check building spatial index, result is:", check)
 
 		tr.Output("build spatial index")
+		return this.index
 	}
+	return nil
 }
 
 func (this *MemFeaset) BuildPyramids() {

@@ -9,7 +9,7 @@ import (
 	"github.com/fogleman/gg"
 )
 
-func main() {
+func ggmain() {
 	ggFill()
 	fmt.Println("DONE")
 }
