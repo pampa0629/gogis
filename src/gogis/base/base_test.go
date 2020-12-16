@@ -1,6 +1,7 @@
 package base
 
 import (
+	"path/filepath"
 	"testing"
 )
 
@@ -163,11 +164,44 @@ func TestRectRect(t *testing.T) {
 
 func TestPath(t *testing.T) {
 	{
+		p1 := "c:/temp/cache"
+		p2 := "c:/temp/cache/"
+		p := "mapname"
+		res1 := filepath.Join(p1, p)
+		res1 = filepath.ToSlash(res1)
+		if res1 != "c:/temp/cache/mapname" {
+			t.Errorf("连接文件夹错误1")
+		}
+		res2 := filepath.Join(p2, p)
+		res2 = filepath.ToSlash(res2)
+		if res2 != "c:/temp/cache/mapname" {
+			t.Errorf("连接文件夹错误1")
+		}
+	}
+
+	{
+		p1 := "c:/temp/cache/abc.ext"
+		p2 := "c:\\temp\\cache\\abc.ext"
+		p3 := "/temp/cache/abc.ext"
+		title := "abc"
+		if GetTitle(p1) != title {
+			t.Errorf("得到文件title错误1")
+		}
+		if GetTitle(p2) != title {
+			t.Errorf("得到文件title错误2")
+		}
+		if GetTitle(p3) != title {
+			t.Errorf("得到文件title错误3")
+		}
+	}
+
+	{
 		p1 := "c:/user/temp/a.b"
 		r := "./c.d"
+		r2 := "c.d"
 		p2 := "c:/user/temp/c.d"
 
-		if GetRelativePath(p1, p2) != r {
+		if GetRelativePath(p1, p2) != r2 {
 			t.Errorf("得到相对路径错误1")
 		}
 
@@ -175,20 +209,31 @@ func TestPath(t *testing.T) {
 		if a != p2 {
 			t.Errorf("得到绝对路径错误1")
 		}
+
+		a2 := GetAbsolutePath(p1, r2)
+		if a2 != p2 {
+			t.Errorf("得到绝对路径错误12")
+		}
 	}
 
 	{
 		p1 := "/user/temp/a.b"
 		r := "./c.d"
+		r2 := "c.d"
 		p2 := "/user/temp/c.d"
 
-		if GetRelativePath(p1, p2) != r {
+		if GetRelativePath(p1, p2) != r2 {
 			t.Errorf("得到相对路径错误2")
 		}
 
 		a := GetAbsolutePath(p1, r)
 		if a != p2 {
 			t.Errorf("得到绝对路径错误2")
+		}
+
+		a2 := GetAbsolutePath(p1, r2)
+		if a2 != p2 {
+			t.Errorf("得到绝对路径错误22")
 		}
 	}
 

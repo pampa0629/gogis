@@ -66,9 +66,11 @@ func (this *Canvas) CheckDrawn() bool {
 
 func (this *Canvas) SetStyle(style Style) {
 	this.style = style
-	this.dc.SetFillStyle(gg.NewSolidPattern(style.FillColor))
+	// this.dc.SetFillStyle(gg.NewSolidPattern(style.FillColor))
+	this.dc.SetFillColor(style.FillColor)
+	this.dc.SetStrokeColor(style.LineColor)
 
-	this.dc.SetColor(style.LineColor)
+	// this.dc.SetColor(style.LineColor)
 	this.dc.SetLineWidth(style.LineWidth)
 	this.dc.SetDash(style.LineDash...)
 }
@@ -116,16 +118,38 @@ func (this *Canvas) DrawPolyPolyline(polyline *Polyline) {
 }
 
 // 绘制复杂面（带洞）
-// todo 先不理会洞的问题
+// len必须大于1；[0] 是面，后面的都是洞；点的绕圈方向不论
 func (this *Canvas) DrawPolyPolygon(polygon *Polygon) {
-	for _, pnts := range polygon.Points {
-		count := len(pnts)
-		if count >= 2 {
-			this.dc.MoveTo(float64(pnts[0].X), float64(pnts[0].Y))
-			for i := 1; i < len(pnts)-1; i++ {
-				this.dc.LineTo(float64(pnts[i].X), float64(pnts[i].Y))
-			}
-			this.dc.Fill()
+	polyCount := len(polygon.Points)
+	if polyCount == 1 {
+		// 简单多边形
+		this.DrawPolygon(polygon.Points[0])
+	} else {
+		// 先绘制后面的洞，再clip、mask一下，最后绘制面
+		for i := 1; i < polyCount; i++ {
+			this.DrawPolygon(polygon.Points[i])
 		}
+		this.dc.Clip()
+		this.dc.InvertMask() // 反转mask是关键
+		this.DrawPolygon(polygon.Points[0])
+		this.dc.ResetClip() // 最后还要消除clip区域
 	}
+}
+
+// 绘制简单多边形
+func (this *Canvas) DrawPolygon(pnts []Point) {
+	count := len(pnts)
+	if count >= 3 {
+		this.dc.MoveTo(float64(pnts[0].X), float64(pnts[0].Y))
+		for i := 1; i < len(pnts)-1; i++ {
+			this.dc.LineTo(float64(pnts[i].X), float64(pnts[i].Y))
+		}
+		this.dc.FillPreserve()
+		this.dc.Stroke()
+	}
+}
+
+// 是否支持在画布上绘制
+type DrawCanvas interface {
+	Draw(canvas *Canvas)
 }

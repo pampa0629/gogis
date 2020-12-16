@@ -157,3 +157,20 @@ func IsMatchTime(value1 time.Time, op string, value2 time.Time) bool {
 func DistanceSquare(x0, y0, x1, y1 float64) float64 {
 	return math.Pow((x0-x1), 2) + math.Pow((y0-y1), 2)
 }
+
+type Int64s []int64
+
+//Len()
+func (s Int64s) Len() int {
+	return len(s)
+}
+
+//Less():成绩将有低到高排序
+func (s Int64s) Less(i, j int) bool {
+	return s[i] < s[j]
+}
+
+//Swap()
+func (s Int64s) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}

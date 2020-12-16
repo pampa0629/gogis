@@ -32,27 +32,43 @@ func DeleteEmptyDir(path string) {
 
 // 得到文件名中的 title部分；输入：C:/temp/JBNTBHTB.shp ，返回 JBNTBHTB
 func GetTitle(fullname string) string {
-	filenameall := path.Base(fullname)
-	filesuffix := path.Ext(fullname)
-	fileprefix := filenameall[0 : len(filenameall)-len(filesuffix)]
-	return fileprefix
+	fullname = toLinux(fullname)
+	filename := path.Base(fullname)
+	extname := path.Ext(filename)
+	titlename := filename[0 : len(filename)-len(extname)]
+	return titlename
 }
 
-// 判断文件是否存在
+// 判断文件或文件夹是否存在
+func IsExist(filepath string) bool {
+	_, err := os.Stat(filepath) //os.Stat获取文件信息
+	return err == nil || os.IsExist(err)
+}
+
+// 判断文件是否存在；若存在的是文件夹，也返回false
 func FileIsExist(filename string) bool {
-	_, err := os.Stat(filename) //os.Stat获取文件信息
+	fi, err := os.Stat(filename) //os.Stat获取文件信息
+	return (err == nil || os.IsExist(err)) && !fi.IsDir()
+}
+
+// 判断文件夹是否存在；若存在的是文件，也返回false
+func DirIsExist(pathname string) bool {
+	fi, err := os.Stat(pathname) //os.Stat获取文件信息
+	return (err == nil || os.IsExist(err)) && fi.IsDir()
+}
+
+func GetRelativePath(bathpath, targetpath string) string {
+	bathpath = filepath.Dir(bathpath) // 先得到路径
+	relpath, err := filepath.Rel(bathpath, targetpath)
 	if err != nil {
-		if os.IsExist(err) {
-			return true
-		}
-		return false
+		fmt.Println("GetRelativePath err:", err)
 	}
-	return true
+	return relpath
 }
 
 // 两个绝对路径，得到path2相对于path1的路径
 // 即基于path1，通过result可以得到path2
-func GetRelativePath(path1, path2 string) string {
+func GetRelativePath2(path1, path2 string) string {
 	// if path1 == "" || path2 == "" {
 	// 	return "", errors.New("path cannot be empty")
 	// }
@@ -81,9 +97,17 @@ func GetRelativePath(path1, path2 string) string {
 	return prefix
 }
 
+func GetAbsolutePath(basepath, relpath string) string {
+	basepath = filepath.Dir(basepath)
+	abspath := filepath.Clean(filepath.Join(basepath, relpath))
+	abspath = filepath.ToSlash(abspath)
+	return abspath
+}
+
 // 通过绝对路径+相对路径，得到绝对路径
 // 例如：c:/temp/a.b + ./c.d --> c:/temp/c.d
-func GetAbsolutePath(p, r string) string {
+func GetAbsolutePath2(p, r string) string {
+	p = toLinux(p)
 	if "" == r || "." == r {
 		return toLinux(p)
 	}

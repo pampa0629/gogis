@@ -34,34 +34,57 @@ func NewLayer(feaset data.Featureset) *Layer {
 // 一次性绘制的对象个数
 const ONE_DRAW_COUNT = 100000
 
-func (this *Layer) Draw(canvas *draw.Canvas) int {
+func (this *Layer) Draw(canvas *draw.Canvas) int64 {
 	canvas.SetStyle(this.Style)
 
 	tr := base.NewTimeRecorder()
 	feait := this.feaset.QueryByBounds(canvas.Params.GetBounds())
-	tr.Output("query")
-	fmt.Println("查询得到对象: ", feait.Count(), " 个")
+	tr.Output("query layer " + this.Name)
+	objCount := feait.Count()
+	fmt.Println("object result: ", objCount)
 
-	var wg *sync.WaitGroup = new(sync.WaitGroup)
-	for {
-		features, ok := feait.BatchNext(ONE_DRAW_COUNT)
-		if ok {
+	forCount := objCount/ONE_DRAW_COUNT + 1
+	// 直接绘制
+	if forCount == 1 {
+		this.drawBatch(feait, 0, canvas)
+	} else {
+		// 并发绘制
+		var wg *sync.WaitGroup = new(sync.WaitGroup)
+		for i := 0; i < int(forCount); i++ {
 			wg.Add(1)
-			go this.drawBatch(features, canvas, wg)
-		} else {
-			break
+			go this.goDrawBatch(feait, i*ONE_DRAW_COUNT, canvas, wg)
 		}
+		wg.Wait()
 	}
-	wg.Wait()
 
-	return feait.Count()
+	tr.Output("draw layer " + this.Name)
+	feait.Close()
+	return objCount
 }
 
-func (this *Layer) drawBatch(features []data.Feature, canvas *draw.Canvas, wg *sync.WaitGroup) {
-	defer wg.Done()
-	drawCanvas := canvas.Clone()
-	for _, v := range features {
-		v.Geo.Draw(drawCanvas)
+// 批量绘制
+func (this *Layer) drawBatch(itr data.FeatureIterator, pos int, canvas *draw.Canvas) {
+	// tr := base.NewTimeRecorder()
+	features, _, ok := itr.BatchNext(int64(pos), ONE_DRAW_COUNT)
+	// tr.Output("feaitr fetch batch")
+	if ok {
+		for _, v := range features {
+			drawGeo, ok := v.Geo.(draw.DrawCanvas)
+			if ok {
+				drawGeo.Draw(canvas)
+			}
+		}
 	}
-	canvas.DrawImage(drawCanvas.Image(), 0, 0)
+	features = features[:0]
+	// tr.Output("draw batch")
+}
+
+// 并发绘制
+func (this *Layer) goDrawBatch(itr data.FeatureIterator, pos int, canvas *draw.Canvas, wg *sync.WaitGroup) {
+	defer wg.Done()
+	canvasBatch := canvas.Clone()
+	this.drawBatch(itr, pos, canvasBatch)
+	// tr := base.NewTimeRecorder()
+	canvas.DrawImage(canvasBatch.Image(), 0, 0)
+	// tr.Output("canvas draw image")
 }

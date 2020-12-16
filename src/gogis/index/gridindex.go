@@ -1,5 +1,5 @@
 // 格网索引
-package data
+package index
 
 import (
 	"encoding/binary"
@@ -11,14 +11,15 @@ import (
 )
 
 // 每个格网控制在多少条记录左右
-const ONE_GRID_COUNT = 10000
+const ONE_GRID_COUNT = 5000
 
 type GridIndex struct {
-	ids      [][][]int64     // 格子编号对应 的ids
-	bboxes   [][]base.Rect2D // 格子编号对应的bbox
-	row, col int32           // 格子 的行列数量
-	len      float64         // 格子边长
-	min      base.Point2D    // 左下角（最小值）的点
+	ids      [][][]int64       // 格子编号对应 的ids
+	idBboxes [][][]base.Rect2D // 每个格子里面id所对应的bbox
+	bboxes   [][]base.Rect2D   // 格子编号对应的bbox
+	row, col int32             // 格子 的行列数量
+	len      float64           // 格子边长
+	min      base.Point2D      // 左下角（最小值）的点
 }
 
 // 保存和加载，避免每次都要重复构建
@@ -33,6 +34,7 @@ func (this *GridIndex) Save(w io.Writer) {
 			count := int32(len(this.ids[i][j]))
 			binary.Write(w, binary.LittleEndian, count)
 			binary.Write(w, binary.LittleEndian, this.ids[i][j])
+			binary.Write(w, binary.LittleEndian, this.idBboxes[i][j])
 		}
 	}
 }
@@ -50,13 +52,17 @@ func (this *GridIndex) Load(r io.Reader) {
 	binary.Read(r, binary.LittleEndian, this.bboxes)
 
 	this.ids = make([][][]int64, this.row)
+	this.idBboxes = make([][][]base.Rect2D, this.row)
 	for i := int32(0); i < this.row; i++ {
 		this.ids[i] = make([][]int64, this.col)
+		this.idBboxes[i] = make([][]base.Rect2D, this.col)
 		for j := int32(0); j < this.col; j++ {
 			var count int32
 			binary.Read(r, binary.LittleEndian, &count)
 			this.ids[i][j] = make([]int64, count)
+			this.idBboxes[i][j] = make([]base.Rect2D, count)
 			binary.Read(r, binary.LittleEndian, this.ids[i][j])
+			binary.Read(r, binary.LittleEndian, this.idBboxes[i][j])
 		}
 	}
 }
@@ -66,10 +72,10 @@ func (this *GridIndex) Check() bool {
 	// 貌似也就只能检查bbox了
 	for i := int32(0); i < this.row; i++ {
 		for j := int32(0); j < this.col; j++ {
-			if !base.IsEqual(this.bboxes[i][j].Min.X, this.min.X+float64(i)*this.len) {
+			if !base.IsEqual(this.bboxes[i][j].Min.X, this.min.X+float64(j)*this.len) {
 				return false
 			}
-			if !base.IsEqual(this.bboxes[i][j].Min.Y, this.min.Y+float64(j)*this.len) {
+			if !base.IsEqual(this.bboxes[i][j].Min.Y, this.min.Y+float64(i)*this.len) {
 				return false
 			}
 			if !base.IsEqual(this.bboxes[i][j].Min.X+this.len, this.bboxes[i][j].Max.X) {
@@ -108,10 +114,13 @@ func (this *GridIndex) Init(bbox base.Rect2D, num int64) {
 
 	cap := (int)(math.Min(float64(num), ONE_GRID_COUNT/4)) // 预留空间大小
 	this.ids = make([][][]int64, this.row)
+	this.idBboxes = make([][][]base.Rect2D, this.row)
 	for i, _ := range this.ids {
 		this.ids[i] = make([][]int64, this.col)
+		this.idBboxes[i] = make([][]base.Rect2D, this.col)
 		for j, _ := range this.ids[i] {
 			this.ids[i][j] = make([]int64, 0, cap)
+			this.idBboxes[i][j] = make([]base.Rect2D, 0, cap)
 		}
 	}
 
@@ -134,32 +143,30 @@ func (this *GridIndex) Clear() {
 }
 
 // 构建空间索引
-func (this *GridIndex) BuildByGeos(geometrys []geometry.Geometry) {
-	for i, geo := range geometrys {
-		this.dealOneGeo(geo, int64(i))
+func (this *GridIndex) AddGeos(geometrys []geometry.Geometry) {
+	for _, geo := range geometrys {
+		this.AddOne(geo.GetBounds(), geo.GetID())
 	}
 	// fmt.Println("grid indexes:", this.ids)
 }
 
-func (this *GridIndex) BuildByFeas(features []Feature) {
-	for i, fea := range features {
-		this.dealOneGeo(fea.Geo, int64(i))
-	}
-	// fmt.Println("grid indexes:", this.ids)
+func (this *GridIndex) AddGeo(geo geometry.Geometry) {
+	this.AddOne(geo.GetBounds(), geo.GetID())
 }
 
-func (this *GridIndex) dealOneGeo(geo geometry.Geometry, id int64) {
-	minRow, maxRow, minCol, maxCol := this.GetGridNo(geo.GetBounds())
+func (this *GridIndex) AddOne(bbox base.Rect2D, id int64) {
+	minRow, maxRow, minCol, maxCol := this.getGridNo(bbox)
 
 	// 最后赋值
 	for i := minRow; i <= maxRow; i++ { // 高度（y方向）代表行
 		for j := minCol; j <= maxCol; j++ {
 			this.ids[i][j] = append(this.ids[i][j], id)
+			this.idBboxes[i][j] = append(this.idBboxes[i][j], bbox)
 		}
 	}
 }
 
-func (this *GridIndex) GetGridNo(bbox base.Rect2D) (minRow, maxRow, minCol, maxCol int) {
+func (this *GridIndex) getGridNo(bbox base.Rect2D) (minRow, maxRow, minCol, maxCol int) {
 	// 先计算 起始点在哪个grid(行列号)
 	minCol = (int)(math.Floor((bbox.Min.X - this.min.X) / this.len))
 	minCol = base.IntMax(minCol, 0) // 不能小于0
@@ -175,7 +182,7 @@ func (this *GridIndex) GetGridNo(bbox base.Rect2D) (minRow, maxRow, minCol, maxC
 }
 
 func (this *GridIndex) Query(bbox base.Rect2D) (ids []int64) {
-	minRow, maxRow, minCol, maxCol := this.GetGridNo(bbox)
+	minRow, maxRow, minCol, maxCol := this.getGridNo(bbox)
 	// 预估一下可能的ids容量
 	cap := (maxRow - minRow) * (maxCol - minCol) * ONE_GRID_COUNT
 	ids = make([]int64, 0, cap)
@@ -183,7 +190,11 @@ func (this *GridIndex) Query(bbox base.Rect2D) (ids []int64) {
 	// 最后赋值
 	for i := minRow; i <= maxRow; i++ { // 高度（y方向）代表行
 		for j := minCol; j <= maxCol; j++ {
-			ids = append(ids, this.ids[i][j]...)
+			for k, v := range this.idBboxes[i][j] {
+				if v.IsIntersect(bbox) {
+					ids = append(ids, this.ids[i][j][k])
+				}
+			}
 		}
 	}
 

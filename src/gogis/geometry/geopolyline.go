@@ -10,6 +10,7 @@ import (
 type GeoPolyline struct {
 	Points [][]base.Point2D
 	BBox   base.Rect2D
+	GeoID
 }
 
 func (this *GeoPolyline) Type() GeoType {

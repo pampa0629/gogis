@@ -1,8 +1,7 @@
-package data
+package index
 
 import (
 	"encoding/binary"
-	"fmt"
 	"gogis/base"
 	"gogis/geometry"
 	"io"
@@ -28,19 +27,23 @@ func (this *QTreeIndex) Init(bbox base.Rect2D, num int64) {
 	this.QTreeNode.Init(bbox, nil)
 }
 
-func (this *QTreeIndex) BuildByGeos(geometrys []geometry.Geometry) {
-	fmt.Println("QTreeIndex.BuildByGeos")
-	for i, geo := range geometrys {
-		this.AddOneGeo(geo.GetBounds(), int64(i))
+func (this *QTreeIndex) AddGeos(geometrys []geometry.Geometry) {
+	// fmt.Println("QTreeIndex.BuildByGeos")
+	for _, geo := range geometrys {
+		this.AddOne(geo.GetBounds(), geo.GetID())
 	}
 }
 
-func (this *QTreeIndex) BuildByFeas(features []Feature) {
-	fmt.Println("QTreeIndex.BuildByFeas")
-	for i, fea := range features {
-		this.AddOneGeo(fea.Geo.GetBounds(), int64(i))
-	}
+func (this *QTreeIndex) AddGeo(geo geometry.Geometry) {
+	this.AddOne(geo.GetBounds(), geo.GetID())
 }
+
+// func (this *QTreeIndex) BuildByFeas(features []data.Feature) {
+// 	fmt.Println("QTreeIndex.BuildByFeas")
+// 	for i, fea := range features {
+// 		this.AddOneGeo(fea.Geo.GetBounds(), int64(i))
+// 	}
+// }
 
 // 保存
 func (this *QTreeNode) Save(w io.Writer) {
@@ -162,18 +165,18 @@ func (this *QTreeNode) Check() bool {
 }
 
 // 输出
-func (this *QTreeNode) String() {
+func (this *QTreeNode) string() {
 	// fmt.Println("level:", this.level, "pos:", this.pos, "Bbox:", this.bbox, "isSplited:", this.isSplited, "ids'count:", len(this.ids))
 }
 
-func (this *QTreeNode) WholeString() {
-	this.String()
+func (this *QTreeNode) wholeString() {
+	this.string()
 	// fmt.Println("level:", this.level, "pos:", this.pos, "Bbox:", this.bbox, "isSplited:", this.isSplited, "ids'count:", len(this.ids))
 	if this.isSplited {
-		this.leftUp.WholeString()
-		this.leftDown.WholeString()
-		this.rightUp.WholeString()
-		this.rightDown.WholeString()
+		this.leftUp.wholeString()
+		this.leftDown.wholeString()
+		this.rightUp.wholeString()
+		this.rightDown.wholeString()
 	}
 }
 
@@ -198,22 +201,22 @@ func (this *QTreeNode) Init(bbox base.Rect2D, parent *QTreeNode) {
 }
 
 // 添加一个对象
-func (this *QTreeNode) AddOneGeo(bbox base.Rect2D, id int64) {
-	// fmt.Println("QTreeNode.AddOneGeo(),bbox:", bbox, "id:", id)
+func (this *QTreeNode) AddOne(bbox base.Rect2D, id int64) {
+	// fmt.Println("QTreeNode.addOne(),bbox:", bbox, "id:", id)
 	// this.String()
 
 	if !this.isSplited {
 		// 未分叉前，直接加对象即可
-		this.AddOneWhenNoSplited(bbox, id)
+		this.addOneWhenNoSplited(bbox, id)
 	} else {
 		// 已分叉后，则需要判断geo的bounds来确定是给自己ids，还是往下面的某个子节点中添加
-		this.AddOneWhenSplited(bbox, id)
+		this.addOneWhenSplited(bbox, id)
 	}
 }
 
 // 未分叉时，添加对象
-func (this *QTreeNode) AddOneWhenNoSplited(bbox base.Rect2D, id int64) {
-	// fmt.Println("QTreeNode.AddOneWhenNoSplited(),id:", id)
+func (this *QTreeNode) addOneWhenNoSplited(bbox base.Rect2D, id int64) {
+	// fmt.Println("QTreeNode.addOneWhenNoSplited(),id:", id)
 	// this.String()
 
 	// 未分叉时，先往ids中加
@@ -221,7 +224,7 @@ func (this *QTreeNode) AddOneWhenNoSplited(bbox base.Rect2D, id int64) {
 	this.bboxes = append(this.bboxes, bbox)
 	// 直到满了，就分叉
 	if len(this.ids) >= ONE_NODE_OBJ_COUNT {
-		this.Split()
+		this.split()
 	}
 }
 
@@ -248,8 +251,8 @@ func (this *QTreeNode) createChildNodes() {
 }
 
 // 分叉；把所管理的所有对象过滤一遍，尽量分配到子节点中
-func (this *QTreeNode) Split() {
-	// fmt.Println("QTreeNode.Split()")
+func (this *QTreeNode) split() {
+	// fmt.Println("QTreeNode.split()")
 	// this.String()
 
 	// 先创建子节点
@@ -266,13 +269,13 @@ func (this *QTreeNode) Split() {
 
 	// 再循环处理每个对象
 	for i, v := range ids {
-		this.AddOneWhenSplited(bboxes[i], v)
+		this.addOneWhenSplited(bboxes[i], v)
 	}
 }
 
 // 已分叉时，添加对象
-func (this *QTreeNode) AddOneWhenSplited(bbox base.Rect2D, id int64) {
-	// fmt.Println("QTreeNode.AddOneWhenSplited(),,bbox:", bbox, "id:", id)
+func (this *QTreeNode) addOneWhenSplited(bbox base.Rect2D, id int64) {
+	// fmt.Println("QTreeNode.addOneWhenSplited(),,bbox:", bbox, "id:", id)
 	// this.String()
 
 	childNode := this.whichChildNode(bbox)
@@ -280,7 +283,7 @@ func (this *QTreeNode) AddOneWhenSplited(bbox base.Rect2D, id int64) {
 		// 能放到那个子节点，就尽量下放；可能导致子节点内部发生分叉
 		// fmt.Println("find childnode")
 		// childNode.String()
-		childNode.AddOneGeo(bbox, id)
+		childNode.AddOne(bbox, id)
 	} else { // 不能下放，就自己收了
 		// fmt.Println("cannot find childnode")
 		this.bboxes = append(this.bboxes, bbox)

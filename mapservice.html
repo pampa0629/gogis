@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+
+<head> 
+  <meta charset="utf-8"> 
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.4.3/css/ol.css"
+    type="text/css">
+  <style>
+    .map {
+      height: 700px;
+      width: 100%;
+    }
+  </style>
+  <title>gogis</title> 
+  <script src="https://cdn.staticfile.org/vue/2.2.2/vue.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.4.3/build/ol.js"></script>
+</head>
+
+<body>
+  <div id="app">    
+    地图服务：
+    <ol>
+      <li v-for="site in sites">
+        {{ site }}
+      </li>
+    </ol>
+  </div>
+  <button onclick="onbutton()">加载地图</button>
+  <div id="map" class="map"></div>
+
+  <script>
+
+    // Vue对象
+    var app = new Vue({
+      el: '#app',
+      data: {
+        sites: [
+        ]
+      }
+    })
+
+    // 得到地图服务列表
+    var url = "http://localhost:8088/mapserver"
+    xmlHttp = new XMLHttpRequest();
+    xmlHttp.open("GET", url, true); //submit the URL request   
+    xmlHttp.send(null);
+    xmlHttp.onreadystatechange = function () {
+      var names = xmlHttp.responseText;
+      console.log(names)
+      app.sites = names.split(";")
+      //                 alert(responseText);              
+    }
+
+    // 地图   
+
+    var proj_4326 = new ol.proj.get("EPSG:4326");
+    var proj_4326Extent = proj_4326.getExtent();
+    var mapWidth4326 = ol.extent.getWidth(proj_4326.getExtent());
+
+    //  var resolutions4326 = [
+    var resolutions4326 = [0.703125,
+      0.3515625, 0.17578125, 0.087890625, 0.0439453125, 0.02197265625,
+      0.010986328125, 0.0054931640625, 0.00274658203125, 0.001373291015625, 0.0006866455078125,
+      0.00034332275390625, 0.000171661376953125, 0.0000858306884765625, 0.00004291534423828125, 0.000021457672119140625,
+      0.0000107288360595703125, 0.00000536441802978515625];
+    // ];
+
+    var tileGrid = new ol.tilegrid.TileGrid({
+      resolutions: resolutions4326,
+      tileSize: [256, 256],
+      extent: proj_4326Extent,
+      origin: ol.extent.getTopLeft(proj_4326Extent),
+    });
+
+    function getMap(mapname) {
+      var tilesource = new ol.source.TileImage({
+        tileUrlFunction: function (tileCoord) {
+          var z = tileCoord[0];
+          var xx = tileCoord[1];
+          //      var yy = Math.abs(tileCoord[2]);
+          var yy = tileCoord[2];
+          return "http://localhost:8088/" + mapname + "/" + z + "/" + xx + "/" + yy;
+        },
+        tileGrid: tileGrid,
+        projection: proj_4326,
+      });
+
+      var map = new ol.layer.Tile({
+        source: tilesource,
+        projection: proj_4326,
+      });
+
+      return map
+    }
+
+    function onbutton(event) {
+      // array.forEach(function(currentValue, index, arr), thisValue)
+      console.log("app.sites:", app.sites)
+
+      var maps = []
+      app.sites.forEach(function (item) {
+        // if(item=="JBNTBHTB") {
+          maps.push(getMap(item))
+        // }        
+      })
+
+      var debugTile = new ol.layer.Tile({
+        source: new ol.source.TileDebug({
+          projection: proj_4326,
+          tileGrid: tileGrid
+        })
+      })
+      // maps.push(debugTile)
+
+      var map = new ol.Map({
+        layers: maps,
+        target: 'map',
+        view: new ol.View({
+          //      center: ol.proj.transform([120, 30], 'EPSG:4326', 'EPSG:3857'),
+          center: [110, 24],
+          resulotions: resolutions4326,
+          zoom: 1,
+          minZoom: 0,
+          maxZoom: 17
+        }),
+      });
+    }
+
+
+  </script>
+
+</body>
+
+</html>

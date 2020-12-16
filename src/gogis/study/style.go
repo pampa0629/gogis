@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"gogis/base"
 	"gogis/data"
 	"gogis/mapping"
 	"image/color"
@@ -47,7 +48,7 @@ func stestMapFile() {
 	gmap.AddLayer(feaset)
 	fmt.Println("map:", gmap)
 
-	gmap.Prepare(1024, 768)
+	gmap.Prepare(256, 256)
 
 	// gmap.Zoom(5)
 	// 绘制
@@ -55,7 +56,7 @@ func stestMapFile() {
 	// // 输出图片文件
 	gmap.Output2File(gPath+gTitle+".png", "png")
 
-	mapfile := gPath + gTitle + ".map"
+	mapfile := gPath + gTitle + "." + base.EXT_MAP_FILE
 
 	gmap.Save(mapfile)
 	// ============================

@@ -69,7 +69,7 @@ func mains() {
 	// testSqlite()
 }
 
-func testSqlite() {
+func testSqlite11() {
 	db, err := sql.Open("sqlite3", "c:/temp/China.udd")
 	defer db.Close()
 

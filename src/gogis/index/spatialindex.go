@@ -1,4 +1,4 @@
-package data
+package index
 
 import (
 	"encoding/binary"
@@ -8,13 +8,16 @@ import (
 	"os"
 )
 
+// Add 协程不安全，请顺序调用
+// Query方法 协程安全，可在并发调用
 type SpatialIndex interface {
 	// 初始化
 	Init(bbox base.Rect2D, num int64)
 
-	// 输入几何对象，构建索引
-	BuildByGeos(geometrys []geometry.Geometry)
-	BuildByFeas(features []Feature)
+	// 输入几何对象，构建索引；下列三种方式等效，同一个对象请勿重复调用Add方法
+	AddGeos(geometrys []geometry.Geometry)
+	AddGeo(geo geometry.Geometry)
+	AddOne(bbox base.Rect2D, id int64) // 直接输入id和bbox
 
 	// 构建后，检查是否有问题；没问题返回true
 	Check() bool
@@ -60,16 +63,16 @@ func NewSpatialIndex(indexType SpatialIndexType) SpatialIndex {
 }
 
 // gogis index file mark
-const GIX_MARK = "gix"
+// const GIX_MARK = "gix"
 
 // 装载gogis索引文件，返回索引对象
-func loadGix(gixfile string) (index SpatialIndex) {
+func LoadGix(gixfile string) (index SpatialIndex) {
 	gix, _ := os.Open(gixfile)
 	defer gix.Close()
 	// 这里应根据文件头，确定具体的索引类型
 	gixMark := make([]byte, 4)
 	binary.Read(gix, binary.LittleEndian, gixMark)
-	if string(gixMark[:3]) == GIX_MARK {
+	if string(gixMark[:3]) == base.EXT_SPATIAL_INDEX_FILE {
 		var indexType int32
 		binary.Read(gix, binary.LittleEndian, &indexType)
 		index = NewSpatialIndex(SpatialIndexType(indexType))
@@ -79,11 +82,11 @@ func loadGix(gixfile string) (index SpatialIndex) {
 }
 
 // 保存空间索引到文件
-func saveGix(gixfile string, index SpatialIndex) {
+func SaveGix(gixfile string, index SpatialIndex) {
 	gix, _ := os.Create(gixfile)
 	defer gix.Close()
 
-	gix.WriteString(GIX_MARK + " ") // 加一个空格，凑四个字符
+	gix.WriteString(base.EXT_SPATIAL_INDEX_FILE + " ") // 加一个空格，凑四个字符
 	binary.Write(gix, binary.LittleEndian, index.Type())
 	index.Save(gix)
 }

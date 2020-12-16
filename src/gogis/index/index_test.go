@@ -1,4 +1,4 @@
-package data
+package index
 
 import (
 	"fmt"

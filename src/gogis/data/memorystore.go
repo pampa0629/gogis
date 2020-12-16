@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"gogis/base"
+	"gogis/index"
 	"strconv"
 	"time"
 )
@@ -61,23 +62,31 @@ func (this *MemoryStore) Close() {
 type MemFeaItr struct {
 	ids    []int64    // id数组
 	feaset *MemFeaset // 数据集指针
-	pos    int64      // 当前位置
-	fields []string   // 字段名，空则为所有字段
+	// pos    int64      // 当前位置
+	fields []string // 字段名，空则为所有字段
 }
 
-func (this *MemFeaItr) Count() int {
-	return len(this.ids)
+func (this *MemFeaItr) Count() int64 {
+	return int64(len(this.ids))
 }
 
+func (this *MemFeaItr) Close() {
+	this.ids = this.ids[:0]
+	this.fields = this.fields[:0]
+	this.feaset = nil
+}
+
+// todo
 func (this *MemFeaItr) Next() (Feature, bool) {
-	if this.pos < int64(len(this.ids)) {
-		oldpos := this.pos
-		this.pos++
-		fea := this.feaset.features[this.ids[oldpos]]
-		return this.getFeaByAtts(fea), true
-	} else {
-		return *new(Feature), false
-	}
+	// if this.pos < int64(len(this.ids)) {
+	// 	oldpos := this.pos
+	// 	this.pos++
+	// 	fea := this.feaset.features[this.ids[oldpos]]
+	// 	return this.getFeaByAtts(fea), true
+	// } else {
+	// 	return *new(Feature), false
+	// }
+	return *new(Feature), false
 }
 
 // 根据需要，只取一部分字段值
@@ -94,23 +103,40 @@ func (this *MemFeaItr) getFeaByAtts(fea Feature) Feature {
 	return *newfea
 }
 
-func (this *MemFeaItr) BatchNext(count int) ([]Feature, bool) {
+// 批量读取支持go协程安全
+func (this *MemFeaItr) BatchNext(pos int64, count int) ([]Feature, int64, bool) {
 	len := int64(len(this.ids))
-	if this.pos < len {
-		oldpos := this.pos
-		if int64(count)+this.pos > len {
-			count = int(len - this.pos)
+	if pos < len {
+		oldpos := pos
+		if int64(count)+pos > len {
+			count = int(len - pos)
 		}
-		this.pos += int64(count)
-		return this.getFeasByIds(this.feaset.features, this.ids[oldpos:oldpos+int64(count)]), true
+		pos += int64(count)
+		return this.getFeasByIds(this.feaset.features, this.ids[oldpos:oldpos+int64(count)]), pos, true
 	} else {
-		return nil, false
+		return nil, pos, false
 	}
 }
+
+// func (this *MemFeaItr) BatchNext2(pos int, count int) ([]Feature, int, bool) {
+// 	len := int64(len(this.ids))
+// 	if this.pos < len {
+// 		oldpos := this.pos
+// 		if int64(count)+this.pos > len {
+// 			count = int(len - this.pos)
+// 		}
+// 		this.pos += int64(count)
+// 		return this.getFeasByIds(this.feaset.features, this.ids[oldpos:oldpos+int64(count)]), true
+// 	} else {
+// 		return nil, false
+// 	}
+// }
 
 func (this *MemFeaItr) getFeasByIds(features []Feature, ids []int64) []Feature {
 	newfeas := make([]Feature, len(ids))
 	for i, id := range ids {
+		// pos := this.feaset.id2feaPos[id]
+		// newfeas[i] = this.getFeaByAtts(features[pos])
 		newfeas[i] = this.getFeaByAtts(features[id])
 	}
 	return newfeas
@@ -121,12 +147,21 @@ type MemFeaset struct {
 	name       string
 	bbox       base.Rect2D
 	fieldInfos []FieldInfo
-	features   []Feature      // 几何对象的数组
-	index      SpatialIndex   // 空间索引
-	pyramid    *VectorPyramid // 矢量金字塔
+	features   []Feature // 几何对象的数组
+	// id2feaPos  map[int64]int      // 从id到features中位置的对应关系
+	index   index.SpatialIndex // 空间索引
+	pyramid *VectorPyramid     // 矢量金字塔
 
 	// store      *MemoryStore
 }
+
+// 使用前必须调用，设置features和ids的对照关系，便于后续直接通过id访问
+// func (this *MemFeaset) Prepare() {
+// 	this.id2feaPos = make(map[int64]int, len(this.features))
+// 	for i, v := range this.features {
+// 		this.id2feaPos[v.Geo.GetID()] = i
+// 	}
+// }
 
 func (this *MemFeaset) Open(name string) (bool, error) {
 	return true, nil
@@ -138,8 +173,8 @@ func (this *MemFeaset) GetStore() Datastore {
 }
 
 // 对象个数
-func (this *MemFeaset) Count() int {
-	return len(this.features)
+func (this *MemFeaset) Count() int64 {
+	return int64(len(this.features))
 }
 
 func (this *MemFeaset) GetName() string {
@@ -246,13 +281,15 @@ func (this *MemFeaset) Close() {
 }
 
 // 构建空间索引
-func (this *MemFeaset) BuildSpatialIndex(indexType SpatialIndexType) SpatialIndex {
+func (this *MemFeaset) BuildSpatialIndex(indexType index.SpatialIndexType) index.SpatialIndex {
 	if this.index == nil {
 		tr := base.NewTimeRecorder()
 
-		this.index = NewSpatialIndex(indexType)
+		this.index = index.NewSpatialIndex(indexType)
 		this.index.Init(this.bbox, int64(len(this.features)))
-		this.index.BuildByFeas(this.features)
+		for _, v := range this.features {
+			this.index.AddGeo(v.Geo)
+		}
 		check := this.index.Check()
 		fmt.Println("check building spatial index, result is:", check)
 

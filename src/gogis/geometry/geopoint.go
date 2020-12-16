@@ -9,6 +9,7 @@ import (
 
 type GeoPoint struct {
 	base.Point2D
+	GeoID
 }
 
 func (this *GeoPoint) Type() GeoType {

@@ -10,8 +10,75 @@ import (
 )
 
 func ggmain() {
-	ggFill()
-	fmt.Println("DONE")
+	ggColor()
+	fmt.Println("gg DONE")
+}
+
+func ggColor() {
+	dc1 := gg.NewContext(1000, 1000)
+
+	// pat := gg.NewSolidPattern(color.RGBA{25, 200, 20, 255})
+	// dc1.SetFillStyle(pat)
+	dc1.SetFillColor(color.RGBA{25, 200, 20, 255})
+	dc1.SetStrokeColor(color.RGBA{255, 20, 20, 255})
+
+	dc1.MoveTo(200, 200)
+	dc1.LineTo(200, 400)
+	dc1.LineTo(400, 400)
+	dc1.LineTo(400, 200)
+	dc1.LineTo(200, 200)
+	dc1.FillPreserve()
+	dc1.Stroke()
+
+	// dc1.MoveTo(200, 200)
+	// dc1.LineTo(200, 400)
+	// dc1.LineTo(400, 400)
+	// dc1.LineTo(400, 200)
+	// dc1.LineTo(200, 200)
+	// dc1.Stroke()
+
+	dc1.SavePNG("c:/temp/out1.png")
+}
+
+// 岛洞
+func ggDong() {
+	dc1 := gg.NewContext(1000, 1000)
+	dc1.Clear()
+	pat := gg.NewSolidPattern(color.RGBA{25, 200, 20, 255})
+	dc1.SetFillStyle(pat)
+
+	dc1.MoveTo(200, 200)
+	dc1.LineTo(200, 400)
+	dc1.LineTo(400, 400)
+	dc1.LineTo(400, 200)
+	dc1.LineTo(200, 200)
+
+	dc1.MoveTo(600, 200)
+	dc1.LineTo(800, 200)
+	dc1.LineTo(800, 400)
+	dc1.LineTo(600, 400)
+	dc1.LineTo(600, 200)
+	// dc1.Fill()
+	dc1.Clip()
+	dc1.InvertMask()
+
+	dc1.MoveTo(100, 100)
+	dc1.LineTo(100, 900)
+	dc1.LineTo(900, 900)
+	dc1.LineTo(900, 100)
+	dc1.LineTo(100, 100)
+	dc1.Fill()
+
+	dc1.ResetClip()
+
+	dc1.MoveTo(650, 250)
+	dc1.LineTo(750, 250)
+	dc1.LineTo(750, 350)
+	dc1.LineTo(650, 350)
+	dc1.LineTo(650, 250)
+	dc1.Fill()
+
+	dc1.SavePNG("c:/temp/out1.png")
 }
 
 func ggFill() {
@@ -25,6 +92,7 @@ func ggFill() {
 	dc1.LineTo(0, 500)
 	dc1.LineTo(0, 0)
 	dc1.Fill()
+
 	dc1.SavePNG("c:/temp/out1.png")
 }
 

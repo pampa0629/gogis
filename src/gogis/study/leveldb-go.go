@@ -5,17 +5,20 @@ import (
 	"gogis/base"
 	"gogis/data"
 	"gogis/geometry"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
-	// "github.com/gomodule/redigo/redis"
-	// "github.com/go-redis/redis"
 	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
+var gPath = "c:/temp/"
+var gTitle = "JBNTBHTB"
+
 func SaveDB() {
-	var gPath = "c:/temp/"
-	var gTitle = "JBNTBHTB"
 	var gExt = ".shp"
 
 	dbPath := gPath + gTitle + ".db"
@@ -153,11 +156,75 @@ func OpenShapeMem() {
 	fmt.Printf("time: %f 毫秒", seconds)
 }
 
-func level_main() {
+func levelmain() {
 	// SaveDB()
-	OpenDB()
+	// OpenDB()
 	// OpenShapeMem()
+
+	testWriteTile()
+	// testReadTile()
 
 	return
 
+}
+
+var dbPath = gPath + gTitle + ".db"
+var db *leveldb.DB
+
+func testWriteTile() {
+	var o opt.Options
+	o.WriteBuffer = 1024 * 1024 * 100
+	db, _ = leveldb.OpenFile(dbPath, &o)
+	tr := base.NewTimeRecorder()
+	filepath.Walk("c:/temp/cache/JBNTBHTB/", WalkFn)
+	tr.Output("write leveldb")
+	db.Close()
+}
+
+func WalkFn(path string, f os.FileInfo, err error) error {
+	if err != nil {
+		return err
+	}
+	if f == nil || f.IsDir() {
+		return nil
+	}
+
+	buf, _ := ioutil.ReadFile(path)
+	db.Put([]byte(path), buf, nil)
+
+	return nil
+}
+
+func WalkFnRead(path string, f os.FileInfo, err error) error {
+	if err != nil {
+		return err
+	}
+	if f == nil || f.IsDir() {
+		return nil
+	}
+
+	db.Get([]byte(path), nil)
+	// fmt.Println(data)
+
+	// ioutil.ReadFile(path)
+	// db.Put([]byte(path), buf, nil)
+
+	return nil
+}
+
+func testReadTile() {
+	db, _ = leveldb.OpenFile(dbPath, nil)
+	tr := base.NewTimeRecorder()
+	filepath.Walk("c:/temp/cache/JBNTBHTB/", WalkFnRead)
+	// iter := db.NewIterator(nil, nil)
+	// // iter.
+	// for iter.Next() {
+	// 	// Remember that the contents of the returned slice should not be modified, and
+	// 	// only valid until the next call to Next.
+	// 	key := iter.Key()
+	// 	fmt.Println(string(key))
+	// 	// base.Bytes2Int(key)
+	// 	iter.Value()
+	// }
+	tr.Output("read leveldb")
 }

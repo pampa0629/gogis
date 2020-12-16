@@ -23,7 +23,7 @@ func (this *VectorPyramid) Clear() {
 // todo 矢量金字塔的构建应该能脱离 具体的引擎类型
 // 构建矢量金字塔，应固定比例尺出图的需要进行数据抽稀，根据两个vertex是否在一个像素来决定取舍
 func (this *VectorPyramid) Build(bbox base.Rect2D, features []Feature) {
-	this.minLevel, this.maxLevel = base.CalcMinMaxLevels(bbox, len(features))
+	this.minLevel, this.maxLevel = base.CalcMinMaxLevels(bbox, int64(len(features)))
 	fmt.Println("min & max Level:", this.minLevel, this.maxLevel)
 
 	const LEVEL_GAP = 3 // 每隔若干层级构建一个矢量金字塔

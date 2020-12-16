@@ -10,6 +10,7 @@ import (
 type GeoPolygon struct {
 	Points [][][]base.Point2D // []: 点串 [][]: 带洞的单个多边形 [][][] 带岛的多边形
 	BBox   base.Rect2D
+	GeoID
 }
 
 func (this *GeoPolygon) Type() GeoType {
@@ -36,7 +37,7 @@ func (this *GeoPolygon) ComputeBounds() base.Rect2D {
 	return this.BBox
 }
 
-// todo 未来再考虑转为面，以及 面的绘制
+// 面的绘制
 func (this *GeoPolygon) Draw(canvas *draw.Canvas) {
 	for _, v := range this.Points {
 		var geo = new(draw.Polygon)

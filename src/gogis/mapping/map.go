@@ -12,8 +12,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"strconv"
-	"time"
 
 	"github.com/chai2010/webp"
 )
@@ -40,7 +38,7 @@ func (this *Map) Copy() (nmap *Map) {
 // 创建一个新地图，设置地图大小
 func NewMap() *Map {
 	gmap := new(Map)
-	gmap.Name = "未命名地图" + strconv.FormatInt(time.Now().Unix(), 10)
+	// gmap.Name = "未命名地图" + strconv.FormatInt(time.Now().Unix(), 10)
 	gmap.canvas = new(draw.Canvas)
 	// 新建一个 指定大小的 RGBA位图
 	// gmap.canvas.img = image.NewNRGBA(image.Rect(0, 0, dx, dy))
@@ -63,6 +61,9 @@ func (this *Map) RebuildBBox() {
 }
 
 func (this *Map) AddLayer(feaset data.Featureset) {
+	if len(this.Name) == 0 {
+		this.Name = feaset.GetName()
+	}
 	layer := NewLayer(feaset)
 	this.Layers = append(this.Layers, layer)
 	this.BBox.Union(feaset.GetBounds())
@@ -74,14 +75,12 @@ func (this *Map) Prepare(dx, dy int) {
 }
 
 // 返回绘制对象的个数
-func (this *Map) Draw() int {
+func (this *Map) Draw() (drawCount int64) {
 	this.canvas.ClearDC()
-	drawCount := 0
 	for _, layer := range this.Layers {
 		drawCount += layer.Draw(this.canvas)
 	}
-
-	return drawCount
+	return
 }
 
 func (this *Map) OutputImage() image.Image {
@@ -122,7 +121,7 @@ func (this *Map) Save(filename string) {
 	}
 
 	data, _ := json.Marshal(*this)
-	fmt.Println("map json:", string(data))
+	// fmt.Println("map json:", string(data))
 	f, _ := os.Create(filename)
 	f.Write(data)
 	f.Close()
@@ -134,8 +133,9 @@ func (this *Map) Open(filename string) {
 
 	mapdata, _ := ioutil.ReadFile(filename)
 	json.Unmarshal(mapdata, this)
-	fmt.Println("opened map:", this)
-	fmt.Println("layers'count:", len(this.Layers))
+	// fmt.Println("opened map:", this)
+	fmt.Println("open map file:"+this.filename+", layers'count:", len(this.Layers))
+
 	// 通过保存的参数恢复数据集
 	for i, layer := range this.Layers {
 		store := data.NewDatastore(data.StoreType(layer.Params["type"]))
@@ -152,10 +152,19 @@ func (this *Map) Open(filename string) {
 		} else {
 			this.Layers[i] = nil // todo 应该提供恢复的机制，而不是简单置零
 		}
-		fmt.Println("open map file, layer style:", layer.Style)
+		// fmt.Println("open map file, layer style:", layer.Style)
 	}
 
 	// this.RebuildBBox()
+}
+
+func (this *Map) Close() {
+	for _, layer := range this.Layers {
+		layer.feaset.GetStore().Close() // 数据库先关闭
+		layer.feaset.Close()
+	}
+	this.Layers = this.Layers[:0]
+	// this.canvas.ClearDC() todo 清空image才行
 }
 
 // 缩放，ratio为缩放比率，大于1为放大；小于1为缩小

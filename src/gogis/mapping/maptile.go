@@ -1,12 +1,13 @@
 package mapping
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"gogis/base"
+	"gogis/data"
+	"image/png"
 	"math"
-	"os"
-	"path/filepath"
-	"strconv"
 	"sync"
 )
 
@@ -26,9 +27,11 @@ Level 2: 45度
 ......
 */
 
+// 地图瓦片（栅格）生成器
 type MapTile struct {
-	amap *Map
-	epsg EPSG
+	amap      *Map
+	epsg      EPSG
+	tilestore data.TileStore
 }
 
 func NewMapTile(amap *Map, espg EPSG) *MapTile {
@@ -38,13 +41,17 @@ func NewMapTile(amap *Map, espg EPSG) *MapTile {
 	return maptile
 }
 
-func (this *MapTile) Cache(path string) {
+// 缓存这个地图
+// path是最上层的目录，mapname是path下面的子目录
+func (this *MapTile) Cache(path string, mapname string) {
 	// 第一步，计算缓存的层级范围， 先假设都是经纬度数据
 	minLevel, maxLevel := this.calcCacheLevels()
 	fmt.Println("min & max Level:", minLevel, maxLevel)
 
+	this.tilestore = new(data.LeveldbTileStore) // data.FileTileStore LeveldbTileStore
+	this.tilestore.Open(path, mapname)
 	// 创建根目录
-	os.MkdirAll(path, os.ModePerm)
+	// os.MkdirAll(path, os.ModePerm)
 
 	// 第二步，分层级和范围进行并发生成缓存
 	var wg *sync.WaitGroup = new(sync.WaitGroup)
@@ -54,6 +61,8 @@ func (this *MapTile) Cache(path string) {
 		go this.CacheOneLevel(i, path, wg)
 	}
 	wg.Wait()
+
+	this.tilestore.Close()
 }
 
 // 缓存指定的层级
@@ -61,8 +70,8 @@ func (this *MapTile) CacheOneLevel(level int, path string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// 1，创建该层级根目录
-	levelPath := filepath.Join(path, strconv.Itoa(level))
-	os.MkdirAll(levelPath, os.ModePerm)
+	// levelPath := filepath.Join(path, strconv.Itoa(level))
+	// os.MkdirAll(levelPath, os.ModePerm)
 
 	// 2，根据范围计算下一级子目录
 	// 先计算，当前层级每个瓦片的边长
@@ -74,33 +83,43 @@ func (this *MapTile) CacheOneLevel(level int, path string, wg *sync.WaitGroup) {
 
 	// 3，并行生成 某个瓦片
 	for j := minCol; j <= maxCol; j++ {
-		colPath := filepath.Join(levelPath, strconv.Itoa(j))
-		os.MkdirAll(colPath, os.ModePerm)
+		// colPath := filepath.Join(levelPath, strconv.Itoa(j))
+		// os.MkdirAll(colPath, os.ModePerm)
 		var wg2 *sync.WaitGroup = new(sync.WaitGroup)
 		for i := minRow; i <= maxRow; i++ {
 			wg2.Add(1)
 			// 具体生成瓦片文件
-			go this.CacheOneTile2File(level, j, i, colPath, wg2)
+			go this.CacheOneTile2File(level, j, i, wg2)
 		}
 		wg2.Wait()
-		base.DeleteEmptyDir(colPath)
+		// base.DeleteEmptyDir(colPath)
 	}
 
-	base.DeleteEmptyDir(levelPath)
+	// base.DeleteEmptyDir(levelPath)
 }
 
 // 具体生成一个瓦片文件
-func (this *MapTile) CacheOneTile2File(level int, col int, row int, path string, wg *sync.WaitGroup) {
-	filename := path + "/" + strconv.Itoa(row) + ".png"
+func (this *MapTile) CacheOneTile2File(level int, col int, row int, wg *sync.WaitGroup) {
+	// defer wg.Done()
+	// filename := path + "/" + strconv.Itoa(row) + ".png"
 
-	tmap := this.CacheOneTile2Map(level, col, row, wg)
+	tmap, _ := this.CacheOneTile2Map(level, col, row, wg)
 	if tmap != nil {
-		tmap.Output2File(filename, "png")
+		data := make([]byte, 0)
+		buf := bytes.NewBuffer(data)
+		png.Encode(buf, tmap.OutputImage())
+		data = buf.Bytes()
+		this.tilestore.Put(level, col, row, data)
 	}
+
+	// if tmap != nil {
+	// 	tmap.canvas.Image()
+	// 	tmap.Output2File(filename, "png")
+	// }
 }
 
 // 缓存一个瓦片，返回Map（无效返回 nil）
-func (this *MapTile) CacheOneTile2Map(level int, col int, row int, wg *sync.WaitGroup) *Map {
+func (this *MapTile) CacheOneTile2Map(level int, col int, row int, wg *sync.WaitGroup) (*Map, error) {
 	if wg != nil {
 		defer wg.Done()
 	}
@@ -108,9 +127,9 @@ func (this *MapTile) CacheOneTile2Map(level int, col int, row int, wg *sync.Wait
 	tmap := this.amap.Copy()
 	// 这里关键要把 map要绘制的范围设置对了；即根据 level，row，col来计算bbox
 	tmap.BBox = CalcBBox(level, col, row, this.epsg)
-	// 不想交就直接返回
+	// 不相交就直接返回
 	if !tmap.BBox.IsIntersect(this.amap.BBox) {
-		return nil
+		return nil, errors.New("bbox is not intersect.")
 	}
 
 	tmap.Prepare(256, 256)
@@ -121,10 +140,10 @@ func (this *MapTile) CacheOneTile2Map(level int, col int, row int, wg *sync.Wait
 	if drawCount > 0 {
 		// 还得看一下 image中是否 赋值了
 		if tmap.canvas.CheckDrawn() {
-			return tmap
+			return tmap, nil
 		}
 	}
-	return nil
+	return nil, errors.New("draw count is zeor.")
 }
 
 // 根据层级和边框范围，计算得到最大、最小行列数
@@ -161,7 +180,7 @@ func CalcBBox(level int, col int, row int, espg EPSG) (bbox base.Rect2D) {
 // 根据bbox和对象数量，计算缓存的最小最大合适层级
 // 再小的层级没有必要（图片上的显示范围太小）；再大的层级则瓦片上对象太稀疏
 func (this *MapTile) calcCacheLevels() (minLevel, maxLevel int) {
-	geoCount := 0
+	geoCount := int64(0)
 	for _, layer := range this.amap.Layers {
 		geoCount += layer.feaset.Count()
 	}

@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// ================================================== //
 // 时间记录，用来方便输出某个代码段的
 type TimeRecorder struct {
 	start int64
@@ -26,13 +27,18 @@ func (this *TimeRecorder) Output(dosome string) {
 }
 
 // ================================================== //
+// 各类文件名的后缀，放在这里统一管理
+const EXT_MAP_FILE = "gmp"           // 地图文档 Gogis MaP file
+const EXT_SPATIAL_INDEX_FILE = "gix" // 空间索引文件，支持多种类型的空间索引存储 Gogis spatial IndeX file
+const EXT_SQLITE_FILE = "gsf"        // 基于sqlite的空间文件引擎 Gogis Spatial File
+const EXT_MAP_SERVICE_FILE = "gms"   // 地图服务文件 Gogis Map Service file
 
 // ================================================== //
 
 // todo 这个函数得换个包放置
 // 根据bbox和对象数量，计算缓存的最小最大合适层级
 // 再小的层级没有必要（图片上的显示范围太小）；再大的层级则瓦片上对象太稀疏
-func CalcMinMaxLevels(bbox Rect2D, geoCount int) (minLevel, maxLevel int) {
+func CalcMinMaxLevels(bbox Rect2D, geoCount int64) (minLevel, maxLevel int) {
 	fmt.Println("bbox:", bbox)
 	minLevel = 0
 	dis := 180.0

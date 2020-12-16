@@ -2,7 +2,6 @@ package geometry
 
 import (
 	"gogis/base"
-	"gogis/draw"
 )
 
 // 几何对象类型定义
@@ -40,15 +39,29 @@ const (
 type Geometry interface {
 	Type() GeoType
 	GetBounds() base.Rect2D
-	// todo 绘制能力考虑作为接口单独拿出去
-	Draw(canvas *draw.Canvas)
+
+	// 加载和保存为特定格式
 	From(data []byte, mode GeoMode) bool
 	To(mode GeoMode) []byte
-	// ID() int64
+
+	// ID
+	SetID(id int64)
+	GetID() int64
+
+	// todo 未来也作为单独的接口来对待
 	// HitTest() bool
 }
 
-// type Point2D struct {
-// 	X float64
-// 	Y float64
-// }
+// id 的处理单独用一个结构来搞定，避免重复代码
+type GeoID struct {
+	id int64
+}
+
+// ID
+func (this *GeoID) SetID(id int64) {
+	this.id = id
+}
+
+func (this *GeoID) GetID() int64 {
+	return this.id
+}

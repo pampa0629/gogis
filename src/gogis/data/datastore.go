@@ -26,16 +26,22 @@ func NewConnParams() ConnParams {
 type StoreType string
 
 const (
-	StoreShape  StoreType = "Shape"
-	StoreMemory StoreType = "Memory"
+	StoreShape       StoreType = "Shape"
+	StoreShapeMemory StoreType = "ShapeMemory" // 内存模式的shape存储库
+	StoreMemory      StoreType = "Memory"
+	StoreSqlite      StoreType = "Sqlite"
 )
 
 func NewDatastore(storyType StoreType) Datastore {
 	switch storyType {
 	case StoreShape:
 		return new(ShapeStore)
+	case StoreShapeMemory:
+		return new(ShpmemStore)
 	case StoreMemory:
 		return new(MemoryStore)
+	case StoreSqlite:
+		return new(SqliteStore)
 	}
 	return nil
 }
@@ -60,7 +66,7 @@ type Featureset interface {
 
 	GetStore() Datastore
 	GetName() string
-	Count() int // 对象个数
+	Count() int64 // 对象个数
 	GetBounds() base.Rect2D
 	GetFieldInfos() []FieldInfo
 
@@ -180,10 +186,12 @@ type FieldInfo struct {
 
 // 集合对象迭代器，用来遍历对象
 type FeatureIterator interface {
-	Count() int
+	Count() int64
 	Next() (Feature, bool)
+	// 批量读取支持go协程安全
 	// 只要读取到一个数据，达不到count的要求，也返回true
-	BatchNext(count int) ([]Feature, bool)
+	BatchNext(pos int64, count int) ([]Feature, int64, bool)
+	Close() // 关闭，释放资源
 }
 
 // 一个矢量对象（带属性）
