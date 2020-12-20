@@ -108,7 +108,8 @@ func (this *ShpmemFeaset) loadSpatialIndex() {
 	if base.FileIsExist(indexName) {
 		this.index = index.LoadGix(indexName)
 	} else {
-		indexType := index.TypeGridIndex // 这里确定索引类型 TypeQTreeIndex TypeRTreeIndex TypeGridIndex
+		// 这里确定索引类型 TypeQTreeIndex TypeRTreeIndex TypeGridIndex TypeZOrderIndex
+		indexType := index.TypeZOrderIndex
 		spatialIndex := this.BuildSpatialIndex(indexType)
 		index.SaveGix(indexName, spatialIndex)
 	}

@@ -190,9 +190,15 @@ func (this *GridIndex) Query(bbox base.Rect2D) (ids []int64) {
 	// 最后赋值
 	for i := minRow; i <= maxRow; i++ { // 高度（y方向）代表行
 		for j := minCol; j <= maxCol; j++ {
-			for k, v := range this.idBboxes[i][j] {
-				if v.IsIntersect(bbox) {
-					ids = append(ids, this.ids[i][j][k])
+			// 全包括，就不用一一比较了
+			if bbox.IsCover(this.bboxes[i][j]) {
+				ids = append(ids, this.ids[i][j]...)
+			} else {
+				// 否则就需要一个个对比 bbox
+				for k, v := range this.idBboxes[i][j] {
+					if v.IsIntersect(bbox) {
+						ids = append(ids, this.ids[i][j][k])
+					}
 				}
 			}
 		}

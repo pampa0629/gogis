@@ -1,7 +1,6 @@
 package draw
 
 import (
-	"fmt"
 	"gogis/base"
 	"image"
 
@@ -38,7 +37,7 @@ func (this *Canvas) Clone() *Canvas {
 func (this *Canvas) Init(bbox base.Rect2D, width, height int) {
 	this.Params.Init(bbox, width, height)
 	this.dc = gg.NewContext(width, height)
-	fmt.Println("dc:", this.dc)
+	// fmt.Println("dc:", this.dc)
 }
 
 // 清空DC，为下次绘制做好准备

@@ -182,15 +182,16 @@ func (this *MapService) GetTile(level int, col int, row int, epsg mapping.EPSG) 
 		// 这里根据地图名字，输出并返回图片
 		mapTile := mapping.NewMapTile(this.gmap, epsg)
 
-		tmap, err := mapTile.CacheOneTile2Map(level, col, row, nil)
+		tmap, _ := mapTile.CacheOneTile2Map(level, col, row, nil)
 		if tmap != nil {
 			buf := bytes.NewBuffer(data)
 			png.Encode(buf, tmap.OutputImage())
 			data = buf.Bytes()
 			this.tilestore.Put(level, col, row, data)
-		} else {
-			fmt.Println("tile map is nil, error is:", err)
 		}
+		// else {
+		// 	// fmt.Println("tile map is nil, error is:", err)
+		// }
 	}
 	return data
 }

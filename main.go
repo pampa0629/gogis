@@ -7,6 +7,7 @@ import (
 
 	"gogis/base"
 	"gogis/data"
+	"gogis/index"
 	"gogis/mapping"
 	"gogis/server"
 )
@@ -42,6 +43,71 @@ func main() {
 
 	// testMapFile()
 	// testDrawMap()
+	// testMapTile()
+	return
+}
+
+func testMapTile() {
+	tr := base.NewTimeRecorder()
+
+	gmap := startMap()
+	maptile := mapping.NewMapTile(gmap, mapping.Epsg4326)
+	// this.tilestore = new(data.LeveldbTileStore) // data.FileTileStore LeveldbTileStore
+	// this.tilestore.Open(path, mapname)
+	tmap, _ := maptile.CacheOneTile2Map(11, 3412, 641, nil)
+	tilename := gPath + gTitle + ".jpg"
+	fmt.Println(tilename)
+	tmap.Output2File(tilename, "jpg")
+
+	idx := index.LoadGix(gPath + gTitle + ".gix")
+	idboxs := idx.(*index.ZOrderIndex).Data()
+	ids1 := getIds(tmap.BBox, idboxs)
+	fmt.Println(len(ids1))
+
+	ids2 := idx.Query(tmap.BBox)
+	fmt.Println(len(ids2))
+	bits := idx.(*index.ZOrderIndex).CalcBboxBits(tmap.BBox)
+	calcBbox := idx.(*index.ZOrderIndex).CalcBbox(bits)
+	fmt.Println("tmap bbox:", tmap.BBox, "bits:", bits, "calc bbox:", calcBbox)
+
+	mapids := make(map[int64]byte)
+	for _, v := range ids2 {
+		mapids[v] = 1
+	}
+	for _, v := range ids1 {
+		count := len(mapids)
+		mapids[v] = 1
+		if len(mapids) > count {
+			code, bbox := id2code(v, idboxs)
+			bits := index.Code2bits(code)
+			fmt.Println("id:", v, "code:", code, "bits:", bits, "bbox:", bbox)
+		}
+	}
+
+	tr.Output("map tile")
+}
+
+func id2code(id int64, idboxs [][]index.Idbbox) (code int, bbox base.Rect2D) {
+	for i, v := range idboxs {
+		for _, vv := range v {
+			if vv.Id == id {
+				code = i
+				bbox = vv.Bbox
+				return
+			}
+		}
+	}
+	return
+}
+
+func getIds(bbox base.Rect2D, idboxs [][]index.Idbbox) (ids []int64) {
+	for _, v := range idboxs {
+		for _, vv := range v {
+			if vv.Bbox.IsIntersect(bbox) {
+				ids = append(ids, vv.Id)
+			}
+		}
+	}
 	return
 }
 
@@ -63,8 +129,8 @@ func testDrawMap() {
 
 	tr := base.NewTimeRecorder()
 
-	gmap.Prepare(256, 256)
-	gmap.Zoom(10)
+	gmap.Prepare(1024, 768)
+	gmap.Zoom(2)
 	gmap.Draw()
 
 	// 输出图片文件

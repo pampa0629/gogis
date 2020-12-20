@@ -71,8 +71,8 @@ func IsMatchInt(value1 int, op string, value2 int) bool {
 	return false
 }
 
-// const FLOAT_ZERO = 10e-20 // 定义接近0的极小值
-const FLOAT_ZERO = math.SmallestNonzeroFloat64 * 10
+const FLOAT_ZERO = 10e-10 // 定义接近0的极小值
+// const FLOAT_ZERO = math.SmallestNonzeroFloat64 * 10
 
 // 浮点数相等比较
 func IsEqual(value1 float64, value2 float64) bool {
@@ -92,7 +92,7 @@ func IsBigEqual(value1 float64, value2 float64) bool {
 
 // 浮点数小于等于
 func IsSmallEqual(value1 float64, value2 float64) bool {
-	if value1 > value2 || math.Abs(value1-value2) < FLOAT_ZERO {
+	if value1 < value2 || math.Abs(value1-value2) < FLOAT_ZERO {
 		return true
 	}
 	return false
@@ -158,6 +158,7 @@ func DistanceSquare(x0, y0, x1, y1 float64) float64 {
 	return math.Pow((x0-x1), 2) + math.Pow((y0-y1), 2)
 }
 
+// 支持： sort.Sort(base.Int64s([]int64))
 type Int64s []int64
 
 //Len()

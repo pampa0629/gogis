@@ -687,11 +687,14 @@ func (this *RTreeNode) Query(bbox base.Rect2D) (ids []int64) {
 
 	if this.bbox.IsIntersect(bbox) {
 		if this.isLeaf {
-			// ids = append(ids, this.ids...) 模糊查找
-			// 精确查找
-			for i, v := range this.bboxes {
-				if bbox.IsIntersect(v) {
-					ids = append(ids, this.ids[i])
+			if bbox.IsCover(this.bbox) {
+				ids = append(ids, this.ids...)
+			} else {
+				// 精确查找
+				for i, v := range this.bboxes {
+					if bbox.IsIntersect(v) {
+						ids = append(ids, this.ids[i])
+					}
 				}
 			}
 		} else {

@@ -235,19 +235,19 @@ func (this *QTreeNode) createChildNodes() {
 
 	this.leftUp = new(QTreeNode)
 	// this.leftUp.pos = "leftUp"
-	this.leftUp.Init(base.SplitBounds(this.bbox, false, true), this)
+	this.leftUp.Init(this.bbox.SplitByCenter(false, true), this)
 
 	this.leftDown = new(QTreeNode)
 	// this.leftDown.pos = "leftDown"
-	this.leftDown.Init(base.SplitBounds(this.bbox, false, false), this)
+	this.leftDown.Init(this.bbox.SplitByCenter(false, false), this)
 
 	this.rightUp = new(QTreeNode)
 	// this.rightUp.pos = "rightUp"
-	this.rightUp.Init(base.SplitBounds(this.bbox, true, true), this)
+	this.rightUp.Init(this.bbox.SplitByCenter(true, true), this)
 
 	this.rightDown = new(QTreeNode)
 	// this.rightDown.pos = "rightDown"
-	this.rightDown.Init(base.SplitBounds(this.bbox, true, false), this)
+	this.rightDown.Init(this.bbox.SplitByCenter(true, false), this)
 }
 
 // 分叉；把所管理的所有对象过滤一遍，尽量分配到子节点中
@@ -332,15 +332,15 @@ func (this *QTreeNode) Clear() {
 func (this *QTreeNode) Query(bbox base.Rect2D) (ids []int64) {
 	// 有交集再继续
 	if this.bbox.IsIntersect(bbox) {
-
-		// ids = make([]int64, 0)
-		// 查询的时候，一层层处理
-		// 先把根节点的都纳入
-		// ids = append(ids, this.ids...) // 模糊查找
-		// 精确查找
-		for i, v := range this.ids {
-			if this.bboxes[i].IsIntersect(bbox) {
-				ids = append(ids, v)
+		// 先判断根节点，cover就都纳入
+		if bbox.IsCover(this.bbox) {
+			ids = append(ids, this.ids...)
+		} else {
+			// 否则就精确判断
+			for i, v := range this.ids {
+				if this.bboxes[i].IsIntersect(bbox) {
+					ids = append(ids, v)
+				}
 			}
 		}
 

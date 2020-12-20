@@ -1,86 +1,127 @@
 package index
 
 import (
+	"bytes"
 	"fmt"
 	"gogis/base"
-	"gogis/geometry"
-	"os"
+	"sort"
 	"testing"
 )
 
-func TestSlice(t *testing.T) {
-	s := make([]int, 1)
-	s[0] = 111
-	s = append(s[:0], s[0+1:]...) // 删除中间1个元素
-	fmt.Println("slice:", s)
-}
-
-func TestRTreeIndex(t *testing.T) {
-	geos, bbox, count := makeGeos33()
-	var rindex RTreeIndex
-	rindex.Init(bbox, count)
-	// rindex.objCount = 3
-	RTREE_OBJ_COUNT = 3
-	rindex.BuildByGeos(geos)
-	rindex.WholeString()
-	if !rindex.Check() {
-		t.Errorf("build RTreeIndex check false")
+func TestCode(t *testing.T) {
+	bits := []byte{1, 1, 1, 0}
+	code := bits2code(bits)
+	bits2 := Code2bits(code)
+	if !bytes.Equal(bits2, bits) {
+		t.Error("code2bits")
+	}
+	if bits2code(bits2) != code {
+		t.Error("bits2code")
 	}
 
-	filename := "c:/temp/test.six"
-	f, _ := os.Create(filename)
-	rindex.Save(f)
-	f.Close()
-
-	six, _ := os.Open(filename)
-	var rindex2 RTreeIndex
-	rindex2.Load(six)
-	rindex2.WholeString()
-	if !rindex2.Check() {
-		t.Errorf("loaded RTreeIndex check false")
-	}
-	return
 }
 
-func makeGeos33() (geos []geometry.Geometry, bbox base.Rect2D, count int64) {
-	length, width := 3, 3
-	geos = make([]geometry.Geometry, length*width)
-	bbox.Init()
-
-	for i := 0; i < length; i++ {
-		for j := 0; j < width; j++ {
-			geoPoint := new(geometry.GeoPoint)
-			geoPoint.Point2D = base.Point2D{float64(i), float64(j)}
-			geos[i*width+j] = geoPoint
-			bbox.Union(geoPoint.GetBounds())
-		}
-	}
-	return geos, bbox, int64(length * width)
+func TestBits(t *testing.T) {
+	// var index ZOrderIndex
+	bits := []byte{0, 0, 1, 0}
+	downBitss := buildDownBitss(bits)
+	fmt.Println("bits:", bits, "downBitss:", downBitss)
 }
 
-func makeGeos24() (geos []geometry.Geometry, bbox base.Rect2D, count int64) {
-	count = 8
-	geos = make([]geometry.Geometry, count)
-	bbox.Init()
-
-	geos[0] = getGeoPoint(0, 0)
-	geos[1] = getGeoPoint(1, 0)
-	geos[2] = getGeoPoint(0, 2)
-	geos[3] = getGeoPoint(1, 2)
-	geos[4] = getGeoPoint(0, 6)
-	geos[5] = getGeoPoint(1, 6)
-	geos[6] = getGeoPoint(0, 10)
-	geos[7] = getGeoPoint(1, 10)
-
-	for _, v := range geos {
-		bbox.Union(v.GetBounds())
+func TestZOrder(t *testing.T) {
+	var index ZOrderIndex
+	ONE_CELL_COUNT = 5
+	index.Init(base.NewRect2D(0, 0, 32, 32), 10000)
+	index.String()
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(1, 1, 2, 2), 0), []byte{0, 0, 0, 0}) {
+		t.Error("0")
+	}
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(3, 1, 5, 2), 1), []byte{0, 0, 0, 0}) {
+		t.Error("1")
+	}
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(3, 3, 5, 5), 2), []byte{0, 0, 0, 0}) {
+		t.Error("2")
+	}
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(6, 3, 7, 5), 3), []byte{0, 0, 0, 0}) {
+		t.Error("3")
 	}
 
-	return geos, bbox, count
-}
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(7, 3, 9, 5), 4), []byte{0, 0}) {
+		t.Error("4")
+	}
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(11, 3, 13, 6), 5), []byte{0, 0, 1, 0}) {
+		t.Error("5")
+	}
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(7, 7, 9, 9), 6), []byte{0, 0}) {
+		t.Error("6")
+	}
 
-func getGeoPoint(x, y float64) *geometry.GeoPoint {
-	geoPoint := new(geometry.GeoPoint)
-	geoPoint.Point2D = base.Point2D{x, y}
-	return geoPoint
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(0, 16, 7.9, 24), 7), []byte{0, 1, 0, 0}) {
+		t.Error("7")
+	}
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(0, 24, 8, 32), 8), []byte{0, 1, 0, 1}) {
+		t.Error("8")
+	}
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(8, 16, 16, 24), 9), []byte{0, 1, 1, 0}) {
+		t.Error("9")
+	}
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(8, 24, 16, 32), 10), []byte{0, 1, 1, 1}) {
+		t.Error("10")
+	}
+
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(16, 16, 32, 32), 11), []byte{1, 1}) {
+		t.Error("11")
+	}
+
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(17, 13, 19, 16), 12), []byte{1, 0, 0, 1}) {
+		t.Error("12")
+	}
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(21, 13, 23, 16), 13), []byte{1, 0, 0, 1}) {
+		t.Error("13")
+	}
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(21, 9, 23, 11), 14), []byte{1, 0, 0, 1}) {
+		t.Error("14")
+	}
+	if !bytes.Equal(index.AddOne2(base.NewRect2D(29, 13, 31, 15), 15), []byte{1, 0, 1, 1}) {
+		t.Error("15")
+	}
+
+	// ===================================== //
+	{
+		ids := index.Query(base.NewRect2D(-1, -1, 33, 33))
+		sort.Sort(base.Int64s(ids))
+		fmt.Println("1 ids:", ids) // 0-15
+	}
+	// return
+
+	{
+		ids := index.Query(base.NewRect2D(0, 0, 32, 32))
+		sort.Sort(base.Int64s(ids))
+		fmt.Println("2 ids:", ids) // 0-11
+	}
+
+	{
+		ids := index.Query(base.NewRect2D(7, 7, 25, 25))
+		sort.Sort(base.Int64s(ids))
+		fmt.Println("3 ids:", ids) // 6/7/8/9/10/11
+	}
+
+	{ //
+		ids := index.Query(base.NewRect2D(8, 8, 24, 24))
+		sort.Sort(base.Int64s(ids))
+		fmt.Println("4 ids:", ids) // 6//9/11
+	}
+
+	{ //
+		ids := index.Query(base.NewRect2D(9, 9, 23, 23))
+		sort.Sort(base.Int64s(ids))
+		fmt.Println("5 ids:", ids) // 6/9/11
+	}
+
+	{ // ？
+		ids := index.Query(base.NewRect2D(8, 16, 16, 24))
+		sort.Sort(base.Int64s(ids))
+		fmt.Println("6 ids:", ids) // 9
+	}
+
 }

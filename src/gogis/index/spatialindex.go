@@ -2,6 +2,7 @@ package index
 
 import (
 	"encoding/binary"
+	"fmt"
 	"gogis/base"
 	"gogis/geometry"
 	"io"
@@ -40,10 +41,12 @@ type SpatialIndex interface {
 type SpatialIndexType int32
 
 const (
-	TypeNoIndex    SpatialIndexType = 0
-	TypeGridIndex  SpatialIndexType = 1 // 格网索引；构建快，查询慢，结果不精确
-	TypeQTreeIndex SpatialIndexType = 2 // 四叉树索引；构建速度中等，查询速度快，结果精确
-	TypeRTreeIndex SpatialIndexType = 3 // R树索引；构建速度慢，查询速度快，结果精确
+	TypeNoIndex      SpatialIndexType = 0
+	TypeGridIndex    SpatialIndexType = 1 // 格网索引；构建快，查询慢，结果不精确
+	TypeQTreeIndex   SpatialIndexType = 2 // 四叉树索引；构建速度中等，查询速度快，结果精确
+	TypeRTreeIndex   SpatialIndexType = 3 // R树索引；构建速度慢，查询速度快，结果精确
+	TypeZOrderIndex  SpatialIndexType = 4 // Z-Order索引，通过生成空间key来查找对象，适合数据库的并发/分布式查询与读写
+	TypeXzorderIndex SpatialIndexType = 5 // XZ-Order索引，通过生成空间key来查找对象，适合数据库的并发/分布式查询与读写
 )
 
 // 根据类型，创建空间索引对象
@@ -57,6 +60,10 @@ func NewSpatialIndex(indexType SpatialIndexType) SpatialIndex {
 		index = new(QTreeIndex)
 	case TypeRTreeIndex:
 		index = new(RTreeIndex)
+	case TypeZOrderIndex:
+		index = new(ZOrderIndex)
+	case TypeXzorderIndex:
+		index = new(XzorderIndex)
 	default:
 	}
 	return index
@@ -77,6 +84,9 @@ func LoadGix(gixfile string) (index SpatialIndex) {
 		binary.Read(gix, binary.LittleEndian, &indexType)
 		index = NewSpatialIndex(SpatialIndexType(indexType))
 		index.Load(gix)
+		if !index.Check() {
+			fmt.Println("index check is false!")
+		}
 	}
 	return
 }
