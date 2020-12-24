@@ -8,6 +8,7 @@ import (
 	"gogis/geometry"
 	"io"
 	"math"
+	"sort"
 )
 
 // 控制每个最小的cell中，平均对象个数
@@ -94,12 +95,18 @@ func (this *ZOrderIndex) checkBbox() bool {
 	return true
 }
 
-// 初始化
+// 计算得到 level
+func CalcZOderLevel(num int64) (level int32) {
+	level = int32(math.Log(float64(num)/ONE_CELL_COUNT)/2) + 1
+	// 最多15层，int32最多存储16层，还要留一个bit做前置
+	level = int32(base.IntMin(int(level), 15))
+	return
+}
+
+// 初始化，之后Add
 func (this *ZOrderIndex) Init(bbox base.Rect2D, num int64) {
 	this.bbox = bbox
-	this.level = int32(math.Log(float64(num)/ONE_CELL_COUNT)/2) + 1
-	// 最多15层，int32最多存储16层，还要留一个bit做前置
-	this.level = int32(base.IntMin(int(this.level), 15))
+	this.level = CalcZOderLevel(num)
 
 	// 计算 w 和 h
 	// oneAxisCount := math.Pow(2.0, float64(this.level))
@@ -111,6 +118,12 @@ func (this *ZOrderIndex) Init(bbox base.Rect2D, num int64) {
 	this.code2ids = make([][]Idbbox, cellCount)
 	// this.code2bbox = make([]base.Rect2D, cellCount)
 	// this.String()
+}
+
+// 初始化，之后直接 Query2
+func (this *ZOrderIndex) Init2(bbox base.Rect2D, level int32) {
+	this.bbox = bbox
+	this.level = level
 }
 
 // 输入几何对象，构建索引；下列三种方式等效，同一个对象请勿重复调用Add方法
@@ -130,7 +143,7 @@ func (this *ZOrderIndex) AddOne2(bbox base.Rect2D, id int64) []byte {
 	// 先计算 二进制的位
 	bits := this.CalcBboxBits(bbox)
 	// 再转为 code
-	code := bits2code(bits)
+	code := Bits2code(bits)
 
 	// fmt.Println("id:", id, "bbox:", bbox, "bits:", bits, "code:", code)
 
@@ -151,7 +164,7 @@ func (this *ZOrderIndex) AddOne(bbox base.Rect2D, id int64) {
 	// 先计算 二进制的位
 	bits := this.CalcBboxBits(bbox)
 	// 再转为 code
-	code := bits2code(bits)
+	code := Bits2code(bits)
 
 	// fmt.Println("id:", id, "bbox:", bbox, "bits:", bits, "code:", code)
 
@@ -188,15 +201,6 @@ func (this *ZOrderIndex) CalcBbox(bits []byte) (bbox base.Rect2D) {
 	return
 }
 
-// 计算一个bbox的code
-// func (this *ZOrderIndex) calcBboxCode(bbox base.Rect2D) (code int) {
-// 	// 先计算 二进制的位
-// 	bits := this.calcBboxBits(bbox)
-// 	// 再转为 code
-// 	code = bits2code(bits)
-// 	return
-// }
-
 func (this *ZOrderIndex) CalcBboxBits(bbox base.Rect2D) (bits []byte) {
 	bits = make([]byte, 0)
 	// 思路：先分别计算 min和max两个点的code，按双数对比，提取前2*N位都一样的部分
@@ -216,7 +220,7 @@ func (this *ZOrderIndex) CalcBboxBits(bbox base.Rect2D) (bits []byte) {
 // bits转为code
 // 按照层级从高到低排列，同层级按照Z order排列
 // 序号从0起，0即为level 0的code
-func bits2code(bits []byte) (code int) {
+func Bits2code(bits []byte) (code int) {
 	level := int32(len(bits) / 2)
 	code = calcCellCount(level - 1) // 到上一层为止的cell个数
 	bitsLen := len(bits)
@@ -295,13 +299,13 @@ func (this *ZOrderIndex) calcOneBits(zero, halfLength, pos float64, level int32,
 	return
 }
 
-// 范围查询，返回id数组
-func (this *ZOrderIndex) Query(bbox base.Rect2D) (ids []int64) {
+// 查询得到 bbox 所涉及的code，返回code数组（已排序）
+func (this *ZOrderIndex) Query2(bbox base.Rect2D) (codes []int) {
 	// 思路：
 	// 先找高层的level的code，注意需要做box判断
 	// 再迭代处理本层和低层
-	//   得到bbox的code，这个code的ids，再进一步做 box判断
-	//   低层的level，则把bbox切开后，再迭代查询，直到最底层的level为止
+	//   得到bbox的code，
+	//   低层的level，则先判断是否bbox相交，再迭代查询，直到最底层的level为止
 
 	bits := this.CalcBboxBits(bbox)
 
@@ -310,7 +314,57 @@ func (this *ZOrderIndex) Query(bbox base.Rect2D) (ids []int64) {
 	copy(upbits, bits)
 	for len(upbits) > 0 {
 		upbits = upbits[0 : len(upbits)-2] // 去掉最后两个bit，即提升一个level
-		upcode := bits2code(upbits)
+		upcode := Bits2code(upbits)
+		codes = append(codes, upcode)
+	}
+
+	// 这里查询本层和下层的
+	codes = append(codes, this.queryThisDown2(bbox, bits)...)
+
+	sort.Ints(codes)
+	return
+}
+
+// 查询本层以及下层的，需要迭代执行，直到最底层
+func (this *ZOrderIndex) queryThisDown2(bbox base.Rect2D, bits []byte) (codes []int) {
+	// 得到本层的 code
+	code := Bits2code(bits)
+	codes = append(codes, code)
+
+	// fmt.Println("level:", len(bits)/2, "bits:", bits, "ids:", ids, "code:", code, "cell bbox:", cellBbox, "bbox:", bbox)
+
+	// 若存在更低层的level，则构造下层的bits，判断bbox是否相交，再做查询
+	if len(bits)/2 < int(this.level) { // 不是最底层
+		downBitss := buildDownBitss(bits)
+		// fmt.Println("bits:", bits, "downBitss:", downBitss)
+		for _, downBits := range downBitss {
+			downBbox := this.CalcBbox(downBits)
+			if bbox.IsIntersect(downBbox) {
+				downCode := this.queryThisDown2(bbox, downBits)
+				codes = append(codes, downCode...)
+			}
+		}
+	}
+
+	return
+}
+
+// 范围查询，返回id数组
+func (this *ZOrderIndex) Query(bbox base.Rect2D) (ids []int64) {
+	// 思路：
+	// 先找高层的level的code，注意需要做box判断
+	// 再迭代处理本层和低层
+	//   得到bbox的code，这个code的ids，再进一步做 box判断
+	//   低层的level，则先判断是否bbox相交，再迭代查询，直到最底层的level为止
+
+	bits := this.CalcBboxBits(bbox)
+
+	// 更高层的level
+	upbits := make([]byte, len(bits))
+	copy(upbits, bits)
+	for len(upbits) > 0 {
+		upbits = upbits[0 : len(upbits)-2] // 去掉最后两个bit，即提升一个level
+		upcode := Bits2code(upbits)
 		upBbox := this.CalcBbox(upbits)
 		ids = append(ids, this.getIdsByBbox(bbox, upBbox, upcode)...)
 	}
@@ -324,7 +378,7 @@ func (this *ZOrderIndex) Query(bbox base.Rect2D) (ids []int64) {
 // 查询本层以及下层的，需要迭代执行，直到最底层
 func (this *ZOrderIndex) queryThisDown(bbox base.Rect2D, bits []byte) (ids []int64) {
 	// 得到本层的 code
-	code := bits2code(bits)
+	code := Bits2code(bits)
 	// 计算本cell的bbox
 	cellBbox := this.CalcBbox(bits)
 	// 同层级的一个cell，即code相等

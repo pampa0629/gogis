@@ -39,12 +39,34 @@ var gExt = ".shp"
 var filename = gPath + gTitle + gExt
 
 func main() {
-	testRest()
+	// testRest()
 
-	// testMapFile()
 	// testDrawMap()
 	// testMapTile()
+	testSqliteMap()
 	return
+}
+
+func testSqliteMap() {
+	tr := base.NewTimeRecorder()
+	var sqlDB data.SqliteStore
+	params := data.NewConnParams()
+	params["filename"] = "C:/temp/JBNTBHTB.sqlite"
+	sqlDB.Open(params)
+	feaset, _ := sqlDB.GetFeasetByNum(0)
+	feaset.Open(feaset.GetName())
+	tr.Output("open sqlite db")
+
+	gmap := mapping.NewMap()
+	gmap.AddLayer(feaset)
+	gmap.Prepare(1024, 768)
+	gmap.Zoom(20)
+	gmap.Draw()
+	// 输出图片文件
+	gmap.Output2File("C:/temp/JBNTBHTB.jpg", "jpg")
+
+	tr.Output("draw sqlite map")
+	fmt.Println("DONE!")
 }
 
 func testMapTile() {
@@ -66,6 +88,7 @@ func testMapTile() {
 
 	ids2 := idx.Query(tmap.BBox)
 	fmt.Println(len(ids2))
+	return
 	bits := idx.(*index.ZOrderIndex).CalcBboxBits(tmap.BBox)
 	calcBbox := idx.(*index.ZOrderIndex).CalcBbox(bits)
 	fmt.Println("tmap bbox:", tmap.BBox, "bits:", bits, "calc bbox:", calcBbox)

@@ -18,6 +18,7 @@ import (
 )
 
 // 所有地图服务的统一管理器
+// todo 增加瓦片的内存缓存
 type MapServices struct {
 	mapServices map[string]*MapService
 	cachepath   string

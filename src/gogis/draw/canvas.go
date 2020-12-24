@@ -123,7 +123,7 @@ func (this *Canvas) DrawPolyPolygon(polygon *Polygon) {
 	if polyCount == 1 {
 		// 简单多边形
 		this.DrawPolygon(polygon.Points[0])
-	} else {
+	} else if polyCount > 1 {
 		// 先绘制后面的洞，再clip、mask一下，最后绘制面
 		for i := 1; i < polyCount; i++ {
 			this.DrawPolygon(polygon.Points[i])

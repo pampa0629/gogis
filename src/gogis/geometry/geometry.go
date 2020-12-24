@@ -34,6 +34,7 @@ const (
 	WKT     GeoMode = 1
 	GeoJson GeoMode = 2
 	// Shape   GeoMode = 3 // shape格式的二进制存储
+	GAIA GeoMode = 3 // spatialite 的二进制格式
 )
 
 type Geometry interface {
@@ -64,4 +65,21 @@ func (this *GeoID) SetID(id int64) {
 
 func (this *GeoID) GetID() int64 {
 	return this.id
+}
+
+func CreateGeo(geoType GeoType) Geometry {
+	switch geoType {
+	case TGeoEmpty:
+		return nil
+	case TGeoPoint:
+		return &GeoPoint{}
+	case TGeoPolyline:
+		return &GeoPolyline{}
+	case TGeoPolygon:
+		return &GeoPolygon{}
+	case TGeoMultiPoint:
+	case TGeoCollection:
+		return nil
+	}
+	return nil
 }

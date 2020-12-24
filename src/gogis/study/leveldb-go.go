@@ -30,20 +30,20 @@ func SaveDB() {
 
 	startTime := time.Now().UnixNano()
 
-	id := int32(0)
-	for {
-		fea, ok := feait.Next()
-		if ok {
-			data := fea.Geo.To(geometry.WKB)
-			db.Put(base.Int2Bytes(id), data, nil)
-			// fmt.Println("id:", id, data)
-			// fmt.Println("geo:", fea.Geo)
-			id++
-		} else {
-			fmt.Println("id:", id)
-			break
-		}
-	}
+	// id := int32(0)
+	// for {
+	// 	fea, ok := feait.Next()
+	// 	if ok {
+	// 		data := fea.Geo.To(geometry.WKB)
+	// 		db.Put(base.Int2Bytes(id), data, nil)
+	// 		// fmt.Println("id:", id, data)
+	// 		// fmt.Println("geo:", fea.Geo)
+	// 		id++
+	// 	} else {
+	// 		fmt.Println("id:", id)
+	// 		break
+	// 	}
+	// }
 	db.Close()
 
 	endTime := time.Now().UnixNano()
@@ -133,27 +133,27 @@ func OpenDB() {
 }
 
 func OpenShapeMem() {
-	startTime := time.Now().UnixNano()
+	// startTime := time.Now().UnixNano()
 
-	var gPath = "c:/temp/"
-	var gTitle = "JBNTBHTB"
-	var gExt = ".shp"
+	// var gPath = "c:/temp/"
+	// var gTitle = "JBNTBHTB"
+	// var gExt = ".shp"
 
-	feset := data.OpenShape(gPath + gTitle + gExt)
-	feait := feset.QueryByBounds(feset.GetBounds())
-	for {
-		fea, ok := feait.Next()
-		if ok {
-			geo := fea.Geo
-			geo.GetBounds()
-		} else {
-			break
-		}
-	}
+	// feset := data.OpenShape(gPath + gTitle + gExt)
+	// // feait := feset.QueryByBounds(feset.GetBounds())
+	// // for {
+	// // 	fea, ok := feait.Next()
+	// // 	if ok {
+	// // 		geo := fea.Geo
+	// // 		geo.GetBounds()
+	// // 	} else {
+	// // 		break
+	// // 	}
+	// // }
 
-	endTime := time.Now().UnixNano()
-	seconds := float64((endTime - startTime) / 1e6)
-	fmt.Printf("time: %f 毫秒", seconds)
+	// endTime := time.Now().UnixNano()
+	// seconds := float64((endTime - startTime) / 1e6)
+	// fmt.Printf("time: %f 毫秒", seconds)
 }
 
 func levelmain() {

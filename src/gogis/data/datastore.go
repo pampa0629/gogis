@@ -187,10 +187,17 @@ type FieldInfo struct {
 // 集合对象迭代器，用来遍历对象
 type FeatureIterator interface {
 	Count() int64
-	Next() (Feature, bool)
-	// 批量读取支持go协程安全
+	// todo
+	// Next() (Feature, bool)
+
+	// 为调用批量读取做准备，调用 BatchNext 之前必须调用 本函数
+	// objCount 为每个批次拟获取对象的数量，不保证精确
+	PrepareBatch(objCount int) int
+
+	// 批量读取，支持go协程安全；调用前，务必调用 PrepareBatch
+	// batchNo 为批量的序号
 	// 只要读取到一个数据，达不到count的要求，也返回true
-	BatchNext(pos int64, count int) ([]Feature, int64, bool)
+	BatchNext(batchNo int) ([]Feature, bool)
 	Close() // 关闭，释放资源
 }
 

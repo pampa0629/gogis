@@ -6,7 +6,7 @@ import (
 	"gogis/mapping"
 )
 
-func main() {
+func cachemain() {
 	testCache()
 }
 

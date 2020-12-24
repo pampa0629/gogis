@@ -62,8 +62,10 @@ func (this *MemoryStore) Close() {
 type MemFeaItr struct {
 	ids    []int64    // id数组
 	feaset *MemFeaset // 数据集指针
-	// pos    int64      // 当前位置
-	fields []string // 字段名，空则为所有字段
+	// poses []int64      // 批量读取的起始位置
+	// counts []int // 每个批量读取对象的数量
+	objCountPerBatch int      // 每个批次要读取的对象数量
+	fields           []string // 字段名，空则为所有字段
 }
 
 func (this *MemFeaItr) Count() int64 {
@@ -103,20 +105,50 @@ func (this *MemFeaItr) getFeaByAtts(fea Feature) Feature {
 	return *newfea
 }
 
-// 批量读取支持go协程安全
-func (this *MemFeaItr) BatchNext(pos int64, count int) ([]Feature, int64, bool) {
-	len := int64(len(this.ids))
-	if pos < len {
-		oldpos := pos
-		if int64(count)+pos > len {
-			count = int(len - pos)
-		}
-		pos += int64(count)
-		return this.getFeasByIds(this.feaset.features, this.ids[oldpos:oldpos+int64(count)]), pos, true
-	} else {
-		return nil, pos, false
-	}
+// 为了批量读取做准备，返回批量的次数
+func (this *MemFeaItr) PrepareBatch(objCount int) int {
+	goCount := len(this.ids)/objCount + 1
+	this.objCountPerBatch = objCount
+	// this.poses = make([]int64, goCount)
+	// this.counts = make([]int, goCount)
+	// remainCount = len(this.ids)
+	// for i:=0; i<goCount; i++ {
+	// 	this.poses[i] = i*objCount
+	// 	this.counts[i] = objCount
+	// }
+
+	return goCount
 }
+
+// 批量读取支持go协程安全
+func (this *MemFeaItr) BatchNext(batchNo int) (feas []Feature, result bool) {
+	remainCount := len(this.ids) - batchNo*this.objCountPerBatch
+	if remainCount >= 0 {
+		objCount := this.objCountPerBatch
+		if remainCount < objCount {
+			objCount = remainCount
+		}
+		start := batchNo * this.objCountPerBatch
+		feas = this.getFeasByIds(this.feaset.features, this.ids[start:start+objCount])
+		result = true
+	}
+	return
+}
+
+// 批量读取支持go协程安全
+// func (this *MemFeaItr) BatchNext2(pos int64, count int) ([]Feature, int64, bool) {
+// 	len := int64(len(this.ids))
+// 	if pos < len {
+// 		oldpos := pos
+// 		if int64(count)+pos > len {
+// 			count = int(len - pos)
+// 		}
+// 		pos += int64(count)
+// 		return this.getFeasByIds(this.feaset.features, this.ids[oldpos:oldpos+int64(count)]), pos, true
+// 	} else {
+// 		return nil, pos, false
+// 	}
+// }
 
 // func (this *MemFeaItr) BatchNext2(pos int, count int) ([]Feature, int, bool) {
 // 	len := int64(len(this.ids))

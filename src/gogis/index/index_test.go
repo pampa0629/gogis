@@ -10,12 +10,12 @@ import (
 
 func TestCode(t *testing.T) {
 	bits := []byte{1, 1, 1, 0}
-	code := bits2code(bits)
+	code := Bits2code(bits)
 	bits2 := Code2bits(code)
 	if !bytes.Equal(bits2, bits) {
 		t.Error("code2bits")
 	}
-	if bits2code(bits2) != code {
+	if Bits2code(bits2) != code {
 		t.Error("bits2code")
 	}
 
@@ -84,6 +84,38 @@ func TestZOrder(t *testing.T) {
 	}
 	if !bytes.Equal(index.AddOne2(base.NewRect2D(29, 13, 31, 15), 15), []byte{1, 0, 1, 1}) {
 		t.Error("15")
+	}
+
+	// ===================================== //
+	{
+		codes := index.Query2(base.NewRect2D(-1, -1, 33, 33))
+		fmt.Println("1 codes:", codes) // 0-15
+	}
+	// return
+
+	{
+		codes := index.Query2(base.NewRect2D(0, 0, 32, 32))
+		fmt.Println("2 codes:", codes) // 0-11
+	}
+
+	{
+		codes := index.Query2(base.NewRect2D(7, 7, 25, 25))
+		fmt.Println("3 codes:", codes) // 6/7/8/9/10/11
+	}
+
+	{ //
+		codes := index.Query2(base.NewRect2D(8, 8, 24, 24))
+		fmt.Println("4 codes:", codes) // 6//9/11
+	}
+
+	{ //
+		codes := index.Query2(base.NewRect2D(9, 9, 23, 23))
+		fmt.Println("5 codes:", codes) // 6/9/11
+	}
+
+	{ // ？
+		codes := index.Query2(base.NewRect2D(8, 16, 16, 24))
+		fmt.Println("6 codes:", codes) // 9
 	}
 
 	// ===================================== //
