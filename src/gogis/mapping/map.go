@@ -148,6 +148,7 @@ func (this *Map) Open(filename string) {
 			ok, _ := store.Open(layer.Params)
 			if ok {
 				layer.feaset, _ = store.GetFeasetByName(layer.Params["name"])
+				layer.feaset.Open()
 			}
 		} else {
 			this.Layers[i] = nil // todo 应该提供恢复的机制，而不是简单置零
@@ -170,4 +171,9 @@ func (this *Map) Close() {
 // 缩放，ratio为缩放比率，大于1为放大；小于1为缩小
 func (this *Map) Zoom(ratio float64) {
 	this.canvas.Params.Scale *= ratio
+}
+
+func (this *Map) PanMap(dx, dy float64) {
+	this.canvas.Params.MapCenter.X -= dx
+	this.canvas.Params.MapCenter.Y -= dy
 }

@@ -47,7 +47,7 @@ func (this *QTreeIndex) AddGeo(geo geometry.Geometry) {
 
 // 保存
 func (this *QTreeNode) Save(w io.Writer) {
-	binary.Write(w, binary.LittleEndian, base.Bool2Int32(this.isSplited))
+	binary.Write(w, binary.LittleEndian, base.BoolToInt32(this.isSplited))
 	binary.Write(w, binary.LittleEndian, this.bbox)
 	count := int32(len(this.ids))
 	binary.Write(w, binary.LittleEndian, count)

@@ -182,7 +182,7 @@ func CalcBBox(level int, col int, row int, espg EPSG) (bbox base.Rect2D) {
 func (this *MapTile) calcCacheLevels() (minLevel, maxLevel int) {
 	geoCount := int64(0)
 	for _, layer := range this.amap.Layers {
-		geoCount += layer.feaset.Count()
+		geoCount += layer.feaset.GetCount()
 	}
 
 	return base.CalcMinMaxLevels(this.amap.BBox, geoCount)

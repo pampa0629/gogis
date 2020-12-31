@@ -46,7 +46,7 @@ const (
 	TypeQTreeIndex   SpatialIndexType = 2 // 四叉树索引；构建速度中等，查询速度快，结果精确
 	TypeRTreeIndex   SpatialIndexType = 3 // R树索引；构建速度慢，查询速度快，结果精确
 	TypeZOrderIndex  SpatialIndexType = 4 // Z-Order索引，通过生成空间key来查找对象，适合数据库的并发/分布式查询与读写
-	TypeXzorderIndex SpatialIndexType = 5 // XZ-Order索引，通过生成空间key来查找对象，适合数据库的并发/分布式查询与读写
+	TypeXzorderIndex SpatialIndexType = 5 // todo XZ-Order索引，通过生成空间key来查找对象，适合数据库的并发/分布式查询与读写
 )
 
 // 根据类型，创建空间索引对象
@@ -99,4 +99,28 @@ func SaveGix(gixfile string, index SpatialIndex) {
 	gix.WriteString(base.EXT_SPATIAL_INDEX_FILE + " ") // 加一个空格，凑四个字符
 	binary.Write(gix, binary.LittleEndian, index.Type())
 	index.Save(gix)
+}
+
+// 适合数据库使用的空间索引
+// 与SpatialIndex的区别在于：
+// *）初始化时，需要bbox和level（划分多少层级，以便后续每个geo的bbox计算得到code
+// *）DB索引计算bbox对应的code，以便和geo一起存储到数据库中
+// *）查询时，返回bbox所对应codes，以便从数据库中用codes获取geos
+type SpatialIndexDB interface {
+	// 初始化
+	InitDB(bbox base.Rect2D, level int32)
+
+	GetCode(bbox base.Rect2D) int32
+
+	// 构建后，检查是否有问题；没问题返回true
+	Check() bool
+
+	// 范围查询，返回 code
+	QueryDB(bbox base.Rect2D) []int32
+
+	// 清空
+	Clear()
+
+	// 返回自己的类型
+	Type() SpatialIndexType
 }

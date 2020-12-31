@@ -158,6 +158,8 @@ func DistanceSquare(x0, y0, x1, y1 float64) float64 {
 	return math.Pow((x0-x1), 2) + math.Pow((y0-y1), 2)
 }
 
+// ===================================================== //
+
 // 支持： sort.Sort(base.Int64s([]int64))
 type Int64s []int64
 
@@ -173,5 +175,23 @@ func (s Int64s) Less(i, j int) bool {
 
 //Swap()
 func (s Int64s) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+// 支持： sort.Sort(base.Int32s([]int32))
+type Int32s []int32
+
+//Len()
+func (s Int32s) Len() int {
+	return len(s)
+}
+
+//Less():成绩将有低到高排序
+func (s Int32s) Less(i, j int) bool {
+	return s[i] < s[j]
+}
+
+//Swap()
+func (s Int32s) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }

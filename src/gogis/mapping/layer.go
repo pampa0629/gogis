@@ -32,7 +32,7 @@ func NewLayer(feaset data.Featureset) *Layer {
 }
 
 // 一次性绘制的对象个数
-const ONE_DRAW_COUNT = 100000
+const ONE_DRAW_COUNT = 500000
 
 func (this *Layer) Draw(canvas *draw.Canvas) int64 {
 	canvas.SetStyle(this.Style)
@@ -40,9 +40,8 @@ func (this *Layer) Draw(canvas *draw.Canvas) int64 {
 	tr := base.NewTimeRecorder()
 	feait := this.feaset.QueryByBounds(canvas.Params.GetBounds())
 	objCount := feait.Count()
-	tr.Output("query layer " + this.Name + ", object count:" + strconv.Itoa(int(objCount)))
-
 	forCount := feait.PrepareBatch(ONE_DRAW_COUNT)
+	tr.Output("query layer " + this.Name + ", object count:" + strconv.Itoa(int(objCount)) + ", go count:" + strconv.Itoa(forCount))
 
 	// 直接绘制
 	if forCount == 1 {
@@ -65,7 +64,8 @@ func (this *Layer) Draw(canvas *draw.Canvas) int64 {
 func (this *Layer) drawBatch(itr data.FeatureIterator, batchNo int, canvas *draw.Canvas) {
 	// tr := base.NewTimeRecorder()
 	features, ok := itr.BatchNext(batchNo)
-	// tr.Output("feaitr fetch batch")
+	// tr.Output("feaitr fetch batch,")
+	// fmt.Println("layer batch count:", len(features))
 	if ok {
 		for _, v := range features {
 			// todo 这里还应该增加 geo是否bbox相交的判断，if itr 得到geo不能保证精确的话

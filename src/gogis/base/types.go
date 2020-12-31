@@ -3,6 +3,7 @@
 package base
 
 import (
+	"encoding/binary"
 	"math"
 )
 
@@ -25,6 +26,27 @@ func (this *Point2D) DistanceSquare(pnt Point2D) float64 {
 // 矩形结构
 type Rect2D struct {
 	Min, Max Point2D
+}
+
+func (this *Rect2D) ToBytes() []byte {
+	bytes := make([]byte, 32)
+	minx := math.Float64bits(this.Min.X)
+	miny := math.Float64bits(this.Min.Y)
+	maxx := math.Float64bits(this.Max.X)
+	maxy := math.Float64bits(this.Max.Y)
+
+	binary.LittleEndian.PutUint64(bytes, minx)
+	binary.LittleEndian.PutUint64(bytes[8:], miny)
+	binary.LittleEndian.PutUint64(bytes[16:], maxx)
+	binary.LittleEndian.PutUint64(bytes[24:], maxy)
+	return bytes
+}
+
+func (this *Rect2D) FromBytes(data []byte) {
+	this.Min.X = BytesToFloat64(data)
+	this.Min.Y = BytesToFloat64(data[8:])
+	this.Max.X = BytesToFloat64(data[16:])
+	this.Max.Y = BytesToFloat64(data[24:])
 }
 
 // 初始化，使之无效，即min为浮点数最大值；max为浮点数最小值。而非均为0

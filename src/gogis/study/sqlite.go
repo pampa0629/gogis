@@ -12,7 +12,7 @@ import (
 	// "github.com/stretchr/testify/require"
 )
 
-func main() {
+func sqlmain() {
 	// test2()
 	testSpatialite2()
 	// testUDBX()

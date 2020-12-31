@@ -165,7 +165,7 @@ func (this *MapService) OpenShp(shpfile string, cachepath string) {
 }
 
 func (this *MapService) OpenCache(cachepath string) {
-	this.tilestore = new(data.LeveldbTileStore) //  LeveldbTileStore FileTileStore
+	this.tilestore = new(data.FileTileStore) //  LeveldbTileStore FileTileStore
 	this.tilestore.Open(cachepath, this.maptitle)
 }
 

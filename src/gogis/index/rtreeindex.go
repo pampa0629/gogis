@@ -140,7 +140,7 @@ type RTreeNode struct {
 // 保存节点
 func (this *RTreeNode) save(w io.Writer) {
 	binary.Write(w, binary.LittleEndian, this.level)
-	binary.Write(w, binary.LittleEndian, base.Bool2Int32(this.isLeaf))
+	binary.Write(w, binary.LittleEndian, base.BoolToInt32(this.isLeaf))
 	binary.Write(w, binary.LittleEndian, this.bbox)
 	if this.isLeaf {
 		binary.Write(w, binary.LittleEndian, int32(len(this.ids)))

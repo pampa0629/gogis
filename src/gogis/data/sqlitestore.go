@@ -9,6 +9,7 @@ import (
 	"gogis/geometry"
 	"gogis/index"
 	"strconv"
+	"strings"
 
 	// "database/sql"
 	_ "github.com/mattn/go-sqlite3"
@@ -40,12 +41,13 @@ func (this *SqliteStore) Open(params ConnParams) (res bool, err error) {
 	if err == nil {
 		this.loadSys(rows)
 	} else {
-		// 没有就创建系统表
+		// 没有就创建系统表 todo
 		// this.createSys()
 	}
 	return true, nil
 }
 
+// spatialite table 3's elements
 type st3 struct {
 	name    string
 	geom    string
@@ -70,7 +72,6 @@ func (this *SqliteStore) loadSys(rows *sql.Rows) {
 		this.feasets[i].name = v.name
 		this.feasets[i].geom = v.geom
 		this.feasets[i].geotype = v.geotype
-		// this.feasets[i].Open(v.name) // 先不Open
 	}
 }
 
@@ -149,14 +150,14 @@ func (this *SqliteStore) GetFeasetByNum(num int) (Featureset, error) {
 
 func (this *SqliteStore) GetFeasetByName(name string) (Featureset, error) {
 	for _, v := range this.feasets {
-		if v.name == name {
+		if strings.ToLower(v.name) == strings.ToLower(name) {
 			return v, nil
 		}
 	}
 	return nil, errors.New("cannot find the feature set of name: " + name + ".")
 }
 
-func (this *SqliteStore) FeaturesetNames() (names []string) {
+func (this *SqliteStore) GetFeasetNames() (names []string) {
 	names = make([]string, len(this.feasets))
 	for i, _ := range names {
 		names[i] = this.feasets[i].name
@@ -182,6 +183,7 @@ type SqliteFeaset struct {
 	count   int64 // 对象个数
 	// indexType index.SpatialIndexType
 	idx index.ZOrderIndex // 暂时只支持 zorder索引
+	// idx index.SpatialIndexDB
 	// index data 先不加载
 	store *SqliteStore
 }
@@ -189,9 +191,9 @@ type SqliteFeaset struct {
 // sst: spatial sys table
 const SST_GEO_STA = "geometry_columns_statistics"
 
-func (this *SqliteFeaset) Open(name string) (bool, error) {
+func (this *SqliteFeaset) Open() (bool, error) {
 	sql := "select row_count,extent_min_x,extent_min_y,extent_max_x,extent_max_y from " + SST_GEO_STA
-	sql += " where f_table_name = '" + name + "'"
+	sql += " where f_table_name = '" + this.name + "'"
 	// fmt.Println(sql)
 	err := this.store.db.QueryRow(sql).Scan(&this.count, &this.bbox.Min.X, &this.bbox.Min.Y, &this.bbox.Max.X, &this.bbox.Max.Y)
 	if err == nil {
@@ -214,7 +216,7 @@ func (this *SqliteFeaset) loadSpatailIndex() {
 	err := this.store.db.QueryRow(sql).Scan(&indexLevel)
 	// 索引列已经存在，继续读取索引
 	if err == nil && indexLevel >= 0 { // < 0 表示索引失效了
-		this.idx.Init2(this.bbox, indexLevel)
+		this.idx.InitDB(this.bbox, indexLevel)
 		return
 	}
 	// 但凡前面读取索引出问题，就重新构建索引
@@ -232,7 +234,8 @@ func (this *SqliteFeaset) createSpatailIndex() {
 	// 1，写入level
 	// 1.1 得到  level
 	level := index.CalcZOderLevel(this.count)
-	this.idx.Init2(this.bbox, level)
+	// level = 5 // todo
+	this.idx.InitDB(this.bbox, level)
 	// 1.2 创建字段
 	CreateField(this.store.db, SST_GEO_STA, SSF_INDEX_LEVEL, TypeInt)
 	// 1.3 写入 level
@@ -252,7 +255,6 @@ func (this *SqliteFeaset) createSpatailIndex() {
 
 	// 2.1 创建 数据库索引
 	CreateDbIndex(this.store.db, this.name, SSF_INDEX_CODE, SSF_DB_INDEX_CODE)
-
 }
 
 // 给数据库中的某个字段创建索引，之前要判断该索引是否存在
@@ -281,17 +283,16 @@ func fetchGeo(rows *sql.Rows, geoType geometry.GeoType) geometry.Geometry {
 }
 
 // 读取索引 codes
-func (this *SqliteFeaset) loadCodes() (codes map[int]int) {
+func (this *SqliteFeaset) loadCodes() (codes map[int]int32) {
 	sql := "select rowid," + this.geom + " from " + this.name
 	rows, err := this.store.db.Query(sql)
-	codes = make(map[int]int, this.count)
+	codes = make(map[int]int32, this.count)
 	if err == nil {
 		for rows.Next() {
 			geo := fetchGeo(rows, SPL2GeoType(this.geotype))
 			if geo != nil {
 				bbox := geo.GetBounds()
-				bits := this.idx.CalcBboxBits(bbox)
-				code := index.Bits2code(bits)
+				code := this.idx.GetCode(bbox)
 				codes[int(geo.GetID())] = code
 			}
 		}
@@ -383,6 +384,10 @@ func FieldIsExist(db *sql.DB, table string, fieldName string) bool {
 	return false
 }
 
+func (this *SqliteFeaset) GetGeoType() geometry.GeoType {
+	return SPL2GeoType(this.geotype)
+}
+
 func (this *SqliteFeaset) Close() {
 	// todo 这里干点什么呢？
 }
@@ -395,7 +400,7 @@ func (this *SqliteFeaset) GetName() string {
 	return this.name
 }
 
-func (this *SqliteFeaset) Count() (count int64) { // 对象个数
+func (this *SqliteFeaset) GetCount() (count int64) { // 对象个数
 	this.store.db.QueryRow("select count(*) from " + this.name).Scan(&count)
 	return count
 }
@@ -410,16 +415,16 @@ func (this *SqliteFeaset) GetFieldInfos() (finfos []FieldInfo) {
 	return
 }
 
-func (this *SqliteFeaset) Query(bbox base.Rect2D, def QueryDef) FeatureIterator {
-	return nil
-}
+// func (this *SqliteFeaset) Query(bbox base.Rect2D, def QueryDef) FeatureIterator {
+// 	return nil
+// }
 
 // 构造sql中的in语句
-func buildSqlIn(values []int) string {
+func buildSqlIn(values []int32) string {
 	in := " IN("
 	count := len(values)
 	for i, v := range values {
-		in += strconv.Itoa(v)
+		in += strconv.Itoa(int(v))
 		if i != count-1 {
 			in += ","
 		}
@@ -429,7 +434,7 @@ func buildSqlIn(values []int) string {
 }
 
 func (this *SqliteFeaset) QueryByBounds(bbox base.Rect2D) FeatureIterator {
-	codes := this.idx.Query2(bbox)
+	codes := this.idx.QueryDB(bbox)
 
 	from := " from " + this.name
 	where := " where " + SSF_INDEX_CODE
@@ -451,19 +456,18 @@ func (this *SqliteFeaset) QueryByBounds(bbox base.Rect2D) FeatureIterator {
 	// return nil
 }
 
-func (this *SqliteFeaset) QueryByDef(def QueryDef) FeatureIterator {
-	return nil
-}
+// func (this *SqliteFeaset) QueryByDef(def QueryDef) FeatureIterator {
+// 	return nil
+// }
 
 // 迭代器
 type SqliteFeaItr struct {
-	// rows    *sql.Rows
 	feaset  *SqliteFeaset
 	bbox    base.Rect2D
 	count   int64
-	codes   []int
-	codess  [][]int //
-	geotype int     // gaia 的geo类型
+	codes   []int32
+	codess  [][]int32 // 每个批次所对应的index codes
+	geotype int       // gaia 的geo类型
 
 	countPerGo int // 每一个批次的对象数量
 }
@@ -473,7 +477,6 @@ func (this *SqliteFeaItr) Count() int64 {
 }
 
 func (this *SqliteFeaItr) Close() {
-	// this.rows.Close()
 	return
 }
 
@@ -482,40 +485,13 @@ func (this *SqliteFeaItr) Next() (fea Feature, ok bool) {
 	return
 }
 
-// 把一个数组尽可能均分为 n 份，返回数组的 数组
-func splitSlice(s []int, n int) (r [][]int) {
-	r = make([][]int, n)
-	count := len(s) / n // 每份分几个
-	// 前面 n-1 份都相等
-	for i := 0; i < n-1; i++ {
-		r[i] = make([]int, 0, count)
-		r[i] = append(r[i], s[i*count:(i+1)*count]...)
-	}
-	// 剩下的都给最后一份
-	r[n-1] = make([]int, 0, len(s)-(n-1)*count)
-	r[n-1] = append(r[n-1], s[(n-1)*count:]...)
-	return
-}
-
-func splitSlice64(s []int64, n int) (r [][]int64) {
-	r = make([][]int64, n)
-	count := len(s) / n // 每份分几个
-	// 前面 n-1 份都相等
-	for i := 0; i < n-1; i++ {
-		r[i] = make([]int64, 0, count)
-		r[i] = append(r[i], s[i*count:(i+1)*count]...)
-	}
-	// 剩下的都给最后一份
-	r[n-1] = make([]int64, 0, len(s)-(n-1)*count)
-	r[n-1] = append(r[n-1], s[(n-1)*count:]...)
-	return
-}
-
 // 为了批量读取做准备，返回批量的次数
 func (this *SqliteFeaItr) PrepareBatch(objCount int) int {
 	goCount := int(this.count)/objCount + 1
 	// 这里假设每个code中所包含的对象，是大体平均分布的
-	this.codess = splitSlice(this.codes, goCount)
+	this.codess = base.SplitSlice32(this.codes, goCount)
+	// fmt.Println("codes:", this.codes)
+	// fmt.Println("codess:", this.codess)
 	this.countPerGo = objCount
 	return goCount
 }
@@ -540,7 +516,8 @@ func (this *SqliteFeaItr) BatchNext(batchNo int) (feas []Feature, result bool) {
 			feas = make([]Feature, 0, this.countPerGo)
 			for rows.Next() {
 				geo := fetchGeo(rows, SPL2GeoType(this.geotype))
-				if geo != nil && this.bbox.IsIntersect(geo.GetBounds()) {
+				// if geo != nil && this.bbox.IsIntersect(geo.GetBounds()) {
+				if geo != nil { // todo
 					feas = append(feas, Feature{Geo: geo})
 				}
 			}
@@ -552,6 +529,7 @@ func (this *SqliteFeaItr) BatchNext(batchNo int) (feas []Feature, result bool) {
 	} else {
 		fmt.Println("db open:"+this.feaset.store.filename+" error:", err)
 	}
+	fmt.Println("sqlite batch next, codes:", this.codess[batchNo], " count:", len(feas))
 	return
 }
 

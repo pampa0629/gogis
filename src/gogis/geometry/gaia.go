@@ -1,9 +1,9 @@
 package geometry
 
 import (
-	"bytes"
 	"encoding/binary"
 	"gogis/base"
+	"io"
 )
 
 type GAIAInfo struct {
@@ -17,12 +17,12 @@ type GAIAInfo struct {
 	mark  byte
 }
 
-func (this *GAIAInfo) From(buf *bytes.Buffer) binary.ByteOrder {
-	binary.Read(buf, binary.LittleEndian, &this.order)
+func (this *GAIAInfo) From(r io.Reader) binary.ByteOrder {
+	binary.Read(r, binary.LittleEndian, &this.order)
 	byteOrder := GAIAByte2Order(this.order)
-	binary.Read(buf, byteOrder, &this.srid)
-	binary.Read(buf, byteOrder, &this.bbox)
-	binary.Read(buf, byteOrder, &this.mark)
+	binary.Read(r, byteOrder, &this.srid)
+	binary.Read(r, byteOrder, &this.bbox)
+	binary.Read(r, byteOrder, &this.mark)
 	if this.mark != byte(0X7C) {
 		panic("gaia info mark error:" + string(this.mark))
 	}
@@ -37,14 +37,48 @@ const (
 	GaiaLittle GAIAByteOrder = 1 // 小尾端，默认都用小端
 )
 
-// 读取一个字节，确定 wkb后续内容的字节顺序
+// 确定后续内容的字节顺序
 func GAIAByte2Order(gaiaByte byte) (byteOrder binary.ByteOrder) {
-	if gaiaByte == byte(GaiaBig) {
+	switch gaiaByte {
+	case byte(GaiaBig):
 		byteOrder = binary.BigEndian
-	} else if gaiaByte == byte(GaiaLittle) {
+	case byte(GaiaLittle):
 		byteOrder = binary.LittleEndian
-	} else {
-		panic("gaia byte order error:" + string(gaiaByte))
 	}
 	return
+}
+
+// PolygonData {
+// 	static int32 geoType = 3; //Geometry 类型标识
+// 	int32 numInteriors; //环的总个数
+// 	Ring exteriorRing; //外环对象
+// 	Ring[] interiorRings[numInteriors]; //内环对象
+// 	}
+
+func gaia2Polygon(r io.Reader, byteOrder binary.ByteOrder) [][]base.Point2D {
+	var geoType int32
+	binary.Read(r, byteOrder, &geoType)
+	if geoType == 3 {
+		var count int32
+		binary.Read(r, byteOrder, &count)
+		pnts := make([][]base.Point2D, count)
+		// pnts[0] = gaia2Ring(r, byteOrder)
+		for i := 0; i < int(count); i++ {
+			pnts[i] = gaia2Ring(r, byteOrder)
+		}
+		return pnts
+	}
+	return nil
+}
+
+// Ring { //由点组成的环形
+// 	int32 numPoints; //点个数
+// 	Point[] pnts[numPoints]; //点坐标
+// 	}
+func gaia2Ring(r io.Reader, byteOrder binary.ByteOrder) []base.Point2D {
+	var pntCount int32
+	binary.Read(r, byteOrder, &pntCount)
+	pnts := make([]base.Point2D, pntCount)
+	binary.Read(r, byteOrder, pnts)
+	return pnts
 }

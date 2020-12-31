@@ -57,7 +57,7 @@ func batchOpenDB(id int32, db *leveldb.DB, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for i := id; i < id+gBatchCount; i++ {
-		data, err := db.Get(base.Int2Bytes(i), nil)
+		data, err := db.Get(base.Int32ToBytes(i), nil)
 		if err != nil {
 			fmt.Println("get error:", err)
 		}

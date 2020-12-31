@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"math"
 	"os"
 	"reflect"
 	"unsafe"
@@ -103,33 +104,83 @@ func ReadFloat64(f *os.File) (data float64) {
 	return
 }
 
+// ===========================================================//
+// 各类 基本数据类型与bytes之间的相互转换
+// ===========================================================//
+
+func Float32ToBytes(float float32) []byte {
+	bits := math.Float32bits(float)
+	bytes := make([]byte, 4)
+	binary.LittleEndian.PutUint32(bytes, bits)
+	return bytes
+}
+
+func BytesToFloat32(bytes []byte) float32 {
+	bits := binary.LittleEndian.Uint32(bytes)
+	return math.Float32frombits(bits)
+}
+
+func Float64ToBytes(float float64) []byte {
+	bits := math.Float64bits(float)
+	bytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bytes, bits)
+	return bytes
+}
+
+func BytesToFloat64(bytes []byte) float64 {
+	bits := binary.LittleEndian.Uint64(bytes)
+	return math.Float64frombits(bits)
+}
+
+func Int32ToBytes(i int32) []byte {
+	var buf = make([]byte, 4)
+	binary.LittleEndian.PutUint32(buf, uint32(i))
+	return buf
+}
+
+func BytesToInt32(buf []byte) int32 {
+	return int32(binary.LittleEndian.Uint32(buf))
+}
+
+func Int64ToBytes(i int64) []byte {
+	var buf = make([]byte, 8)
+	binary.LittleEndian.PutUint64(buf, uint64(i))
+	return buf
+}
+
+func BytesToInt64(buf []byte) int64 {
+	return int64(binary.LittleEndian.Uint64(buf))
+}
+
+// ==================================================== //
+
 // int32 转化为 bytes
-func Int2Bytes(value int32) []byte {
-	var buf bytes.Buffer
+// func Int2Bytes(value int32) []byte {
+// 	var buf bytes.Buffer
 
-	// 数字转 []byte
-	binary.Write(&buf, binary.LittleEndian, value)
-	return buf.Bytes()
-}
+// 	// 数字转 []byte
+// 	binary.Write(&buf, binary.LittleEndian, value)
+// 	return buf.Bytes()
+// }
 
-// bytes 转为 int32
-func Bytes2Int(data []byte) (value int32) {
-	buf := bytes.NewBuffer(data)
-	binary.Read(buf, binary.LittleEndian, &value)
-	return
-}
+// // bytes 转为 int32
+// func Bytes2Int(data []byte) (value int32) {
+// 	buf := bytes.NewBuffer(data)
+// 	binary.Read(buf, binary.LittleEndian, &value)
+// 	return
+// }
 
-// double 转为 bytes
-func Double2Bytes(value float64) []byte {
-	var buf bytes.Buffer
+// // double 转为 bytes
+// func Double2Bytes(value float64) []byte {
+// 	var buf bytes.Buffer
 
-	// 数字转 []byte
-	binary.Write(&buf, binary.LittleEndian, value)
-	return buf.Bytes()
-}
+// 	// 数字转 []byte
+// 	binary.Write(&buf, binary.LittleEndian, value)
+// 	return buf.Bytes()
+// }
 
 // 布尔值转化为int32，方便后面对齐存储
-func Bool2Int32(value bool) (result int32) {
+func BoolToInt32(value bool) (result int32) {
 	if value {
 		result = 1
 	}

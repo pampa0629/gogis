@@ -33,8 +33,8 @@ const (
 	WKB     GeoMode = 0
 	WKT     GeoMode = 1
 	GeoJson GeoMode = 2
-	// Shape   GeoMode = 3 // shape格式的二进制存储
-	GAIA GeoMode = 3 // spatialite 的二进制格式
+	GAIA    GeoMode = 3 // spatialite 的二进制格式
+	Shape   GeoMode = 4 // shape格式的二进制存储
 )
 
 type Geometry interface {

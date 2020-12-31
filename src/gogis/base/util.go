@@ -22,7 +22,7 @@ func NewTimeRecorder() (rt *TimeRecorder) {
 func (this *TimeRecorder) Output(dosome string) {
 	endTime := time.Now().UnixNano()
 	seconds := float64((endTime - this.start) / 1e6)
-	fmt.Println(dosome, "time: ", seconds, "millisecond")
+	fmt.Println(dosome, "time: ", seconds, "millisecond", ", tick:", endTime-this.start)
 	this.start = endTime // 支持连续输出
 }
 
@@ -110,3 +110,32 @@ func RemoveRepByMap(ids []int64) []int64 {
 }
 
 // ================================================== //
+
+// 把一个数组尽可能均分为 n 份，返回数组的 数组
+func SplitSlice32(s []int32, n int) (r [][]int32) {
+	r = make([][]int32, n)
+	count := len(s) / n // 每份分几个
+	// 前面 n-1 份都相等
+	for i := 0; i < n-1; i++ {
+		r[i] = make([]int32, 0, count)
+		r[i] = append(r[i], s[i*count:(i+1)*count]...)
+	}
+	// 剩下的都给最后一份
+	r[n-1] = make([]int32, 0, len(s)-(n-1)*count)
+	r[n-1] = append(r[n-1], s[(n-1)*count:]...)
+	return
+}
+
+func SplitSlice64(s []int64, n int) (r [][]int64) {
+	r = make([][]int64, n)
+	count := len(s) / n // 每份分几个
+	// 前面 n-1 份都相等
+	for i := 0; i < n-1; i++ {
+		r[i] = make([]int64, 0, count)
+		r[i] = append(r[i], s[i*count:(i+1)*count]...)
+	}
+	// 剩下的都给最后一份
+	r[n-1] = make([]int64, 0, len(s)-(n-1)*count)
+	r[n-1] = append(r[n-1], s[(n-1)*count:]...)
+	return
+}

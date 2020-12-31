@@ -45,9 +45,9 @@ func (this *XzorderIndex) Init(bbox base.Rect2D, num int64) {
 }
 
 // 根据层级计算所有的cell个数
-func calcCellCount(level int32) (count int) {
+func calcCellCount(level int32) (count int32) {
 	for level >= 0 {
-		count += int(math.Pow(4.0, float64(level)))
+		count += int32(math.Pow(4.0, float64(level)))
 		level--
 	}
 	return

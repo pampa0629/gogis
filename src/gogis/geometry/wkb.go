@@ -1,9 +1,9 @@
 package geometry
 
 import (
-	"bytes"
 	"encoding/binary"
 	"gogis/base"
+	"io"
 )
 
 // 几何对象类型定义
@@ -85,16 +85,16 @@ func WkbByte2Order(wkbByte byte) (byteOrder binary.ByteOrder) {
 // 	uint32  numPoints;
 // 	Point  points[numPoints]}
 // 从字节缓存中，读取 wkb 简单线；只包括 点个数和坐标数组
-func WkbLinearRing2Bytes(points []base.Point2D, buf *bytes.Buffer) {
-	binary.Write(buf, binary.LittleEndian, uint32(len(points)))
-	binary.Write(buf, binary.LittleEndian, points)
+func WkbLinearRing2Bytes(points []base.Point2D, w io.Writer) {
+	binary.Write(w, binary.LittleEndian, uint32(len(points)))
+	binary.Write(w, binary.LittleEndian, points)
 }
 
-func Bytes2WkbLinearRing(byteOrder binary.ByteOrder, buf *bytes.Buffer) (points []base.Point2D) {
+func Bytes2WkbLinearRing(r io.Reader, byteOrder binary.ByteOrder) (points []base.Point2D) {
 	var numPoints uint32
-	binary.Read(buf, byteOrder, &numPoints)
+	binary.Read(r, byteOrder, &numPoints)
 	points = make([]base.Point2D, numPoints)
-	binary.Read(buf, byteOrder, points)
+	binary.Read(r, byteOrder, points)
 	return
 }
 
@@ -104,10 +104,10 @@ func Bytes2WkbLinearRing(byteOrder binary.ByteOrder, buf *bytes.Buffer) (points 
 // uint32  numPoints;                                  //点的个数
 // Point  points[numPoints]}                 //点的坐标数组
 // 把Wkb简单线写入字节缓存
-func WkbLineString2Bytes(points []base.Point2D, buf *bytes.Buffer) {
-	binary.Write(buf, binary.LittleEndian, byte(WkbLittle))
-	binary.Write(buf, binary.LittleEndian, uint32(WkbLineString))
-	WkbLinearRing2Bytes(points, buf)
+func WkbLineString2Bytes(points []base.Point2D, w io.Writer) {
+	binary.Write(w, binary.LittleEndian, byte(WkbLittle))
+	binary.Write(w, binary.LittleEndian, uint32(WkbLineString))
+	WkbLinearRing2Bytes(points, w)
 }
 
 // WKBPolygon{
@@ -117,22 +117,22 @@ func WkbLineString2Bytes(points []base.Point2D, buf *bytes.Buffer) {
 // LinearRing rings[numRings]}           //线串（环）的数组
 
 // 存储简单面到 wkb bytes中
-func WkbPolygon2Bytes(points [][]base.Point2D, buf *bytes.Buffer) {
-	binary.Write(buf, binary.LittleEndian, byte(WkbLittle))
-	binary.Write(buf, binary.LittleEndian, uint32(WkbPolygon))
-	binary.Write(buf, binary.LittleEndian, uint32(len(points)))
+func WkbPolygon2Bytes(points [][]base.Point2D, w io.Writer) {
+	binary.Write(w, binary.LittleEndian, byte(WkbLittle))
+	binary.Write(w, binary.LittleEndian, uint32(WkbPolygon))
+	binary.Write(w, binary.LittleEndian, uint32(len(points)))
 	for _, v := range points {
-		WkbLinearRing2Bytes(v, buf)
+		WkbLinearRing2Bytes(v, w)
 	}
 }
 
 // 从字节缓存中，读取 wkb 简单面；只包括 点个数和坐标数组，不包括字节序和几何类型
-func Bytes2WkbPolygon(byteOrder binary.ByteOrder, buf *bytes.Buffer) (points [][]base.Point2D) {
+func Bytes2WkbPolygon(r io.Reader, byteOrder binary.ByteOrder) (points [][]base.Point2D) {
 	var numRings uint32
-	binary.Read(buf, byteOrder, &numRings)
+	binary.Read(r, byteOrder, &numRings)
 	points = make([][]base.Point2D, numRings)
 	for i := uint32(0); i < numRings; i++ {
-		points[i] = Bytes2WkbLinearRing(byteOrder, buf)
+		points[i] = Bytes2WkbLinearRing(r, byteOrder)
 	}
 	return
 }

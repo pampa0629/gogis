@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-func init() {
-	// fmt.Println("init function --->")
-}
+// func init() {
+// 	// fmt.Println("init function --->")
+// }
 
 // 打开数据的连接参数
 // 参数有哪些，根据具体store类型而定
@@ -28,8 +28,9 @@ type StoreType string
 const (
 	StoreShape       StoreType = "Shape"
 	StoreShapeMemory StoreType = "ShapeMemory" // 内存模式的shape存储库
-	StoreMemory      StoreType = "Memory"
+	StoreMemory      StoreType = "Memory"      // 纯内存模式
 	StoreSqlite      StoreType = "Sqlite"
+	StoreHbase       StoreType = "Hbase" // hbase
 )
 
 func NewDatastore(storyType StoreType) Datastore {
@@ -42,6 +43,8 @@ func NewDatastore(storyType StoreType) Datastore {
 		return new(MemoryStore)
 	case StoreSqlite:
 		return new(SqliteStore)
+	case StoreHbase:
+		return new(HbaseStore)
 	}
 	return nil
 }
@@ -54,25 +57,43 @@ type Datastore interface {
 
 	GetFeasetByNum(num int) (Featureset, error)
 	GetFeasetByName(name string) (Featureset, error)
-	FeaturesetNames() []string
+	GetFeasetNames() []string
 
 	Close() // 关闭，释放资源
 }
 
 // 矢量数据集合
 type Featureset interface {
-	Open(name string) (bool, error)
+	Open() (bool, error)
 	Close()
 
 	GetStore() Datastore
 	GetName() string
-	Count() int64 // 对象个数
+	GetCount() int64 // 对象个数
 	GetBounds() base.Rect2D
-	GetFieldInfos() []FieldInfo
+	GetGeoType() geometry.GeoType
+	// GetFieldInfos() []FieldInfo
 
-	Query(bbox base.Rect2D, def QueryDef) FeatureIterator
+	// Query(bbox base.Rect2D, def QueryDef) FeatureIterator
 	QueryByBounds(bbox base.Rect2D) FeatureIterator
-	QueryByDef(def QueryDef) FeatureIterator
+	// QueryByDef(def QueryDef) FeatureIterator
+}
+
+// 集合对象迭代器，用来遍历对象
+type FeatureIterator interface {
+	Count() int64
+	// todo
+	// Next() (Feature, bool)
+
+	// 为调用批量读取做准备，调用 BatchNext 之前必须调用 本函数
+	// objCount 为每个批次拟获取对象的数量，不保证精确
+	PrepareBatch(objCount int) int
+
+	// 批量读取，支持go协程安全；调用前，务必调用 PrepareBatch
+	// batchNo 为批量的序号
+	// 只要读取到一个数据，达不到count的要求，也返回true
+	BatchNext(batchNo int) ([]Feature, bool)
+	Close() // 关闭，释放资源
 }
 
 // type FieldCompOp int
@@ -182,23 +203,6 @@ type FieldInfo struct {
 	Name   string
 	Type   FieldType
 	Length int
-}
-
-// 集合对象迭代器，用来遍历对象
-type FeatureIterator interface {
-	Count() int64
-	// todo
-	// Next() (Feature, bool)
-
-	// 为调用批量读取做准备，调用 BatchNext 之前必须调用 本函数
-	// objCount 为每个批次拟获取对象的数量，不保证精确
-	PrepareBatch(objCount int) int
-
-	// 批量读取，支持go协程安全；调用前，务必调用 PrepareBatch
-	// batchNo 为批量的序号
-	// 只要读取到一个数据，达不到count的要求，也返回true
-	BatchNext(batchNo int) ([]Feature, bool)
-	Close() // 关闭，释放资源
 }
 
 // 一个矢量对象（带属性）

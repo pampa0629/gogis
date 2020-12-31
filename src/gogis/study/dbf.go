@@ -28,7 +28,7 @@ func testQuery() {
 	params["filename"] = filename
 
 	shp.Open(params)
-	set, _ := shp.GetFeasetByNum(0)
+	// set, _ := shp.GetFeasetByNum(0)
 
 	endTime := time.Now().UnixNano()
 	seconds := float64((endTime - startTime) / 1e6)
@@ -39,14 +39,14 @@ func testQuery() {
 	def.Fields = []string{"TKXS"}
 	def.Wheres = []string{"TKXS>10"}
 
-	ft := set.QueryByDef(def)
-	fmt.Println("fea count:", ft.Count())
+	// ft := set.QueryByDef(def)
+	// fmt.Println("fea count:", ft.Count())
 
 	for {
-		_, ok := ft.Next()
-		if !ok {
-			break
-		}
+		// _, ok := ft.Next()
+		// if !ok {
+		// 	break
+		// }
 		// fmt.Println(fea)
 	}
 

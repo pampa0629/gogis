@@ -8,7 +8,7 @@ import (
 // 坐标转化参数
 type CoordParams struct {
 	Scale      float64      // 图片距离/地图距离
-	mapCenter  base.Point2D // 地图中心点
+	MapCenter  base.Point2D // 地图中心点
 	drawCenter Point        // 图片中心点
 	dx, dy     int          // 图片的宽度和高度
 }
@@ -19,8 +19,8 @@ func (this *CoordParams) Init(bbox base.Rect2D, dx int, dy int) {
 	scaleY := (float64)(dy) / (bbox.Max.Y - bbox.Min.Y)
 	this.Scale = math.Min(scaleX, scaleY)
 
-	this.mapCenter.X = (bbox.Max.X + bbox.Min.X) / 2
-	this.mapCenter.Y = (bbox.Max.Y + bbox.Min.Y) / 2
+	this.MapCenter.X = (bbox.Max.X + bbox.Min.X) / 2
+	this.MapCenter.Y = (bbox.Max.Y + bbox.Min.Y) / 2
 
 	this.drawCenter.X = dx / 2
 	this.drawCenter.Y = dy / 2
@@ -32,10 +32,10 @@ func (this *CoordParams) Init(bbox base.Rect2D, dx int, dy int) {
 // 得到当前地图的范围
 func (this *CoordParams) GetBounds() base.Rect2D {
 	var bbox base.Rect2D
-	bbox.Min.X = this.mapCenter.X - float64(this.drawCenter.X)/this.Scale
-	bbox.Min.Y = this.mapCenter.Y - float64(this.drawCenter.Y)/this.Scale
-	bbox.Max.X = this.mapCenter.X + float64(this.drawCenter.X)/this.Scale
-	bbox.Max.Y = this.mapCenter.Y + float64(this.drawCenter.Y)/this.Scale
+	bbox.Min.X = this.MapCenter.X - float64(this.drawCenter.X)/this.Scale
+	bbox.Min.Y = this.MapCenter.Y - float64(this.drawCenter.Y)/this.Scale
+	bbox.Max.X = this.MapCenter.X + float64(this.drawCenter.X)/this.Scale
+	bbox.Max.Y = this.MapCenter.Y + float64(this.drawCenter.Y)/this.Scale
 	// fmt.Println("CoordParams.GetBounds():", bbox)
 	return bbox
 }
@@ -45,8 +45,8 @@ func (this *CoordParams) GetBounds() base.Rect2D {
 // 		    y = dy - ((pnt2D - mapCenter)*scale + drawCenter)
 func (this *CoordParams) Forward(pnt base.Point2D) Point {
 	var drawPnt Point
-	drawPnt.X = (int)((pnt.X-this.mapCenter.X)*this.Scale) + this.drawCenter.X
-	drawPnt.Y = this.dy - ((int)((pnt.Y-this.mapCenter.Y)*this.Scale) + this.drawCenter.Y)
+	drawPnt.X = (int)((pnt.X-this.MapCenter.X)*this.Scale) + this.drawCenter.X
+	drawPnt.Y = this.dy - ((int)((pnt.Y-this.MapCenter.Y)*this.Scale) + this.drawCenter.Y)
 	return drawPnt
 }
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"gogis/base"
+	"gogis/geometry"
 	"gogis/index"
 	"os"
 	"sort"
@@ -13,7 +14,7 @@ import (
 	"strings"
 )
 
-// 快捷方法，打开一个shape文件，得到特征集对象
+// 快捷方法，打开一个shape文件，得到要素集对象
 func OpenShape(filename string) Featureset {
 	// 默认用内存模式
 	shp := new(ShpmemStore)
@@ -21,26 +22,29 @@ func OpenShape(filename string) Featureset {
 	params["filename"] = filename
 	shp.Open(params)
 	feaset, _ := shp.GetFeasetByNum(0)
+	feaset.Open()
 	return feaset
 }
 
 // todo 未来还要考虑实现打开一个文件夹
 type ShapeStore struct {
-	feaset *ShapeFeaset
-	name   string //  filename
+	feaset   *ShapeFeaset
+	filename string //  filename
 }
 
 // 打开一个shape文件，params["filename"] = "c:/data/a.shp"
 func (this *ShapeStore) Open(params ConnParams) (bool, error) {
 	this.feaset = new(ShapeFeaset)
 	this.feaset.store = this
-	this.name = params["filename"]
-	return this.feaset.Open(this.name)
+	this.filename = params["filename"]
+	this.feaset.name = base.GetTitle(this.filename)
+	this.feaset.filename = this.filename
+	return true, nil
 }
 
 func (this *ShapeStore) GetConnParams() ConnParams {
 	params := NewConnParams()
-	params["filename"] = this.name
+	params["filename"] = this.filename
 	params["type"] = string(this.GetType())
 	return params
 }
@@ -64,7 +68,7 @@ func (this *ShapeStore) GetFeasetByName(name string) (Featureset, error) {
 	return nil, errors.New("feature set: " + name + " cannot find")
 }
 
-func (this *ShapeStore) FeaturesetNames() []string {
+func (this *ShapeStore) GetFeasetNames() []string {
 	names := make([]string, 1)
 	names[0] = this.feaset.name
 	return names
@@ -72,16 +76,14 @@ func (this *ShapeStore) FeaturesetNames() []string {
 
 // 关闭，释放资源
 func (this *ShapeStore) Close() {
-	// this.MemoryStore.Close()
 	this.feaset.Close()
 }
 
 // 硬盘读写模式的shape数据集
 type ShapeFeaset struct {
-	// MemFeaset
-
-	name string
-	bbox base.Rect2D
+	filename string // 文件全路径
+	name     string // 文件title
+	bbox     base.Rect2D
 	// shape文件
 	shape *ShapeFile
 	// 空间索引
@@ -91,18 +93,14 @@ type ShapeFeaset struct {
 }
 
 // 打开shape文件
-func (this *ShapeFeaset) Open(filename string) (bool, error) {
+func (this *ShapeFeaset) Open() (bool, error) {
 	tr := base.NewTimeRecorder()
-	this.name = base.GetTitle(filename)
 
 	this.shape = new(ShapeFile)
-	res := this.shape.Open(filename)
+	res := this.shape.Open(this.filename)
 	this.bbox = base.NewRect2D(this.shape.Xmin, this.shape.Ymin, this.shape.Xmax, this.shape.Ymax)
 
-	// this.loadShape(shape)
-	// shape.Close()
-
-	tr.Output("open shape file: " + filename + ",")
+	tr.Output("open shape file: " + this.filename)
 
 	//  处理空间索引文件
 	this.loadSpatialIndex()
@@ -118,13 +116,17 @@ func (this *ShapeFeaset) Close() {
 	this.store = nil
 }
 
+func (this *ShapeFeaset) GetGeoType() geometry.GeoType {
+	return geometry.ShpType2Geo(this.shape.GeoType)
+}
+
 func (this *ShapeFeaset) GetName() string {
 	return this.name
 }
 
 // 创建或者加载空间索引文件
 func (this *ShapeFeaset) loadSpatialIndex() {
-	indexName := strings.TrimSuffix(this.store.name, ".shp") + "." + base.EXT_SPATIAL_INDEX_FILE
+	indexName := strings.TrimSuffix(this.filename, ".shp") + "." + base.EXT_SPATIAL_INDEX_FILE
 	if base.FileIsExist(indexName) {
 		this.index = index.LoadGix(indexName)
 	} else {
@@ -139,7 +141,7 @@ func (this *ShapeFeaset) BuildSpatialIndex(indexType index.SpatialIndexType) ind
 		tr := base.NewTimeRecorder()
 
 		this.index = index.NewSpatialIndex(indexType)
-		this.index.Init(this.bbox, this.Count())
+		this.index.Init(this.bbox, this.GetCount())
 		bboxes, ids := this.shape.LoadBboxIds()
 		for i, v := range bboxes {
 			this.index.AddOne(v, int64(ids[i]))
@@ -157,7 +159,7 @@ func (this *ShapeFeaset) GetStore() Datastore {
 	return this.store
 }
 
-func (this *ShapeFeaset) Count() int64 {
+func (this *ShapeFeaset) GetCount() int64 {
 	return int64(this.shape.recordNum)
 }
 
@@ -170,9 +172,9 @@ func (this *ShapeFeaset) GetFieldInfos() []FieldInfo {
 }
 
 // todo
-func (this *ShapeFeaset) Query(bbox base.Rect2D, def QueryDef) FeatureIterator {
-	return nil
-}
+// func (this *ShapeFeaset) Query(bbox base.Rect2D, def QueryDef) FeatureIterator {
+// 	return nil
+// }
 
 func (this *ShapeFeaset) QueryByBounds(bbox base.Rect2D) FeatureIterator {
 	feaItr := new(ShapeFeaItr)
@@ -184,9 +186,9 @@ func (this *ShapeFeaset) QueryByBounds(bbox base.Rect2D) FeatureIterator {
 }
 
 // todo
-func (this *ShapeFeaset) QueryByDef(def QueryDef) FeatureIterator {
-	return nil
-}
+// func (this *ShapeFeaset) QueryByDef(def QueryDef) FeatureIterator {
+// 	return nil
+// }
 
 // shape读取迭代器
 type ShapeFeaItr struct {
@@ -227,7 +229,7 @@ func (this *ShapeFeaItr) Next() (Feature, bool) {
 func (this *ShapeFeaItr) PrepareBatch(countPerGo int) int {
 	goCount := len(this.ids)/countPerGo + 1
 	// 这里假设每个code中所包含的对象，是大体平均分布的
-	this.idss = splitSlice64(this.ids, goCount)
+	this.idss = base.SplitSlice64(this.ids, goCount)
 	this.countPerGo = countPerGo
 	return goCount
 }
@@ -241,7 +243,7 @@ func (this *ShapeFeaItr) BatchNext(batchNo int) (features []Feature, result bool
 		ids := this.idss[batchNo]
 		features = make([]Feature, count)
 
-		f, _ := os.Open(this.feaset.store.name)
+		f, _ := os.Open(this.feaset.filename)
 		defer f.Close()
 
 		curPos := 0 // 当前位置
@@ -268,41 +270,39 @@ func (this *ShapeFeaItr) BatchNext(batchNo int) (features []Feature, result bool
 }
 
 // 批量读取支持go协程安全
-func (this *ShapeFeaItr) BatchNext2(pos int64, count int) (features []Feature, newPos int64, result bool) {
-	// tr := base.NewTimeRecorder()
+// func (this *ShapeFeaItr) BatchNext2(pos int64, count int) (features []Feature, newPos int64, result bool) {
+// 	len := len(this.ids)
+// 	if int(pos) < len {
+// 		oldpos := int(pos)
+// 		if count+int(pos) > len {
+// 			count = len - int(pos)
+// 		}
+// 		pos += int64(count)
+// 		features = make([]Feature, count)
 
-	len := len(this.ids)
-	if int(pos) < len {
-		oldpos := int(pos)
-		if count+int(pos) > len {
-			count = len - int(pos)
-		}
-		pos += int64(count)
-		features = make([]Feature, count)
+// 		f, _ := os.Open(this.feaset.filename)
+// 		defer f.Close()
 
-		f, _ := os.Open(this.feaset.store.name)
-		defer f.Close()
-
-		curPos := int(oldpos) // 当前位置
-		for {
-			// 这里要注意：为了保证至少读取一个对象，故而起始值为1；后续的判断要以此为基础开展计算
-			batchCount := 1 // 连续的id的数量
-			for curPos+batchCount+1 <= int(pos) {
-				// 只有id连续，才能调用shape的Batch
-				if this.ids[curPos+batchCount] == this.ids[curPos+batchCount-1]+1 {
-					batchCount++
-				} else {
-					break
-				}
-			}
-			this.feaset.shape.BatchLoad(f, int(this.ids[curPos]), batchCount, features[curPos-oldpos:], nil)
-			curPos += batchCount
-			if curPos >= int(pos) {
-				break
-			}
-		}
-		result = true
-	}
-	newPos = pos
-	return
-}
+// 		curPos := int(oldpos) // 当前位置
+// 		for {
+// 			// 这里要注意：为了保证至少读取一个对象，故而起始值为1；后续的判断要以此为基础开展计算
+// 			batchCount := 1 // 连续的id的数量
+// 			for curPos+batchCount+1 <= int(pos) {
+// 				// 只有id连续，才能调用shape的Batch
+// 				if this.ids[curPos+batchCount] == this.ids[curPos+batchCount-1]+1 {
+// 					batchCount++
+// 				} else {
+// 					break
+// 				}
+// 			}
+// 			this.feaset.shape.BatchLoad(f, int(this.ids[curPos]), batchCount, features[curPos-oldpos:], nil)
+// 			curPos += batchCount
+// 			if curPos >= int(pos) {
+// 				break
+// 			}
+// 		}
+// 		result = true
+// 	}
+// 	newPos = pos
+// 	return
+// }

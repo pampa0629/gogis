@@ -1,9 +1,14 @@
 package base
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 )
+
+func TestIO(t *testing.T) {
+	fmt.Println(Float32ToBytes(11.1))
+}
 
 // 矩形与点
 func TestRectPoint(t *testing.T) {
