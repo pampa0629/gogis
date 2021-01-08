@@ -60,8 +60,8 @@ func DirIsExist(pathname string) bool {
 func GetRelativePath(bathpath, targetpath string) string {
 	bathpath = filepath.Dir(bathpath) // 先得到路径
 	relpath, err := filepath.Rel(bathpath, targetpath)
-	if err != nil {
-		fmt.Println("GetRelativePath err:", err)
+	if err != nil { // 有错误，就直接返回
+		return targetpath
 	}
 	return relpath
 }

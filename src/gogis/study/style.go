@@ -45,7 +45,7 @@ func stestMapFile() {
 
 	feaset := data.OpenShape(filename)
 	gmap := mapping.NewMap()
-	gmap.AddLayer(feaset)
+	gmap.AddLayer(feaset, nil)
 	fmt.Println("map:", gmap)
 
 	gmap.Prepare(256, 256)

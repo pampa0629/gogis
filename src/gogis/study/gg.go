@@ -9,9 +9,31 @@ import (
 	"github.com/fogleman/gg"
 )
 
-func ggmain() {
-	ggColor()
+func main() {
+	ggText()
+	// ggDong()
 	fmt.Println("gg DONE")
+}
+
+func ggText() {
+	dc := gg.NewContext(1000, 1000)
+	pat := gg.NewSolidPattern(color.RGBA{25, 200, 20, 255})
+	dc.SetFillStyle(pat)
+	// dc.set
+
+	dc.DrawString("abc", 100, 100)
+	dc.DrawPoint(100, 100, 1)
+
+	dc.DrawStringAnchored("abc", 300, 300, 0.5, 0.5)
+	dc.DrawPoint(300, 300, 1)
+
+	// 多行文本
+	dc.DrawStringWrapped("abc", 500, 500, 0, 0, 500, 0, gg.AlignLeft)
+	dc.DrawPoint(500, 500, 1)
+
+	dc.Fill()
+
+	dc.SavePNG("c:/temp/gg.png")
 }
 
 func ggColor() {

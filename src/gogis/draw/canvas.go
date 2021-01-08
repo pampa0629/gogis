@@ -3,6 +3,7 @@ package draw
 import (
 	"gogis/base"
 	"image"
+	"image/color"
 
 	"github.com/fogleman/gg"
 )
@@ -49,6 +50,10 @@ func (this *Canvas) Image() image.Image {
 	return this.dc.Image()
 }
 
+func (this *Canvas) GetSize() (width, height int) {
+	return this.dc.Width(), this.dc.Height()
+}
+
 // 检查是否真正在image中绘制了
 func (this *Canvas) CheckDrawn() bool {
 	img := this.dc.Image()
@@ -74,6 +79,11 @@ func (this *Canvas) SetStyle(style Style) {
 	this.dc.SetDash(style.LineDash...)
 }
 
+func (this *Canvas) SetTextColor(textColor color.RGBA) {
+	pat := gg.NewSolidPattern(textColor)
+	this.dc.SetFillStyle(pat)
+}
+
 func (this *Canvas) Stroke() {
 	this.dc.Stroke()
 }
@@ -83,19 +93,21 @@ func (this *Canvas) DrawImage(img image.Image, x, y int) {
 }
 
 func (this *Canvas) DrawPoint(pnt Point) {
+	this.dc.DrawPoint(float64(pnt.X), float64(pnt.Y), 1)
+	this.dc.Stroke()
 	// 先画个小方框代表点
-	var pnts [5]Point
-	pnts[0].X = pnt.X - 1
-	pnts[0].Y = pnt.Y - 1
-	pnts[1].X = pnt.X + 1
-	pnts[1].Y = pnt.Y - 1
-	pnts[2].X = pnt.X + 1
-	pnts[2].Y = pnt.Y + 1
-	pnts[3].X = pnt.X - 1
-	pnts[3].Y = pnt.Y + 1
-	pnts[4].X = pnt.X - 1
-	pnts[4].Y = pnt.Y - 1
-	this.DrawPolyline(pnts[:])
+	// var pnts [5]Point
+	// pnts[0].X = pnt.X - 1
+	// pnts[0].Y = pnt.Y - 1
+	// pnts[1].X = pnt.X + 1
+	// pnts[1].Y = pnt.Y - 1
+	// pnts[2].X = pnt.X + 1
+	// pnts[2].Y = pnt.Y + 1
+	// pnts[3].X = pnt.X - 1
+	// pnts[3].Y = pnt.Y + 1
+	// pnts[4].X = pnt.X - 1
+	// pnts[4].Y = pnt.Y - 1
+	// this.DrawPolyline(pnts[:])
 }
 
 func (this *Canvas) DrawPolyline(pnts []Point) {
@@ -146,6 +158,12 @@ func (this *Canvas) DrawPolygon(pnts []Point) {
 		this.dc.FillPreserve()
 		this.dc.Stroke()
 	}
+}
+
+// 绘制文字
+func (this *Canvas) DrawString(text string, x, y int) {
+	// this.dc.DrawString(text, float64(x), float64(y))
+	this.dc.DrawStringAnchored(text, float64(x), float64(y), 0.5, 0.5)
 }
 
 // 是否支持在画布上绘制

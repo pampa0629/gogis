@@ -33,11 +33,23 @@ func IntMax(x, y int) int {
 // 返回最大值对应的序号
 func Max(values []float64) (no int) {
 	maxValue := values[0]
-	no = 0
 	for i := 1; i < len(values); i++ {
 		if values[i] > maxValue {
 			maxValue = values[i]
 			no = i
+		}
+	}
+	return
+}
+
+// 得到最大值和最小值
+func GetExtreme(values []int) (max, min int) {
+	max, min = values[0], values[0]
+	for i := 1; i < len(values); i++ {
+		if values[i] > max {
+			max = values[i]
+		} else if values[i] < min {
+			min = values[i]
 		}
 	}
 	return

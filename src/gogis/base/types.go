@@ -28,6 +28,14 @@ type Rect2D struct {
 	Min, Max Point2D
 }
 
+func NewRect2D(minx, miny, maxx, maxy float64) (value Rect2D) {
+	value.Min.X = minx
+	value.Min.Y = miny
+	value.Max.X = maxx
+	value.Max.Y = maxy
+	return
+}
+
 func (this *Rect2D) ToBytes() []byte {
 	bytes := make([]byte, 32)
 	minx := math.Float64bits(this.Min.X)
@@ -57,14 +65,6 @@ func (this *Rect2D) Init() {
 	this.Max.Y = -math.MaxFloat64
 }
 
-func NewRect2D(minx, miny, maxx, maxy float64) (value Rect2D) {
-	value.Min.X = minx
-	value.Min.Y = miny
-	value.Max.X = maxx
-	value.Max.Y = maxy
-	return
-}
-
 // 复制自己
 func (this *Rect2D) Clone() (rect *Rect2D) {
 	rect = new(Rect2D)
@@ -74,16 +74,30 @@ func (this *Rect2D) Clone() (rect *Rect2D) {
 }
 
 // 得到矩形的四个顶点，顺序是左上右下
-// func (this *Rect2D) ToPoints() (pnts []Point2D) {
-// 	pnts = make([]Point2D, 4)
-// 	pnts[0].X = this.Min.X
-// 	pnts[0].Y = this.Max.Y
-// 	pnts[1] = this.Min
-// 	pnts[2] = this.Max
-// 	pnts[3].X = this.Max.X
-// 	pnts[3].Y = this.Min.Y
-// 	return
-// }
+func (this *Rect2D) ToPoints() (pnts []Point2D) {
+	pnts = make([]Point2D, 4)
+	pnts[0].X = this.Min.X
+	pnts[0].Y = this.Max.Y
+	pnts[1] = this.Min
+	pnts[2].X = this.Max.X
+	pnts[2].Y = this.Min.Y
+	pnts[3] = this.Max
+	return
+}
+
+// 左上角
+func (this *Rect2D) LeftTop() (pnt Point2D) {
+	pnt.X = this.Min.X
+	pnt.Y = this.Max.Y
+	return
+}
+
+// 右下角
+func (this *Rect2D) RightBottom() (pnt Point2D) {
+	pnt.X = this.Max.X
+	pnt.Y = this.Min.Y
+	return
+}
 
 // 两个box合并，取并集的box
 func (this *Rect2D) Union(rect Rect2D) {

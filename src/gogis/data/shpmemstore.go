@@ -20,7 +20,7 @@ type ShpmemStore struct {
 
 // 打开一个shape文件，params["filename"] = "c:/data/a.shp"
 func (this *ShpmemStore) Open(params ConnParams) (bool, error) {
-	this.filename = params["filename"]
+	this.filename = params["filename"].(string)
 	this.feaset = new(ShpmemFeaset)
 	this.feaset.store = this
 	this.feaset.filename = this.filename
@@ -33,6 +33,11 @@ func (this *ShpmemStore) GetConnParams() ConnParams {
 	params["filename"] = this.filename
 	params["type"] = string(this.GetType())
 	return params
+}
+
+// todo
+func (this *ShpmemStore) CreateFeaset(name string, bbox base.Rect2D, geotype geometry.GeoType) Featureset {
+	return nil
 }
 
 // 得到存储类型
@@ -48,7 +53,7 @@ func (this *ShpmemStore) GetFeasetByNum(num int) (Featureset, error) {
 }
 
 func (this *ShpmemStore) GetFeasetByName(name string) (Featureset, error) {
-	if this.feaset.name == name {
+	if strings.ToLower(this.feaset.name) == strings.ToLower(name) {
 		return this.feaset, nil
 	}
 	return nil, errors.New("feature set: " + name + " cannot find")

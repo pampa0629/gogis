@@ -1,12 +1,32 @@
 package data
 
 import (
+	"fmt"
 	"gogis/base"
 	"strconv"
 	"testing"
 )
 
-func TestConvert(t *testing.T) {
+func TestConvertShp2Es(t *testing.T) {
+	tr := base.NewTimeRecorder()
+
+	title := "insurance" // JBNTBHTB chinapnt_84
+
+	fromParams := NewConnParams()
+	fromParams["filename"] = "c:/temp/" + title + ".shp"
+	fromParams["type"] = string(StoreShapeMemory)
+
+	toParams := NewConnParams()
+	toParams["addresses"] = "http://localhost:9200"
+	toParams["type"] = string(StoreES)
+
+	var cvt Converter
+	cvt.Convert(fromParams, title, toParams)
+
+	tr.Output("convert")
+}
+
+func TestConvertShp2Hbase(t *testing.T) {
 	tr := base.NewTimeRecorder()
 
 	title := "JBNTBHTB" // JBNTBHTB chinapnt_84
@@ -38,6 +58,19 @@ func TestDelete(t *testing.T) {
 	store.DeleteFeaset(title)
 
 	tr.Output("DeleteFeaset")
+}
+
+func TestOpenEs(t *testing.T) {
+	var store = new(EsStore)
+	params := NewConnParams()
+	params["addresses"] = []string{"http://localhost:9200"}
+	ok, err := store.Open(params)
+	if !ok || err != nil {
+		t.Errorf(err.Error())
+	}
+	feaset, _ := store.GetFeasetByName("geodata")
+	fmt.Println(feaset.GetName())
+
 }
 
 func TestOpenShape(t *testing.T) {

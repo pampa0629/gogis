@@ -51,6 +51,15 @@ func (this *GeoPolygon) Draw(canvas *draw.Canvas) {
 	}
 }
 
+func (this *GeoPolygon) Make(bbox base.Rect2D) {
+	this.BBox = bbox
+	this.Points = make([][][]base.Point2D, 1)
+	this.Points[0] = make([][]base.Point2D, 1)
+	this.Points[0][0] = make([]base.Point2D, 5)
+	copy(this.Points[0][0][0:4], bbox.ToPoints())
+	this.Points[0][0][4] = this.Points[0][0][0]
+}
+
 // wkb:
 // WKBPolygon{
 // byte  byteOrder;                               //字节序

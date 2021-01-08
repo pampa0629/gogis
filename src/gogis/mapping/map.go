@@ -17,7 +17,7 @@ import (
 )
 
 type Map struct {
-	Name     string
+	Name     string       `json:"MapName"`
 	filename string       // 保存为map文件的文件名
 	Layers   []*Layer     // 0:最底层，先绘制
 	canvas   *draw.Canvas // 画布
@@ -60,17 +60,21 @@ func (this *Map) RebuildBBox() {
 	}
 }
 
-func (this *Map) AddLayer(feaset data.Featureset) {
+func (this *Map) AddLayer(feaset data.Featureset, theme Theme) {
 	if len(this.Name) == 0 {
 		this.Name = feaset.GetName()
 	}
-	layer := NewLayer(feaset)
+	layer := NewLayer(feaset, theme)
+	if theme != nil {
+		theme.MakeDefault(feaset)
+	}
 	this.Layers = append(this.Layers, layer)
 	this.BBox.Union(feaset.GetBounds())
 }
 
 // 为绘制做好准备，第一次绘制前必须调用
 func (this *Map) Prepare(dx, dy int) {
+	// this.canvas.ClearDC()
 	this.canvas.Init(this.BBox, dx, dy)
 }
 
@@ -114,14 +118,15 @@ func (this *Map) Save(filename string) {
 	this.filename = filename
 	// 文件类型，应修改为相对路径
 	for _, layer := range this.Layers {
-		storename := layer.Params["filename"]
-		if len(storename) > 0 {
-			layer.Params["filename"] = base.GetRelativePath(filename, storename)
-		}
+		layer.WhenSaving(filename)
 	}
 
-	data, _ := json.Marshal(*this)
-	// fmt.Println("map json:", string(data))
+	data, err := json.MarshalIndent(*this, "", "   ")
+	if err != nil {
+		fmt.Println("map save, error:", err)
+		fmt.Println("json:", string(data))
+	}
+
 	f, _ := os.Create(filename)
 	f.Write(data)
 	f.Close()
@@ -137,32 +142,15 @@ func (this *Map) Open(filename string) {
 	fmt.Println("open map file:"+this.filename+", layers'count:", len(this.Layers))
 
 	// 通过保存的参数恢复数据集
-	for i, layer := range this.Layers {
-		store := data.NewDatastore(data.StoreType(layer.Params["type"]))
-		if store != nil {
-			// 恢复为绝对路径
-			storename := layer.Params["filename"]
-			if len(storename) > 0 {
-				layer.Params["filename"] = base.GetAbsolutePath(filename, storename)
-			}
-			ok, _ := store.Open(layer.Params)
-			if ok {
-				layer.feaset, _ = store.GetFeasetByName(layer.Params["name"])
-				layer.feaset.Open()
-			}
-		} else {
-			this.Layers[i] = nil // todo 应该提供恢复的机制，而不是简单置零
-		}
-		// fmt.Println("open map file, layer style:", layer.Style)
+	for _, layer := range this.Layers {
+		layer.WhenOpenning(filename)
 	}
-
-	// this.RebuildBBox()
 }
 
 func (this *Map) Close() {
 	for _, layer := range this.Layers {
-		layer.feaset.GetStore().Close() // 数据库先关闭
 		layer.feaset.Close()
+		layer.feaset.GetStore().Close() // 数据库先关闭
 	}
 	this.Layers = this.Layers[:0]
 	// this.canvas.ClearDC() todo 清空image才行
@@ -173,6 +161,7 @@ func (this *Map) Zoom(ratio float64) {
 	this.canvas.Params.Scale *= ratio
 }
 
+//  todo
 func (this *Map) PanMap(dx, dy float64) {
 	this.canvas.Params.MapCenter.X -= dx
 	this.canvas.Params.MapCenter.Y -= dy

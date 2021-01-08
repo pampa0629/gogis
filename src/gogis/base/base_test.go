@@ -230,6 +230,9 @@ func TestPath(t *testing.T) {
 		if GetRelativePath(p1, p2) != r2 {
 			t.Errorf("得到相对路径错误2")
 		}
+		if GetRelativePath(p1, r2) != r2 {
+			t.Errorf("得到相对路径错误3")
+		}
 
 		a := GetAbsolutePath(p1, r)
 		if a != p2 {

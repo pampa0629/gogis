@@ -37,6 +37,6 @@ func startMap() *mapping.Map {
 	feaset := data.OpenShape(filename)
 	// // 创建地图
 	gmap := mapping.NewMap()
-	gmap.AddLayer(feaset)
+	gmap.AddLayer(feaset, nil)
 	return gmap
 }

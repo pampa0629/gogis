@@ -19,8 +19,9 @@ import (
 
 type HbaseStore struct {
 	address string // zookeeper's address, such as: localhost:2182 or ip:2181
-	feasets []*HbaseFeaset
-	hpool   pool.Pool
+	// feasets []*HbaseFeaset
+	Feasets
+	hpool pool.Pool
 }
 
 const HBASE_SYS_TABLE = "gogis_sys"
@@ -44,7 +45,7 @@ func (this *HbaseStore) initPoor() {
 }
 
 func (this *HbaseStore) Open(params ConnParams) (bool, error) {
-	this.address = params["address"]
+	this.address = params["address"].(string)
 	if this.address == "" {
 		return false, errors.New("must set 'address' of ConnParams as 'ip:2181'.")
 	}
@@ -80,7 +81,8 @@ func (this *HbaseStore) loadSysTable() {
 	scanRequest, _ := hrpc.NewScanStr(context.Background(), HBASE_SYS_TABLE)
 	scan := client.Scan(scanRequest)
 
-	this.feasets = make([]*HbaseFeaset, 0)
+	// this.feasets = make([]*HbaseFeaset, 0)
+	this.feasets = make([]Featureset, 0)
 	for {
 		getRsp, err := scan.Next()
 		if err == io.EOF || getRsp == nil {
@@ -214,30 +216,6 @@ func (this *HbaseStore) GetConnParams() ConnParams {
 	params["address"] = this.address
 	params["type"] = string(this.GetType())
 	return params
-}
-
-func (this *HbaseStore) GetFeasetByNum(num int) (Featureset, error) {
-	if num >= 0 && num < len(this.feasets) {
-		return this.feasets[num], nil
-	}
-	return nil, errors.New("num must big than zero and less the count of feature sets.")
-}
-
-func (this *HbaseStore) GetFeasetByName(name string) (Featureset, error) {
-	for _, v := range this.feasets {
-		if v.name == name {
-			return v, nil
-		}
-	}
-	return nil, errors.New("cannot find the feature set of name: " + name + ".")
-}
-
-func (this *HbaseStore) GetFeasetNames() (names []string) {
-	names = make([]string, len(this.feasets))
-	for i, _ := range names {
-		names[i] = this.feasets[i].name
-	}
-	return
 }
 
 // 关闭，释放资源

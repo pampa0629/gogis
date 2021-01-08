@@ -155,7 +155,7 @@ func (this *MapService) OpenShp(shpfile string, cachepath string) {
 	feaset := data.OpenShape(shpfile)
 	// 创建地图
 	this.gmap = mapping.NewMap()
-	this.gmap.AddLayer(feaset)
+	this.gmap.AddLayer(feaset, nil)
 	// 保存地图文件
 	this.mapfile = strings.TrimSuffix(shpfile, ".shp") + "." + base.EXT_MAP_FILE
 	this.gmap.Save(this.mapfile)

@@ -36,7 +36,7 @@ type ShapeStore struct {
 func (this *ShapeStore) Open(params ConnParams) (bool, error) {
 	this.feaset = new(ShapeFeaset)
 	this.feaset.store = this
-	this.filename = params["filename"]
+	this.filename = params["filename"].(string)
 	this.feaset.name = base.GetTitle(this.filename)
 	this.feaset.filename = this.filename
 	return true, nil
@@ -62,7 +62,7 @@ func (this *ShapeStore) GetFeasetByNum(num int) (Featureset, error) {
 }
 
 func (this *ShapeStore) GetFeasetByName(name string) (Featureset, error) {
-	if this.feaset.name == name {
+	if strings.ToLower(this.feaset.name) == strings.ToLower(name) {
 		return this.feaset, nil
 	}
 	return nil, errors.New("feature set: " + name + " cannot find")
@@ -77,6 +77,11 @@ func (this *ShapeStore) GetFeasetNames() []string {
 // 关闭，释放资源
 func (this *ShapeStore) Close() {
 	this.feaset.Close()
+}
+
+// todo
+func (this *ShapeStore) CreateFeaset(name string, bbox base.Rect2D, geotype geometry.GeoType) Featureset {
+	return nil
 }
 
 // 硬盘读写模式的shape数据集
@@ -169,6 +174,13 @@ func (this *ShapeFeaset) GetBounds() base.Rect2D {
 
 func (this *ShapeFeaset) GetFieldInfos() []FieldInfo {
 	return this.shape.GetFieldInfos()
+}
+
+// 批量写入数据 todo
+func (this *ShapeFeaset) BatchWrite(feas []Feature) {
+}
+
+func (this *ShapeFeaset) EndWrite() {
 }
 
 // todo

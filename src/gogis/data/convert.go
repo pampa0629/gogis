@@ -10,7 +10,7 @@ import (
 type Converter struct {
 }
 
-const CONVERT_GEO_COUNT_PERCOUNT = 1000
+const CONVERT_GEO_COUNT_PERCOUNT = 10000
 const CONVERT_BATCH_COUNT = 200
 
 // 计算得到合理的批量数字，主要是  hbase 支持的写入端不能太多
@@ -27,8 +27,8 @@ func getGoodBatch(itr FeatureIterator, count int) (goCount int) {
 }
 
 func (this *Converter) Convert(fromParams ConnParams, feasetName string, toParams ConnParams) {
-	fromType := fromParams["type"]
-	toType := toParams["type"]
+	fromType := fromParams["type"].(string)
+	toType := toParams["type"].(string)
 	fromStore := NewDatastore(StoreType(fromType))
 	toStore := NewDatastore(StoreType(toType))
 
@@ -37,7 +37,7 @@ func (this *Converter) Convert(fromParams ConnParams, feasetName string, toParam
 	fromFeaset, _ := fromStore.GetFeasetByName(feasetName)
 	fromFeaset.Open()
 
-	toFeaset := toStore.(*HbaseStore).CreateFeaset(feasetName, fromFeaset.GetBounds(), fromFeaset.GetGeoType())
+	toFeaset := toStore.CreateFeaset(feasetName, fromFeaset.GetBounds(), fromFeaset.GetGeoType())
 	// toFeaset.Open()
 	fromItr := fromFeaset.QueryByBounds(fromFeaset.GetBounds())
 	// forCount := fromItr.PrepareBatch(CONVERT_GEO_COUNT_PERCOUNT)
@@ -45,13 +45,17 @@ func (this *Converter) Convert(fromParams ConnParams, feasetName string, toParam
 
 	outs := make([]int, forCount)
 
-	var wg *sync.WaitGroup = new(sync.WaitGroup)
-	for i := 0; i < int(forCount); i++ {
-		wg.Add(1)
-		go this.batchConvert(fromItr, i, toFeaset, outs, wg)
+	if forCount == 1 {
+		this.batchConvert(fromItr, 0, toFeaset, outs, nil)
+	} else if forCount > 1 {
+		var wg *sync.WaitGroup = new(sync.WaitGroup)
+		for i := 0; i < int(forCount); i++ {
+			wg.Add(1)
+			go this.batchConvert(fromItr, i, toFeaset, outs, wg)
+		}
+		wg.Wait()
 	}
-	wg.Wait()
-	toFeaset.(*HbaseFeaset).EndWrite()
+	toFeaset.EndWrite()
 
 	count := 0
 	for _, v := range outs {
@@ -73,7 +77,7 @@ func (this *Converter) batchConvert(fromItr FeatureIterator, batchNo int, toFeas
 
 	feas, ok := fromItr.BatchNext(batchNo)
 	if ok {
-		toFeaset.(*HbaseFeaset).BatchWrite(feas)
+		toFeaset.BatchWrite(feas)
 	}
 	out[batchNo] = len(feas)
 	// fmt.Println("convert batch no:", batchNo, "count:", len(feas))

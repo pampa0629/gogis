@@ -1,17 +1,16 @@
 package data
 
 import (
-	"errors"
 	"fmt"
 	"gogis/base"
 	"gogis/geometry"
 	"gogis/index"
-	"strconv"
 	"time"
 )
 
 type MemoryStore struct {
-	feasets []*MemFeaset
+	// feasets []*MemFeaset
+	Feasets
 }
 
 // nothing to do
@@ -28,29 +27,29 @@ func (this *MemoryStore) GetType() StoreType {
 	return StoreMemory
 }
 
-func (this *MemoryStore) GetFeasetByNum(num int) (Featureset, error) {
-	if num < len(this.feasets) {
-		return this.feasets[num], nil
-	}
-	return nil, errors.New(strconv.Itoa(num) + " beyond the num of feature sets")
-}
+// func (this *MemoryStore) GetFeasetByNum(num int) (Featureset, error) {
+// 	if num < len(this.feasets) {
+// 		return this.feasets[num], nil
+// 	}
+// 	return nil, errors.New(strconv.Itoa(num) + " beyond the num of feature sets")
+// }
 
-func (this *MemoryStore) GetFeasetByName(name string) (Featureset, error) {
-	for _, v := range this.feasets {
-		if v.name == name {
-			return v, nil
-		}
-	}
-	return nil, errors.New("feature set: " + name + " cannot find")
-}
+// func (this *MemoryStore) GetFeasetByName(name string) (Featureset, error) {
+// 	for _, v := range this.feasets {
+// 		if v.name == name {
+// 			return v, nil
+// 		}
+// 	}
+// 	return nil, errors.New("feature set: " + name + " cannot find")
+// }
 
-func (this *MemoryStore) GetFeasetNames() []string {
-	names := make([]string, len(this.feasets))
-	for i, v := range this.feasets {
-		names[i] = v.name
-	}
-	return names
-}
+// func (this *MemoryStore) GetFeasetNames() []string {
+// 	names := make([]string, len(this.feasets))
+// 	for i, v := range this.feasets {
+// 		names[i] = v.name
+// 	}
+// 	return names
+// }
 
 // 关闭，释放资源
 func (this *MemoryStore) Close() {
@@ -58,6 +57,11 @@ func (this *MemoryStore) Close() {
 		feaset.Close()
 	}
 	this.feasets = this.feasets[:0]
+}
+
+// todo
+func (this *MemoryStore) CreateFeaset(name string, bbox base.Rect2D, geotype geometry.GeoType) Featureset {
+	return nil
 }
 
 // 内存矢量数据集
@@ -201,6 +205,13 @@ func (this *MemFeaset) Close() {
 	if this.pyramid != nil {
 		this.pyramid.Clear()
 	}
+}
+
+// 批量写入数据 todo
+func (this *MemFeaset) BatchWrite(feas []Feature) {
+}
+
+func (this *MemFeaset) EndWrite() {
 }
 
 // 构建空间索引

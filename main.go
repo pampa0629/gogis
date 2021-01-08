@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"image/color"
 	"os"
 
 	"gogis/base"
@@ -28,9 +27,9 @@ func testRest() {
 
 var gPath = "C:/temp/"
 
-// var gTitle = "chinapnt_84"
+var gTitle = "chinapnt_84" // insurance chinapnt_84
 
-var gTitle = "DLTB"
+// var gTitle = "DLTB"
 
 // var gTitle = "JBNTBHTB"
 
@@ -41,11 +40,12 @@ var filename = gPath + gTitle + gExt
 func main() {
 	// testRest()
 
-	testDrawMap()
+	// testDrawMap()
 	// testMapTile()
 	// testIndex()
 
-	// testSqliteMap()
+	// testEsMap()
+	testSqliteMap()
 	// testHbaseMap()
 	fmt.Println("DONE!")
 	return
@@ -78,6 +78,34 @@ func testIndex() {
 	// println("tatol count:", count)
 }
 
+func testEsMap() {
+	tr := base.NewTimeRecorder()
+	var store data.EsStore
+	params := data.NewConnParams()
+	params["addresses"] = "http://localhost:9200"
+	store.Open(params)
+	feaset, _ := store.GetFeasetByName(gTitle)
+	feaset.Open()
+	tr.Output("open es db")
+
+	gmap := mapping.NewMap()
+	var theme mapping.GridTheme
+	gmap.AddLayer(feaset, &theme)
+	// gmap.AddGridTheme(feaset)
+	gmap.Prepare(1024, 768)
+	// gmap.Zoom(0.2)
+	// gmap.PanMap(gmap.BBox.Dx()/20, gmap.BBox.Dy()/20)
+	gmap.Draw()
+	// 输出图片文件
+	gmap.Output2File("C:/temp/"+gTitle+".jpg", "jpg")
+	mapfile := "C:/temp/" + gTitle + ".gmp"
+	gmap.Save(mapfile)
+	var nmap mapping.Map
+	nmap.Open(mapfile)
+
+	tr.Output("draw es map")
+}
+
 func testHbaseMap() {
 	tr := base.NewTimeRecorder()
 	var store data.HbaseStore
@@ -89,7 +117,7 @@ func testHbaseMap() {
 	tr.Output("open hbase db")
 
 	gmap := mapping.NewMap()
-	gmap.AddLayer(feaset)
+	gmap.AddLayer(feaset, nil)
 	gmap.Prepare(1024, 768)
 	// gmap.Zoom(2)
 	// gmap.PanMap(gmap.BBox.Dx()/20, gmap.BBox.Dy()/20)
@@ -104,22 +132,28 @@ func testSqliteMap() {
 	tr := base.NewTimeRecorder()
 	var sqlDB data.SqliteStore
 	params := data.NewConnParams()
-	params["filename"] = "C:/temp/JBNTBHTB.sqlite"
+	params["filename"] = "C:/temp/" + gTitle + ".sqlite"
 	sqlDB.Open(params)
-	feaset, _ := sqlDB.GetFeasetByNum(0)
+	// feaset, _ := sqlDB.GetFeasetByNum(0)
+	feaset, _ := sqlDB.GetFeasetByName(gTitle)
 	feaset.Open()
 	tr.Output("open sqlite db")
 
 	gmap := mapping.NewMap()
-	gmap.AddLayer(feaset)
+	var theme mapping.RangeTheme // UniqueTheme
+	gmap.AddLayer(feaset, &theme)
+	// gmap.AddLayer(feaset, nil)
+	// gmap.Add
 	gmap.Prepare(1024, 768)
-	gmap.Zoom(2)
+	// gmap.Zoom(2)
 	gmap.Draw()
 	// 输出图片文件
-	gmap.Output2File("C:/temp/JBNTBHTB.jpg", "jpg")
+	gmap.Output2File("C:/temp/"+gTitle+".jpg", "jpg")
+	mapfile := gPath + gTitle + "." + base.EXT_MAP_FILE
+	gmap.Save(mapfile)
+	gmap.Save(mapfile) // 支持反复存储
 
 	tr.Output("draw sqlite map")
-	fmt.Println("DONE!")
 }
 
 func testMapTile() {
@@ -195,7 +229,7 @@ func startMap() *mapping.Map {
 	feaset := data.OpenShape(filename)
 	// // 创建地图
 	gmap := mapping.NewMap()
-	gmap.AddLayer(feaset)
+	gmap.AddLayer(feaset, nil)
 	return gmap
 }
 
@@ -228,8 +262,8 @@ func testMapFile() {
 	tr := base.NewTimeRecorder()
 
 	gmap := startMap()
-	gmap.Layers[0].Style.FillColor = color.RGBA{25, 200, 20, 255}
-	gmap.Layers[0].Style.LineColor = color.RGBA{225, 20, 20, 255}
+	// gmap.Layers[0].Style.FillColor = color.RGBA{25, 200, 20, 255}
+	// gmap.Layers[0].Style.LineColor = color.RGBA{225, 20, 20, 255}
 	// 设置位图大小
 	gmap.Prepare(1024, 768)
 

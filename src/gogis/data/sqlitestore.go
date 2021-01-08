@@ -3,13 +3,11 @@ package data
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"gogis/base"
 	"gogis/geometry"
 	"gogis/index"
 	"strconv"
-	"strings"
 
 	// "database/sql"
 	_ "github.com/mattn/go-sqlite3"
@@ -19,7 +17,8 @@ import (
 type SqliteStore struct {
 	db       *sql.DB
 	filename string
-	feasets  []*SqliteFeaset
+	// feasets  []*SqliteFeaset
+	Feasets // 匿名组合
 }
 
 // sst: spatial sys table
@@ -28,14 +27,14 @@ const SST_GEO_COLS = "geometry_columns" // f_table_name,f_geometry_column,geomet
 // 打开sqlite文件
 // 通过 ConnParams["filename"] 输入文件名，不存在时自动创建
 func (this *SqliteStore) Open(params ConnParams) (res bool, err error) {
-	this.filename = params["filename"]
+	this.filename = params["filename"].(string)
 	this.db, err = sql.Open("sqlite3", this.filename)
 
 	// 读取系统表
 	// 先知道数量
 	var count int64
 	this.db.QueryRow("select count(*) from " + SST_GEO_COLS).Scan(&count)
-	this.feasets = make([]*SqliteFeaset, count)
+	this.feasets = make([]Featureset, count)
 	// 再读取 名字、geom字段和类型
 	rows, err := this.db.Query("select f_table_name,f_geometry_column,geometry_type from " + SST_GEO_COLS)
 	if err == nil {
@@ -67,12 +66,18 @@ func (this *SqliteStore) loadSys(rows *sql.Rows) {
 	rows.Close() // 记得关闭
 
 	for i, v := range st3s {
-		this.feasets[i] = new(SqliteFeaset)
-		this.feasets[i].store = this
-		this.feasets[i].name = v.name
-		this.feasets[i].geom = v.geom
-		this.feasets[i].geotype = v.geotype
+		feaset := new(SqliteFeaset)
+		feaset.store = this
+		feaset.name = v.name
+		feaset.geom = v.geom
+		feaset.geotype = v.geotype
+		this.feasets[i] = feaset
 	}
+
+}
+
+func (this *SqliteStore) CreateFeaset(name string, bbox base.Rect2D, geotype geometry.GeoType) Featureset {
+	return nil
 }
 
 // 创建系统表
@@ -141,29 +146,29 @@ func (this *SqliteStore) GetConnParams() ConnParams {
 // 	return nil, nil
 // }
 
-func (this *SqliteStore) GetFeasetByNum(num int) (Featureset, error) {
-	if num >= 0 && num < len(this.feasets) {
-		return this.feasets[num], nil
-	}
-	return nil, errors.New("num must big than zero and less the count of feature sets.")
-}
+// func (this *SqliteStore) GetFeasetByNum(num int) (Featureset, error) {
+// 	if num >= 0 && num < len(this.feasets) {
+// 		return this.feasets[num], nil
+// 	}
+// 	return nil, errors.New("num must big than zero and less the count of feature sets.")
+// }
 
-func (this *SqliteStore) GetFeasetByName(name string) (Featureset, error) {
-	for _, v := range this.feasets {
-		if strings.ToLower(v.name) == strings.ToLower(name) {
-			return v, nil
-		}
-	}
-	return nil, errors.New("cannot find the feature set of name: " + name + ".")
-}
+// func (this *SqliteStore) GetFeasetByName(name string) (Featureset, error) {
+// 	for _, v := range this.feasets {
+// 		if strings.ToLower(v.name) == strings.ToLower(name) {
+// 			return v, nil
+// 		}
+// 	}
+// 	return nil, errors.New("cannot find the feature set of name: " + name + ".")
+// }
 
-func (this *SqliteStore) GetFeasetNames() (names []string) {
-	names = make([]string, len(this.feasets))
-	for i, _ := range names {
-		names[i] = this.feasets[i].name
-	}
-	return
-}
+// func (this *SqliteStore) GetFeasetNames() (names []string) {
+// 	names = make([]string, len(this.feasets))
+// 	for i, _ := range names {
+// 		names[i] = this.feasets[i].name
+// 	}
+// 	return
+// }
 
 // 关闭，释放资源
 func (this *SqliteStore) Close() {
@@ -415,6 +420,13 @@ func (this *SqliteFeaset) GetFieldInfos() (finfos []FieldInfo) {
 	return
 }
 
+// 批量写入数据 todo
+func (this *SqliteFeaset) BatchWrite(feas []Feature) {
+}
+
+func (this *SqliteFeaset) EndWrite() {
+}
+
 // func (this *SqliteFeaset) Query(bbox base.Rect2D, def QueryDef) FeatureIterator {
 // 	return nil
 // }
@@ -529,7 +541,7 @@ func (this *SqliteFeaItr) BatchNext(batchNo int) (feas []Feature, result bool) {
 	} else {
 		fmt.Println("db open:"+this.feaset.store.filename+" error:", err)
 	}
-	fmt.Println("sqlite batch next, codes:", this.codess[batchNo], " count:", len(feas))
+	// fmt.Println("sqlite batch next, codes:", this.codess[batchNo], " count:", len(feas))
 	return
 }
 

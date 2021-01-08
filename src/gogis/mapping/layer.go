@@ -1,145 +1,106 @@
 package mapping
 
 import (
+	"encoding/json"
 	"gogis/base"
 	"gogis/data"
 	"gogis/draw"
-	"strconv"
-	"sync"
 )
 
+// 图层类
 type Layer struct {
-	Name   string          // 图层名
-	feaset data.Featureset // 干活用的
-	Params data.ConnParams `json:"ConnParams"` // 存储和打开地图文档时用的
-	Style  draw.Style
+	Name   string          `json:"LayerName"` // 图层名
+	feaset data.Featureset // 数据来源
+	Params data.ConnParams `json:"ConnParams"` // 存储和打开地图文档时用的数据连接信息
+	Type   ThemeType       `json:"ThemeType"`
+	theme  Theme           // 专题风格
+	Object interface{}     `json:"Theme"` // 好一招狸猫换太子
 }
 
-func NewLayer(feaset data.Featureset) *Layer {
+func NewLayer(feaset data.Featureset, theme Theme) *Layer {
 	layer := new(Layer)
-	layer.feaset = feaset
-	store := feaset.GetStore()
-	if store != nil {
-		layer.Params = store.GetConnParams()
-		layer.Params["name"] = feaset.GetName()
-		layer.Name = layer.Params["name"] // 默认图层名 等于 数据集名
+	layer.Setting(feaset)
+	// 默认图层名 等于 数据集名
+	layer.Name = layer.Params["name"].(string)
+	if theme == nil {
+		layer.theme = new(SimpleTheme)
+		layer.theme.MakeDefault(feaset)
+	} else {
+		layer.theme = theme
+		layer.Name += "_" + string(theme.GetType())
 	}
-	//
-	layer.Style = draw.RandStyle()
-	// fmt.Println("layer style:", layer.Style)
+	layer.Type = layer.theme.GetType()
 
 	return layer
 }
 
-// 一次性绘制的对象个数
-const ONE_DRAW_COUNT = 500000
+func (this *Layer) UnmarshalJSON(data []byte) error {
+	type cloneType Layer
+	rawMsg := json.RawMessage{}
+	this.Object = &rawMsg
+	json.Unmarshal(data, (*cloneType)(this))
 
-func (this *Layer) Draw(canvas *draw.Canvas) int64 {
-	canvas.SetStyle(this.Style)
-
-	tr := base.NewTimeRecorder()
-	feait := this.feaset.QueryByBounds(canvas.Params.GetBounds())
-	objCount := feait.Count()
-	forCount := feait.PrepareBatch(ONE_DRAW_COUNT)
-	tr.Output("query layer " + this.Name + ", object count:" + strconv.Itoa(int(objCount)) + ", go count:" + strconv.Itoa(forCount))
-
-	// 直接绘制
-	if forCount == 1 {
-		this.drawBatch(feait, 0, canvas)
-	} else {
-		// 并发绘制
-		var wg *sync.WaitGroup = new(sync.WaitGroup)
-		for i := 0; i < int(forCount); i++ {
-			wg.Add(1)
-			go this.goDrawBatch(feait, i, canvas, wg)
-		}
-		wg.Wait()
-	}
-
-	tr.Output("draw layer " + this.Name)
-	feait.Close()
-	return objCount
+	this.theme = NewTheme(this.Type)
+	json.Unmarshal(rawMsg, this.theme)
+	return nil
 }
 
-func (this *Layer) drawBatch(itr data.FeatureIterator, batchNo int, canvas *draw.Canvas) {
-	// tr := base.NewTimeRecorder()
-	features, ok := itr.BatchNext(batchNo)
-	// tr.Output("feaitr fetch batch,")
-	// fmt.Println("layer batch count:", len(features))
+// new出来的时候，做统一设置
+func (this *Layer) Setting(feaset data.Featureset) bool {
+	this.feaset = feaset
+	store := feaset.GetStore()
+	if store != nil {
+		this.Params = store.GetConnParams()
+		this.Params["name"] = feaset.GetName()
+		return true
+	}
+	return false
+}
+
+// 地图 Save时，内部存储调整为相对路径
+func (this *Layer) WhenSaving(mappath string) {
+	// 拷贝后使用，避免 map save之后，filename变为相对路径，再打开数据就不好使了
+	// newParams := base.DeepCopy(this.Params).(data.ConnParams)
+	filename, ok := this.Params["filename"]
 	if ok {
-		for _, v := range features {
-			// todo 这里还应该增加 geo是否bbox相交的判断，if itr 得到geo不能保证精确的话
-			drawGeo, ok := v.Geo.(draw.DrawCanvas)
-			if ok {
-				drawGeo.Draw(canvas)
+		storename := filename.(string)
+		if len(storename) > 0 {
+			this.Params["filename"] = base.GetRelativePath(mappath, storename)
+		}
+	}
+	// 保证专题图类型的存储和读取
+	this.Object = this.theme
+}
+
+// 地图Open时调用，加载实际数据，准备绘制
+func (this *Layer) WhenOpenning(mappath string) {
+	store := data.NewDatastore(data.StoreType(this.Params["type"].(string)))
+	if store != nil {
+		// 如果有文件路径，则需要恢复为绝对路径
+		filename, ok := this.Params["filename"]
+		if ok {
+			storename := filename.(string)
+			if len(storename) > 0 {
+				this.Params["filename"] = base.GetAbsolutePath(mappath, storename)
 			}
 		}
+		ok, _ = store.Open(this.Params)
+		if ok {
+			this.feaset, _ = store.GetFeasetByName(this.Params["name"].(string))
+			this.feaset.Open()
+		}
 	}
-	features = features[:0]
-	// tr.Output("draw batch")
+	if this.theme != nil {
+		this.theme.WhenOpenning()
+	}
 }
 
-func (this *Layer) goDrawBatch(itr data.FeatureIterator, pos int, canvas *draw.Canvas, wg *sync.WaitGroup) {
-	defer wg.Done()
-	canvasBatch := canvas.Clone()
-	this.drawBatch(itr, pos, canvasBatch)
+func (this *Layer) Draw(canvas *draw.Canvas) (objCount int64) {
 	// tr := base.NewTimeRecorder()
-	canvas.DrawImage(canvasBatch.Image(), 0, 0)
-	// tr.Output("canvas draw image")
+	feait := this.feaset.QueryByBounds(canvas.Params.GetBounds())
+	if this.theme != nil {
+		objCount = this.theme.Draw(canvas, feait)
+	}
+	feait.Close()
+	return
 }
-
-// // bak
-// func (this *Layer) Draw2(canvas *draw.Canvas) int64 {
-// 	canvas.SetStyle(this.Style)
-
-// 	tr := base.NewTimeRecorder()
-// 	feait := this.feaset.QueryByBounds(canvas.Params.GetBounds())
-// 	objCount := feait.Count()
-// 	tr.Output("query layer " + this.Name + ", object count:" + strconv.Itoa(int(objCount)))
-
-// 	forCount := objCount/ONE_DRAW_COUNT + 1
-// 	// 直接绘制
-// 	if forCount == 1 {
-// 		this.drawBatch(feait, 0, canvas)
-// 	} else {
-// 		// 并发绘制
-// 		var wg *sync.WaitGroup = new(sync.WaitGroup)
-// 		for i := 0; i < int(forCount); i++ {
-// 			wg.Add(1)
-// 			go this.goDrawBatch(feait, i*ONE_DRAW_COUNT, canvas, wg)
-// 		}
-// 		wg.Wait()
-// 	}
-
-// 	tr.Output("draw layer " + this.Name)
-// 	feait.Close()
-// 	return objCount
-// }
-
-// // 批量绘制
-// func (this *Layer) drawBatch2(itr data.FeatureIterator, pos int, canvas *draw.Canvas) {
-// 	// tr := base.NewTimeRecorder()
-// 	features, _, ok := itr.BatchNext(int64(pos), ONE_DRAW_COUNT)
-// 	// tr.Output("feaitr fetch batch")
-// 	if ok {
-// 		for _, v := range features {
-// 			// todo 这里还应该增加 geo是否bbox相交的判断，if itr 得到geo不能保证精确的话
-// 			drawGeo, ok := v.Geo.(draw.DrawCanvas)
-// 			if ok {
-// 				drawGeo.Draw(canvas)
-// 			}
-// 		}
-// 	}
-// 	features = features[:0]
-// 	// tr.Output("draw batch")
-// }
-
-// // 并发绘制
-// func (this *Layer) goDrawBatch2(itr data.FeatureIterator, pos int, canvas *draw.Canvas, wg *sync.WaitGroup) {
-// 	defer wg.Done()
-// 	canvasBatch := canvas.Clone()
-// 	this.drawBatch2(itr, pos, canvasBatch)
-// 	// tr := base.NewTimeRecorder()
-// 	canvas.DrawImage(canvasBatch.Image(), 0, 0)
-// 	// tr.Output("canvas draw image")
-// }

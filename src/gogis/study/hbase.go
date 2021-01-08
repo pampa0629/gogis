@@ -40,7 +40,7 @@ func initPoor(address string) {
 	// }
 }
 
-func main() {
+func hbase_main() {
 	scankey3()
 	// createTable()
 	// testCount()

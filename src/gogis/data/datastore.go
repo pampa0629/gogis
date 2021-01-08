@@ -15,11 +15,11 @@ import (
 
 // 打开数据的连接参数
 // 参数有哪些，根据具体store类型而定
-type ConnParams map[string]string
+type ConnParams map[string]interface{}
 
 func NewConnParams() ConnParams {
 	// map 必须要make一下才能用
-	return make(map[string]string)
+	return make(map[string]interface{})
 }
 
 // 数据存储类型定义
@@ -31,6 +31,7 @@ const (
 	StoreMemory      StoreType = "Memory"      // 纯内存模式
 	StoreSqlite      StoreType = "Sqlite"
 	StoreHbase       StoreType = "Hbase" // hbase
+	StoreES          StoreType = "es"    // elasticsearch
 )
 
 func NewDatastore(storyType StoreType) Datastore {
@@ -45,6 +46,8 @@ func NewDatastore(storyType StoreType) Datastore {
 		return new(SqliteStore)
 	case StoreHbase:
 		return new(HbaseStore)
+	case StoreES:
+		return new(EsStore)
 	}
 	return nil
 }
@@ -59,7 +62,38 @@ type Datastore interface {
 	GetFeasetByName(name string) (Featureset, error)
 	GetFeasetNames() []string
 
+	CreateFeaset(name string, bbox base.Rect2D, geotype geometry.GeoType) Featureset
+
 	Close() // 关闭，释放资源
+}
+
+// 数据集集合的数组，减少各个引擎的重复代码
+type Feasets struct {
+	feasets []Featureset
+}
+
+func (this *Feasets) GetFeasetByNum(num int) (Featureset, error) {
+	if num >= 0 && num < len(this.feasets) {
+		return this.feasets[num], nil
+	}
+	return nil, errors.New("num must big than zero and less the count of feature sets.")
+}
+
+func (this *Feasets) GetFeasetByName(name string) (Featureset, error) {
+	for _, v := range this.feasets {
+		if strings.ToUpper(v.GetName()) == strings.ToUpper(name) {
+			return v, nil
+		}
+	}
+	return nil, errors.New("cannot find the feature set of name: " + name + ".")
+}
+
+func (this *Feasets) GetFeasetNames() (names []string) {
+	names = make([]string, len(this.feasets))
+	for i, _ := range names {
+		names[i] = this.feasets[i].GetName()
+	}
+	return
 }
 
 // 矢量数据集合
@@ -77,6 +111,10 @@ type Featureset interface {
 	// Query(bbox base.Rect2D, def QueryDef) FeatureIterator
 	QueryByBounds(bbox base.Rect2D) FeatureIterator
 	// QueryByDef(def QueryDef) FeatureIterator
+
+	// 批量写入数据
+	BatchWrite(feas []Feature)
+	EndWrite()
 }
 
 // 集合对象迭代器，用来遍历对象

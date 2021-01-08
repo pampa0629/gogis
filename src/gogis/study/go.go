@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -10,7 +11,47 @@ import (
 )
 
 func gomain() {
-	testFilePath()
+	testJson2()
+}
+
+func testJson2() {
+	str := `{"took":1,"timed_out":false,"_shards":{"total":1,"successful":1,"skipped":0,"failed":0},"hits":{"total":{"value":2391,"relation":"eq"},"max_score":null,"hits":[]},"aggregations":{"viewport":{"bounds":{"top_left":{"lat":53.13844630960375,"lon":74.99301684089005},"bottom_right":{"lat":18.483061753213406,"lon":134.36185402795672}}}}}`
+	fmt.Println(len(str), str)
+	var maps1 map[string]interface{}
+	// maps1 := make(map[string]interface{})
+	json.Unmarshal([]byte(str), &maps1)
+	fmt.Println([]byte(str))
+	fmt.Println(maps1)
+}
+
+func testJson() {
+	mappings := map[string]interface{}{
+		"mappings": map[string]interface{}{
+			"properties": map[string]interface{}{
+				"location": map[string]interface{}{
+					"lat": 48.85999997612089,
+					"lon": 2.3363889567553997,
+				},
+			},
+		},
+	}
+
+	fmt.Println(mappings)
+	// var buf bytes.Buffer
+	// json.NewEncoder(&buf).Encode(mappings)
+	data, _ := json.Marshal(mappings)
+	fmt.Println(string(data))
+
+	// json.NewEncoder(&buf).Encode(mappings)
+
+	// str := "aggregations:{viewport:{bounds:{top_left:{lat:53.13844630960375,lon:74.99301684089005},bottom_right:{lat:18.483061753213406,lon:134.36185402795672}}}}"
+	// var maps map[string]interface{}
+	var maps1 map[string]interface{}
+	json.Unmarshal(data, &maps1)
+	fmt.Println(string(data))
+	// json.Unmarshal([]byte(str), &maps)
+	// json.Unmarshal(buf.Bytes(), &maps1)
+	// json.NewDecoder(&buf).Decode(&maps1)
 }
 
 func testFilePath() {
