@@ -231,6 +231,7 @@ type HbaseFeaset struct {
 	index_level int32
 	idx         index.ZOrderIndex
 	store       *HbaseStore
+	projCommon
 
 	lock sync.Mutex // 并发写的时候，用来上锁
 }

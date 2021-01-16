@@ -1,15 +1,13 @@
 // 地图服务类
-
 package server
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"gogis/base"
 	"gogis/data"
+	"gogis/draw"
 	"gogis/mapping"
-	"image/png"
 	"io"
 	"os"
 	"path"
@@ -165,8 +163,8 @@ func (this *MapService) OpenShp(shpfile string, cachepath string) {
 }
 
 func (this *MapService) OpenCache(cachepath string) {
-	this.tilestore = new(data.FileTileStore) //  LeveldbTileStore FileTileStore
-	this.tilestore.Open(cachepath, this.maptitle)
+	this.tilestore = new(data.FileTileStore)                    //  LeveldbTileStore FileTileStore
+	this.tilestore.Open(cachepath, this.maptitle, draw.TypeMvt) // TypePng
 }
 
 func (this *MapService) GetTile(level int, col int, row int, epsg mapping.EPSG) (data []byte) {
@@ -183,16 +181,10 @@ func (this *MapService) GetTile(level int, col int, row int, epsg mapping.EPSG) 
 		// 这里根据地图名字，输出并返回图片
 		mapTile := mapping.NewMapTile(this.gmap, epsg)
 
-		tmap, _ := mapTile.CacheOneTile2Map(level, col, row, nil)
-		if tmap != nil {
-			buf := bytes.NewBuffer(data)
-			png.Encode(buf, tmap.OutputImage())
-			data = buf.Bytes()
+		data, err := mapTile.CacheOneTile2Bytes(level, col, row, this.tilestore.MapType())
+		if data != nil && err == nil {
 			this.tilestore.Put(level, col, row, data)
 		}
-		// else {
-		// 	// fmt.Println("tile map is nil, error is:", err)
-		// }
 	}
 	return data
 }

@@ -1,5 +1,4 @@
 // 输入输出，类型转化等功能函数
-
 package base
 
 import (

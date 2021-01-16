@@ -1,6 +1,7 @@
 package mapping
 
 import (
+	"gogis/base"
 	"gogis/data"
 	"gogis/draw"
 	"strconv"
@@ -61,7 +62,7 @@ func (this *RangeTheme) MakeDefault(feaset data.Featureset) {
 	}
 }
 
-func (this *RangeTheme) Draw(canvas *draw.Canvas, feait data.FeatureIterator) int64 {
+func (this *RangeTheme) Draw(canvas *draw.Canvas, feait data.FeatureIterator, prjc *base.PrjConvert) int64 {
 	objCount := 1000
 	forCount := feait.PrepareBatch(objCount)
 

@@ -40,7 +40,7 @@ func calcGridPrecision(bbox base.Rect2D, width, height int) (precision int) {
 	return
 }
 
-func (this *GridTheme) Draw(canvas *draw.Canvas, feaItr data.FeatureIterator) int64 {
+func (this *GridTheme) Draw(canvas *draw.Canvas, feaItr data.FeatureIterator, prjc *base.PrjConvert) int64 {
 	// 文字颜色
 	canvas.SetTextColor(color.RGBA{0, 255, 0, 255})
 	var style draw.Style
@@ -55,7 +55,7 @@ func (this *GridTheme) Draw(canvas *draw.Canvas, feaItr data.FeatureIterator) in
 	for i, bbox := range bboxes {
 		geo.Make(bbox)
 		// 先确定颜色，再绘制bbox
-		style.FillColor = this.Colors.GetColor(counts[i], max, min)
+		style.FillColor = draw.Color(this.Colors.GetColor(counts[i], max, min))
 		canvas.SetStyle(style)
 		geo.Draw(canvas)
 

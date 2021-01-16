@@ -3,10 +3,11 @@ package main
 import (
 	"gogis/base"
 	"gogis/data"
+	"gogis/draw"
 	"gogis/mapping"
 )
 
-func cachemain() {
+func mcmain() {
 	testCache()
 }
 
@@ -15,7 +16,7 @@ func testCache() {
 
 	gmap := startMap()
 	mapTile := mapping.NewMapTile(gmap, mapping.Epsg4326)
-	mapTile.Cache("c:/temp/cache/", gmap.Name)
+	mapTile.Cache("c:/temp/cache/", gmap.Name, draw.TypePng)
 
 	tr.Output("cache map:" + gmap.Name)
 }

@@ -11,7 +11,7 @@ const (
 	height = 500
 )
 
-func openglmain() {
+func glmain() {
 	runtime.LockOSThread()
 	window := initGlfw()
 	defer glfw.Terminate()
@@ -35,5 +35,6 @@ func initGlfw() *glfw.Window {
 		panic(err)
 	}
 	window.MakeContextCurrent()
+	// window.GetWin32Window()
 	return window
 }

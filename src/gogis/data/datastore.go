@@ -106,6 +106,7 @@ type Featureset interface {
 	GetCount() int64 // 对象个数
 	GetBounds() base.Rect2D
 	GetGeoType() geometry.GeoType
+	GetProjection() *base.ProjInfo // 得到投影坐标系，没有返回nil
 	// GetFieldInfos() []FieldInfo
 
 	// Query(bbox base.Rect2D, def QueryDef) FeatureIterator
@@ -115,6 +116,16 @@ type Featureset interface {
 	// 批量写入数据
 	BatchWrite(feas []Feature)
 	EndWrite()
+}
+
+// 辅助类，避免每个datastore都必须构造投影信息
+type projCommon struct {
+	proj *base.ProjInfo
+}
+
+// 得到投影坐标系，没有返回nil
+func (this *projCommon) GetProjection() *base.ProjInfo {
+	return this.proj
 }
 
 // 集合对象迭代器，用来遍历对象

@@ -1,3 +1,21 @@
 {
-    "go.gopath": "C:/zengzm/GitHub/gogis"
+    "go.gopath": "C:/zengzm/GitHub/gogis",
+    // "go.buildOnSave": "package",
+    // "go.buildFlags": ["-o", "C:/zengzm/GitHub/gogis"],    
+    "go.editorContextMenuCommands": {
+
+        "toggleTestFile": true,
+        "addTags": true,
+        "removeTags": false,
+        "testAtCursor": true,
+        "testFile": false,
+        "testPackage": false,
+        "generateTestForFunction": true,
+        "generateTestForFile": false,
+        "generateTestForPackage": false,
+        "addImport": true,
+        "testCoverage": true,
+        "playground": true,
+        "debugTestAtCursor": true
+    }
 }

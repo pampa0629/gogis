@@ -95,6 +95,7 @@ type ShapeFeaset struct {
 	index index.SpatialIndex
 
 	store *ShapeStore
+	projCommon
 }
 
 // 打开shape文件
@@ -109,6 +110,9 @@ func (this *ShapeFeaset) Open() (bool, error) {
 
 	//  处理空间索引文件
 	this.loadSpatialIndex()
+
+	// 处理投影坐标系
+	this.proj = base.PrjFromWkt(this.shape.prj)
 
 	//  todo 矢量金字塔
 	// this.BuildPyramids()

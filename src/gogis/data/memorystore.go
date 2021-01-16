@@ -74,6 +74,7 @@ type MemFeaset struct {
 	// id2feaPos  map[int64]int      // 从id到features中位置的对应关系
 	index   index.SpatialIndex // 空间索引
 	pyramid *VectorPyramid     // 矢量金字塔
+	projCommon
 
 	// store      *MemoryStore
 }
@@ -189,7 +190,29 @@ func (this *MemFeaset) QueryByBounds(bbox base.Rect2D) FeatureIterator {
 	feaitr := new(MemFeaItr)
 	feaitr.feaset = this
 	feaitr.ids = this.index.Query(bbox)
+	// 看是否需要用金字塔
+	level, _ := base.CalcMinMaxLevels(bbox, 0)
+	minLevel := int32(100)
+	for k, v := range this.pyramid.levels {
+		// 需要取所有比需要的level大的金字塔中，最小的哪个
+		if k >= level && k <= minLevel {
+			feaitr.geoPyramid = &this.pyramid.pyramids[v]
+			minLevel = k
+		}
+	}
 	return feaitr
+}
+
+// 判断和bbox相交的ids
+func (this *MemFeaset) GetIntersects(bbox base.Rect2D, ids []int64) (outs []int64) {
+	outs = make([]int64, 0, len(ids))
+	for _, id := range ids {
+		polygon, ok := this.features[id].Geo.(*geometry.GeoPolygon)
+		if ok && polygon.IsIntersect(bbox) {
+			outs = append(outs, id)
+		}
+	}
+	return
 }
 
 // 清空内存数据
@@ -233,16 +256,16 @@ func (this *MemFeaset) BuildSpatialIndex(indexType index.SpatialIndexType) index
 	return nil
 }
 
-func (this *MemFeaset) BuildPyramids() {
-	this.pyramid = new(VectorPyramid)
-	this.pyramid.Build(this.bbox, this.features)
-}
+// func (this *MemFeaset) BuildPyramids() {
+
+// }
 
 type MemFeaItr struct {
-	ids              []int64    // id数组
-	feaset           *MemFeaset // 数据集指针
-	objCountPerBatch int        // 每个批次要读取的对象数量
-	fields           []string   // 字段名，空则为所有字段
+	ids              []int64              // id数组
+	feaset           *MemFeaset           // 数据集指针
+	geoPyramid       *[]geometry.Geometry // 金字塔层的对象
+	objCountPerBatch int                  // 每个批次要读取的对象数量
+	fields           []string             // 字段名，空则为所有字段
 }
 
 func (this *MemFeaItr) Count() int64 {
@@ -268,20 +291,6 @@ func (this *MemFeaItr) Next() (Feature, bool) {
 	return *new(Feature), false
 }
 
-// 根据需要，只取一部分字段值
-func (this *MemFeaItr) getFeaByAtts(fea Feature) Feature {
-	if this.fields == nil || len(this.fields) == 0 {
-		return fea
-	}
-	newfea := new(Feature)
-	newfea.Geo = fea.Geo
-	newfea.Atts = make(map[string]interface{})
-	for _, field := range this.fields {
-		newfea.Atts[field] = fea.Atts[field]
-	}
-	return *newfea
-}
-
 // 为了批量读取做准备，返回批量的次数
 func (this *MemFeaItr) PrepareBatch(objCount int) int {
 	goCount := len(this.ids)/objCount + 1
@@ -298,47 +307,46 @@ func (this *MemFeaItr) BatchNext(batchNo int) (feas []Feature, result bool) {
 			objCount = remainCount
 		}
 		start := batchNo * this.objCountPerBatch
-		feas = this.getFeasByIds(this.feaset.features, this.ids[start:start+objCount])
+		if this.geoPyramid != nil {
+			feas = this.getFeasByIdsFromGeos(*this.geoPyramid, this.ids[start:start+objCount])
+		} else {
+			feas = this.getFeasByIds(this.feaset.features, this.ids[start:start+objCount])
+		}
+
 		result = true
 	}
 	return
 }
 
-// 批量读取支持go协程安全
-// func (this *MemFeaItr) BatchNext2(pos int64, count int) ([]Feature, int64, bool) {
-// 	len := int64(len(this.ids))
-// 	if pos < len {
-// 		oldpos := pos
-// 		if int64(count)+pos > len {
-// 			count = int(len - pos)
-// 		}
-// 		pos += int64(count)
-// 		return this.getFeasByIds(this.feaset.features, this.ids[oldpos:oldpos+int64(count)]), pos, true
-// 	} else {
-// 		return nil, pos, false
-// 	}
-// }
-
-// func (this *MemFeaItr) BatchNext2(pos int, count int) ([]Feature, int, bool) {
-// 	len := int64(len(this.ids))
-// 	if this.pos < len {
-// 		oldpos := this.pos
-// 		if int64(count)+this.pos > len {
-// 			count = int(len - this.pos)
-// 		}
-// 		this.pos += int64(count)
-// 		return this.getFeasByIds(this.feaset.features, this.ids[oldpos:oldpos+int64(count)]), true
-// 	} else {
-// 		return nil, false
-// 	}
-// }
+func (this *MemFeaItr) getFeasByIdsFromGeos(geos []geometry.Geometry, ids []int64) []Feature {
+	newfeas := make([]Feature, len(ids))
+	for i, id := range ids {
+		// 把克隆后的提供出去，避免外部修改
+		newfeas[i].Geo = geos[id].Clone()
+		// newfeas[i].Geo = geos[id]
+	}
+	return newfeas
+}
 
 func (this *MemFeaItr) getFeasByIds(features []Feature, ids []int64) []Feature {
 	newfeas := make([]Feature, len(ids))
 	for i, id := range ids {
-		// pos := this.feaset.id2feaPos[id]
-		// newfeas[i] = this.getFeaByAtts(features[pos])
 		newfeas[i] = this.getFeaByAtts(features[id])
 	}
 	return newfeas
+}
+
+// 根据需要，只取一部分字段值
+func (this *MemFeaItr) getFeaByAtts(fea Feature) Feature {
+	if this.fields == nil || len(this.fields) == 0 {
+		return fea
+	}
+	newfea := new(Feature)
+	newfea.Geo = fea.Geo.Clone()
+	// newfea.Geo = fea.Geo
+	newfea.Atts = make(map[string]interface{})
+	for _, field := range this.fields {
+		newfea.Atts[field] = fea.Atts[field]
+	}
+	return *newfea
 }

@@ -1,6 +1,7 @@
 package mapping
 
 import (
+	"gogis/base"
 	"gogis/data"
 	"gogis/draw"
 	"sync"
@@ -26,7 +27,7 @@ func (this *SimpleTheme) MakeDefault(feaset data.Featureset) {
 func (this *SimpleTheme) WhenOpenning() {
 }
 
-func (this *SimpleTheme) Draw(canvas *draw.Canvas, feaItr data.FeatureIterator) int64 {
+func (this *SimpleTheme) Draw(canvas *draw.Canvas, feaItr data.FeatureIterator, prjc *base.PrjConvert) int64 {
 	canvas.SetStyle(this.Style)
 
 	// tr := base.NewTimeRecorder()
@@ -36,13 +37,13 @@ func (this *SimpleTheme) Draw(canvas *draw.Canvas, feaItr data.FeatureIterator) 
 
 	// 直接绘制
 	if forCount == 1 {
-		this.drawBatch(feaItr, 0, canvas)
+		this.drawBatch(feaItr, 0, canvas, prjc)
 	} else {
 		// 并发绘制
 		var wg *sync.WaitGroup = new(sync.WaitGroup)
 		for i := 0; i < int(forCount); i++ {
 			wg.Add(1)
-			go this.goDrawBatch(feaItr, i, canvas, wg)
+			go this.goDrawBatch(feaItr, i, canvas, prjc, wg)
 		}
 		wg.Wait()
 	}
@@ -51,22 +52,25 @@ func (this *SimpleTheme) Draw(canvas *draw.Canvas, feaItr data.FeatureIterator) 
 	return objCount
 }
 
-func (this *SimpleTheme) drawBatch(itr data.FeatureIterator, batchNo int, canvas *draw.Canvas) {
+func (this *SimpleTheme) drawBatch(itr data.FeatureIterator, batchNo int, canvas *draw.Canvas, prjc *base.PrjConvert) {
 	features, ok := itr.BatchNext(batchNo)
 	if ok {
 		for _, v := range features {
-			drawGeo, ok := v.Geo.(draw.DrawCanvas)
-			if ok {
-				drawGeo.Draw(canvas)
+			if v.Geo != nil {
+				v.Geo.ConvertPrj(prjc)
+				drawGeo, ok := v.Geo.(draw.DrawCanvas)
+				if ok {
+					drawGeo.Draw(canvas)
+				}
 			}
 		}
 	}
 	features = features[:0]
 }
 
-func (this *SimpleTheme) goDrawBatch(itr data.FeatureIterator, pos int, canvas *draw.Canvas, wg *sync.WaitGroup) {
+func (this *SimpleTheme) goDrawBatch(itr data.FeatureIterator, pos int, canvas *draw.Canvas, prjc *base.PrjConvert, wg *sync.WaitGroup) {
 	defer wg.Done()
 	canvasBatch := canvas.Clone()
-	this.drawBatch(itr, pos, canvasBatch)
+	this.drawBatch(itr, pos, canvasBatch, prjc)
 	canvas.DrawImage(canvasBatch.Image(), 0, 0)
 }

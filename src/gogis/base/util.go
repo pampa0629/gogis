@@ -4,6 +4,7 @@ package base
 
 import (
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -38,8 +39,8 @@ const EXT_MAP_SERVICE_FILE = "gms"   // 地图服务文件 Gogis Map Service fil
 // todo 这个函数得换个包放置
 // 根据bbox和对象数量，计算缓存的最小最大合适层级
 // 再小的层级没有必要（图片上的显示范围太小）；再大的层级则瓦片上对象太稀疏
-func CalcMinMaxLevels(bbox Rect2D, geoCount int64) (minLevel, maxLevel int) {
-	fmt.Println("bbox:", bbox)
+func CalcMinMaxLevels(bbox Rect2D, geoCount int64) (minLevel, maxLevel int32) {
+	// fmt.Println("bbox:", bbox)
 	minLevel = 0
 	dis := 180.0
 	dx := bbox.Dx()
@@ -157,4 +158,24 @@ func DeepCopy(value interface{}) interface{} {
 		return newSlice
 	}
 	return value
+}
+
+// 计算夹角的角度；pnt0 为中间点
+func Angle(pnt1, pnt0, pnt2 Point2D) float64 {
+	x1 := pnt1.X - pnt0.X
+	y1 := pnt1.Y - pnt0.Y
+	x2 := pnt2.X - pnt0.X
+	y2 := pnt2.Y - pnt0.Y
+
+	x := x1*x2 + y1*y2
+	y := x1*y2 - x2*y1
+	radian := math.Acos(x / math.Sqrt(x*x+y*y))
+	return radian * 180.0 / math.Pi
+}
+
+// ================================================================ //
+func PrintError(msg string, err error) {
+	if err != nil {
+		fmt.Println(msg+" error:", err)
+	}
 }

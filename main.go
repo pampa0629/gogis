@@ -6,19 +6,20 @@ import (
 
 	"gogis/base"
 	"gogis/data"
+	"gogis/draw"
 	"gogis/index"
 	"gogis/mapping"
 	"gogis/server"
 )
 
 func testRest() {
-	rootpath := os.Args[0]
+	rootpath := "C:/zengzm/GitHub/gogis/" // os.Args[0]
 	datapath := "./data/"
 	cachepath := "./cache/"
-	if len(os.Args) >= 3 {
-		datapath = os.Args[1]
-		cachepath = os.Args[2]
-	}
+	// if len(os.Args) >= 3 {
+	// 	datapath = os.Args[1]
+	// 	cachepath = os.Args[2]
+	// }
 	datapath = base.GetAbsolutePath(rootpath, datapath)
 	cachepath = base.GetAbsolutePath(rootpath, cachepath)
 	fmt.Println("app path:", rootpath, ", data path:", datapath, ", cache path:", cachepath)
@@ -27,9 +28,9 @@ func testRest() {
 
 var gPath = "C:/temp/"
 
-var gTitle = "chinapnt_84" // insurance chinapnt_84
+// var gTitle = "chinapnt_84" // insurance chinapnt_84
 
-// var gTitle = "DLTB"
+var gTitle = "Export_Output" // Export_Output DLTB New_Region
 
 // var gTitle = "JBNTBHTB"
 
@@ -44,8 +45,11 @@ func main() {
 	// testMapTile()
 	// testIndex()
 
+	testShpSelect()
+
+	// testShpmemMap()
 	// testEsMap()
-	testSqliteMap()
+	// testSqliteMap()
 	// testHbaseMap()
 	fmt.Println("DONE!")
 	return
@@ -156,6 +160,76 @@ func testSqliteMap() {
 	tr.Output("draw sqlite map")
 }
 
+func testShpSelect() {
+	tr := base.NewTimeRecorder()
+	var store data.ShpmemStore
+	params := data.NewConnParams()
+	params["filename"] = "C:/temp/" + gTitle + ".shp"
+	store.Open(params)
+	feaset, _ := store.GetFeasetByName(gTitle)
+	feaset.Open()
+	tr.Output("open shp by memery")
+
+	bbox := base.NewRect2D(99.28103066073646, 27.989405622871224, 104.66685245657567, 34.21144131006844)
+
+	// bbox := feaset.GetBounds()
+	// bbox.Extend((bbox.Dx() + bbox.Dy()) / -10.0)
+	// fmt.Println("bbox:", bbox)
+	// feait := feaset.QueryByBounds(bbox)
+	// fmt.Println("count:", feait.Count())
+
+	gmap := mapping.NewMap()
+	gmap.AddLayer(feaset, nil)
+	gmap.Prepare(1600, 1200)
+	tr.Output("new map")
+	gmap.Select(bbox)
+
+	tr.Output("select")
+	// gmap.Zoom(5)
+	gmap.Draw()
+	// 输出图片文件
+	gmap.Output2File("C:/temp/"+gTitle+".jpg", "jpg")
+	mapfile := gPath + gTitle + "." + base.EXT_MAP_FILE
+	gmap.Save(mapfile)
+	// nmap := mapping.NewMap()
+	// nmap.Open(mapfile)
+
+	tr.Output("draw map")
+}
+
+func testShpmemMap() {
+	tr := base.NewTimeRecorder()
+	var store data.ShpmemStore
+	params := data.NewConnParams()
+	params["filename"] = "C:/temp/" + gTitle + ".shp"
+	store.Open(params)
+	// feaset, _ := sqlDB.GetFeasetByNum(0)
+	feaset, _ := store.GetFeasetByName(gTitle)
+	feaset.Open()
+	tr.Output("open shp by memery")
+
+	gmap := mapping.NewMap()
+
+	// var theme mapping.RangeTheme // UniqueTheme
+	// gmap.AddLayer(feaset, &theme)
+	gmap.AddLayer(feaset, nil)
+	gmap.Prepare(1600, 1200)
+
+	// gmap.Proj = base.PrjFromEpsg(3857)
+	// gmap.SetDynamicProj(true) // 动态投影
+	// gmap.Zoom(5)
+
+	gmap.Draw()
+	// 输出图片文件
+	gmap.Output2File("C:/temp/"+gTitle+".jpg", "jpg")
+	mapfile := gPath + gTitle + "." + base.EXT_MAP_FILE
+	gmap.Save(mapfile)
+	nmap := mapping.NewMap()
+	nmap.Open(mapfile)
+
+	tr.Output("draw map")
+}
+
 func testMapTile() {
 	tr := base.NewTimeRecorder()
 
@@ -164,40 +238,16 @@ func testMapTile() {
 	maptile := mapping.NewMapTile(gmap, mapping.Epsg4326)
 	// this.tilestore = new(data.LeveldbTileStore) // data.FileTileStore LeveldbTileStore
 	// this.tilestore.Open(path, mapname)
-	tmap, _ := maptile.CacheOneTile2Map(6, 101, 23, nil)
+
 	tilename := gPath + gTitle + ".jpg"
 	fmt.Println(tilename)
-	tmap.Output2File(tilename, "jpg")
-
-	return
-
-	idx := index.LoadGix(gPath + gTitle + ".gix")
-	idboxs := idx.(*index.ZOrderIndex).Data()
-	ids1 := getIds(tmap.BBox, idboxs)
-	fmt.Println(len(ids1))
-
-	ids2 := idx.Query(tmap.BBox)
-	fmt.Println(len(ids2))
-	codes := idx.(*index.ZOrderIndex).QueryDB(tmap.BBox)
-	fmt.Println("codes:", codes)
-	// index.Bits2code()
-	return
-
-	mapids := make(map[int64]byte)
-	for _, v := range ids2 {
-		mapids[v] = 1
-	}
-	for _, v := range ids1 {
-		count := len(mapids)
-		mapids[v] = 1
-		if len(mapids) > count {
-			code, bbox := id2code(v, idboxs)
-			bits := index.Code2bits(code)
-			fmt.Println("id:", v, "code:", code, "bits:", bits, "bbox:", bbox)
-		}
-	}
+	data, _ := maptile.CacheOneTile2Bytes(6, 101, 23, draw.TypeJpg)
+	w, _ := os.Create(tilename)
+	w.Write(data)
+	w.Close()
 
 	tr.Output("map tile")
+	return
 }
 
 func id2code(id int64, idboxs [][]index.Idbbox) (code int, bbox base.Rect2D) {

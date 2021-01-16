@@ -5,13 +5,71 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"gogis/base"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
+	// pool "github.com/silenceper/poor"
 )
 
 func gomain() {
-	testJson2()
+	testFileCount()
+	fmt.Println("DONE!")
+}
+
+func testFileCount() {
+	// count := 5000                    // 最大支持并发
+	// ch := make(chan struct{}, count) // 控制任务并发的chan
+	// defer close(ch)
+	var gomax base.GoMax
+	gomax.Init(5000)
+
+	path := "c:/temp/cache/test/"
+	// var wg *sync.WaitGroup = new(sync.WaitGroup)
+	for i := 0; i < 200; i++ {
+		// ch <- struct{}{} // 作用类似于waitgroup.Add(1)
+		gomax.Add()
+		// wg.Add(1)
+		go testGo(path, i, &gomax)
+	}
+	// wg.Wait()
+	gomax.Wait()
+	return
+}
+
+// func (this *TestCreate) testGo(path string, i int, wg *sync.WaitGroup) {
+// func testGo(path string, i int, wg *sync.WaitGroup, gomax *GoMax) {
+// func testGo(path string, i int, wg *sync.WaitGroup, ch chan struct{}) {
+func testGo(path string, k int, gomax *base.GoMax) {
+	if gomax != nil {
+		defer gomax.Done()
+	}
+
+	for i := 0; i < 200; i++ {
+		for j := 0; j < 1000; j++ {
+			gomax.Add()
+			go testGo2(path, k, i, j, gomax)
+		}
+	}
+	// gomax.Done()
+}
+
+func testGo3(path string, i, j, k int, gomax *base.GoMax) {
+	testGo2(path, k, i, j, gomax)
+
+}
+
+func testGo2(path string, i, j, k int, gomax *base.GoMax) {
+	defer gomax.Done()
+	filename := path + strconv.Itoa(i) + "-" + strconv.Itoa(j) + "-" + strconv.Itoa(k) + ".txt"
+	f, _ := os.Create(filename)
+	// gofile := this.openFile()
+	// f := gofile.CreateFile(this.filename)
+	f.WriteString(filename)
+	defer f.Close()
+	fmt.Println("i,j,k:", i, j, k)
+	// <-ch // 执行完毕，释放资源
 }
 
 func testJson2() {

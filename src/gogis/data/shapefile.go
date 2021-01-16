@@ -78,6 +78,7 @@ type ShapeFile struct {
 	recordNum int               // 记录个数
 	records   []shxRecordHeader // 记录头 数组
 	table     *godbf.DbfTable
+	prj       string // 坐标系的字符串描述(wkt格式)
 }
 
 // dbf 字段类型
@@ -114,6 +115,11 @@ func (this *ShapeFile) Open(filename string) bool {
 	this.records = make([]shxRecordHeader, this.recordNum)
 	r := bytes.NewReader(data[100:])
 	binary.Read(r, binary.BigEndian, this.records)
+
+	// prj 文件
+	prjName := strings.TrimSuffix(filename, ".shp") + ".prj"
+	prjData, _ := ioutil.ReadFile(prjName)
+	this.prj = string(prjData)
 
 	// dbf 文件
 	// dbfName := strings.TrimSuffix(filename, ".shp") + ".dbf"
@@ -228,7 +234,6 @@ func (this *ShapeFile) LoadBboxIds() (bboxes []base.Rect2D, ids []int32) {
 	ids = make([]int32, this.recordNum)
 
 	f, _ := os.Open(this.Filename)
-	// for i:=0;i<this.recordNum; i++ {
 	for i, v := range this.records {
 		f.Seek(int64(v.Pos)*2, 0)
 		bboxes[i], ids[i] = this.loadOneBboxId(f, this.GeoType)
@@ -294,84 +299,13 @@ func loadFromByte(r io.Reader, shptype geometry.ShpType) geometry.Geometry {
 	data := make([]byte, len*2) // len 的单位是双字节
 	binary.Read(r, binary.LittleEndian, data)
 
-	// fmt.Println("len:", len, "data:", data)
-
 	geotype := geometry.ShpType2Geo(shptype)
 	geo := geometry.CreateGeo(geotype)
 	geo.From(data, geometry.Shape)
 	// shape格式中，num是从1起的，为提高效率，这里减1，变为和[] pos一致
 	geo.SetID(int64(num - 1))
 	return geo
-
-	// var geo geometry.Geometry
-	// switch shptype {
-	// case ShpPoint:
-	// 	geo = loadShpOnePoint(r)
-	// case ShpPolyLine:
-	// 	geo = loadShpOnePolyline(r)
-	// case ShpPolygon:
-	// 	geo = loadShpOnePolygon(r)
-	// }
-	// // shape格式中，num是从1起的，为提高效率，这里减1，变为和[] pos一致
-	// geo.SetID(int64(num - 1))
-	// return geo
 }
-
-// func loadShpOnePoint(r io.Reader) geometry.Geometry {
-// 	var geopoint geometry.GeoPoint
-// 	var geotype shpType
-// 	binary.Read(r, binary.LittleEndian, &geotype)
-// 	binary.Read(r, binary.LittleEndian, &geopoint.Point2D)
-// 	// fmt.Println("geopoint:", geopoint)
-// 	return &geopoint
-// }
-
-// type shpPolyline struct {
-// 	shpType                  // 图形类型，==3
-// 	bbox       base.Rect2D    // 当前线状目标的坐标范围
-// 	numParts  int32          // 当前线目标所包含的子线段的个数
-// 	numPoints int32          // 当前线目标所包含的顶点个数
-// 	parts     []int32        // 每个子线段的第一个坐标点在 Points 的位置
-// 	points    []base.Point2D // 记录所有坐标点的数组
-// }
-// 未来考虑是否放到geometry的各个类型中实现
-// func loadShpOnePolyline(r io.Reader) geometry.Geometry {
-// 	var polyline geometry.GeoPolyline
-// 	bbox, numParts, numPoints := loadShpOnePolyHeader(r)
-// 	polyline.BBox = bbox
-
-// 	parts := make([]int32, numParts, numParts+1)
-// 	binary.Read(r, binary.LittleEndian, parts)
-// 	parts = append(parts, numPoints) // 最后增加一个，方便后面的计算
-
-// 	polyline.Points = make([][]base.Point2D, numParts)
-// 	for i := int32(0); i < numParts; i++ {
-// 		polyline.Points[i] = make([]base.Point2D, parts[i+1]-parts[i])
-// 		binary.Read(r, binary.LittleEndian, polyline.Points[i])
-// 	}
-
-// 	return &polyline
-// }
-
-// func loadShpOnePolygon(r io.Reader) geometry.Geometry {
-// 	var polygon geometry.GeoPolygon
-// 	bbox, numParts, numPoints := loadShpOnePolyHeader(r)
-// 	polygon.BBox = bbox
-
-// 	parts := make([]int32, numParts+1)
-// 	for i := int32(0); i < numParts; i++ {
-// 		binary.Read(r, binary.LittleEndian, &parts[i])
-// 	}
-// 	parts[numParts] = numPoints
-
-// 	polygon.Points = make([][][]base.Point2D, numParts)
-// 	for i := int32(0); i < numParts; i++ {
-// 		polygon.Points[i] = make([][]base.Point2D, 1)
-// 		polygon.Points[i][0] = make([]base.Point2D, parts[i+1]-parts[i])
-// 		binary.Read(r, binary.LittleEndian, polygon.Points[i][0])
-// 	}
-// 	return &polygon
-// }
 
 // 读取 bbox
 func loadShpOnePolyBbox(r io.Reader) (bbox base.Rect2D) {
@@ -381,14 +315,3 @@ func loadShpOnePolyBbox(r io.Reader) (bbox base.Rect2D) {
 	binary.Read(r, binary.LittleEndian, &bbox)
 	return
 }
-
-// // 读取 polyline和polygon共同的部分
-// func loadShpOnePolyHeader(r io.Reader) (bbox base.Rect2D, numParts, numPoints int32) {
-// 	var shptype int32
-// 	binary.Read(r, binary.LittleEndian, &shptype)
-// 	// 这里合并处理
-// 	binary.Read(r, binary.LittleEndian, &bbox)
-// 	binary.Read(r, binary.LittleEndian, &numParts)
-// 	binary.Read(r, binary.LittleEndian, &numPoints)
-// 	return
-// }

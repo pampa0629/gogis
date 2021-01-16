@@ -1,8 +1,11 @@
 package draw
 
 import (
+	"fmt"
 	"image/color"
 	"math/rand"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -13,16 +16,47 @@ func init() {
 
 // 图层和对象绘制风格
 type Style struct {
-	LineColor color.RGBA
+	LineColor Color // color.RGBA
 	LineWidth float64
 	LineDash  []float64
-	FillColor color.RGBA
+	FillColor Color // color.RGBA
+}
+
+// 定义一个color的目的是为了能输出 #RRGGBBAA 格式的json
+type Color color.RGBA
+
+func (this *Color) MarshalJSON() ([]byte, error) {
+	str := fmt.Sprintf(`"#%02X%02X%02X%02X"`, this.R, this.G, this.B, this.A)
+	return []byte(str), nil
+}
+
+// 十六进制字符串转 uint8
+func strx2uint8(str string) uint8 {
+	value, _ := strconv.ParseInt(str, 16, 0)
+	return uint8(value)
+}
+
+func (this *Color) UnmarshalJSON(data []byte) error {
+	str := strings.Trim(string(data), "#\"")
+	this.R = strx2uint8(str[0:2])
+	this.G = strx2uint8(str[2:4])
+	this.B = strx2uint8(str[4:6])
+	this.A = strx2uint8(str[6:8])
+	return nil
 }
 
 // 得到随机风格
 func RandStyle() (style Style) {
-	style.FillColor = RandColor()
-	style.LineColor = RandColor()
+	style.FillColor = Color(RandColor())
+	style.LineColor = Color(RandColor())
+	style.LineWidth = 1
+	return
+}
+
+// 得到高亮风格
+func HilightStyle() (style Style) {
+	style.FillColor = Color(color.RGBA{0, 0, 255, 255})
+	style.LineColor = Color(color.RGBA{0, 0, 255, 255})
 	style.LineWidth = 1
 	return
 }

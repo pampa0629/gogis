@@ -5,6 +5,9 @@ import (
 	"gogis/base"
 	"gogis/data"
 	"gogis/draw"
+	"gogis/geometry"
+
+	"github.com/tidwall/mvt"
 )
 
 // 图层类
@@ -95,11 +98,87 @@ func (this *Layer) WhenOpenning(mappath string) {
 	}
 }
 
-func (this *Layer) Draw(canvas *draw.Canvas) (objCount int64) {
-	// tr := base.NewTimeRecorder()
-	feait := this.feaset.QueryByBounds(canvas.Params.GetBounds())
+func (this *Layer) Select(obj interface{}) (geos []geometry.Geometry) {
+	// todo 暂时只支持拉框选择
+	bbox, ok := obj.(base.Rect2D)
+	if ok {
+		// tr := base.NewTimeRecorder()
+		feait := this.feaset.QueryByBounds(bbox)
+		// tr.Output("layer query bounds")
+		geos = make([]geometry.Geometry, 0, feait.Count())
+		objCount := 1000
+		forCount := feait.PrepareBatch(objCount)
+
+		for i := 0; i < forCount; i++ {
+			// todo 批量处理
+			if feas, ok := feait.BatchNext(i); ok {
+				// temps := make([]geometry.Geometry, len(feas))
+				// var wg *sync.WaitGroup = new(sync.WaitGroup)
+				for _, v := range feas {
+					polygon, ok := v.Geo.(*geometry.GeoPolygon)
+					// if ok {
+					// 	wg.Add(1)
+					// 	go polygonIsIntersectRect(polygon, bbox, temps, j, wg)
+					// }
+					if ok && polygon.IsIntersect(bbox) {
+						// if ok {
+						geos = append(geos, polygon)
+					}
+				}
+				// wg.Wait()
+				// for _, v := range temps {
+				// 	if v != nil {
+				// 		geos = append(geos, v)
+				// 	}
+				// }
+			}
+		}
+		// tr.Output("layer fetch data")
+	}
+	return
+}
+
+// func polygonIsIntersectRect(polygon *geometry.GeoPolygon, bbox base.Rect2D, geos []geometry.Geometry, n int, wg *sync.WaitGroup) {
+// 	defer wg.Done()
+// 	if polygon.IsIntersect(bbox) {
+// 		geos[n] = polygon
+// 	}
+// }
+
+func (this *Layer) Draw(canvas *draw.Canvas, proj *base.ProjInfo) (objCount int64) {
+	feaPrj := this.feaset.GetProjection()
+	prjc := base.NewPrjConvert(proj, feaPrj)
+	bbox := canvas.Params.GetBounds()
+	// 查询数据的bbox，要反过来先做投影转化；这样才能查出实际数据来
+	if prjc != nil {
+		bbox.Min = prjc.DoOne(bbox.Min)
+		bbox.Max = prjc.DoOne(bbox.Max)
+	}
+	feait := this.feaset.QueryByBounds(bbox)
+
 	if this.theme != nil {
-		objCount = this.theme.Draw(canvas, feait)
+		prjc := base.NewPrjConvert(feaPrj, proj)
+		objCount = this.theme.Draw(canvas, feait, prjc)
+	}
+	feait.Close()
+	return
+}
+
+func (this *Layer) OutputMvt(mvtLayer *mvt.Layer, canvas *draw.Canvas) (count int64) {
+	feait := this.feaset.QueryByBounds(canvas.Params.GetBounds())
+	goCount := feait.PrepareBatch(1000)
+	for i := 0; i < goCount; i++ {
+		feas, ok := feait.BatchNext(i)
+		if ok {
+			for _, v := range feas {
+				if v.Geo != nil {
+					mvtGeotype := geometry.GeoType2Mvt(v.Geo.Type())
+					mvtFea := mvtLayer.AddFeature(mvtGeotype)
+					geometry.Geo2Mvt(v.Geo, mvtFea, canvas)
+					count++
+				}
+			}
+		}
 	}
 	feait.Close()
 	return

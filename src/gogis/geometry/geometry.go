@@ -37,13 +37,31 @@ const (
 	Shape   GeoMode = 4 // shape格式的二进制存储
 )
 
+// func CloneGeo(geo Geometry) (newgeo Geometry) {
+// 	if geo != nil {
+// 		data := geo.To(WKB)
+// 		newgeo = CreateGeo(geo.Type())
+// 		newgeo.From(data, WKB)
+// 	}
+// 	return
+// }
+
 type Geometry interface {
 	Type() GeoType
 	GetBounds() base.Rect2D
 
+	// 对自身做投影转化
+	ConvertPrj(prjc *base.PrjConvert)
+	// 克隆，返回一模一样的
+	Clone() Geometry
+
 	// 加载和保存为特定格式
 	From(data []byte, mode GeoMode) bool
 	To(mode GeoMode) []byte
+
+	// 抽稀，作为金字塔使用；返回抽稀后的对象，若抽稀后不成立，则返回nil
+	// dis2 为距离的平方
+	Thin(dis2 float64) Geometry
 
 	// ID
 	SetID(id int64)

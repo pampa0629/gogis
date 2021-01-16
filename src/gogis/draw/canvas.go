@@ -71,8 +71,8 @@ func (this *Canvas) CheckDrawn() bool {
 func (this *Canvas) SetStyle(style Style) {
 	this.style = style
 	// this.dc.SetFillStyle(gg.NewSolidPattern(style.FillColor))
-	this.dc.SetFillColor(style.FillColor)
-	this.dc.SetStrokeColor(style.LineColor)
+	this.dc.SetFillColor(color.RGBA(style.FillColor))
+	this.dc.SetStrokeColor(color.RGBA(style.LineColor))
 
 	// this.dc.SetColor(style.LineColor)
 	this.dc.SetLineWidth(style.LineWidth)

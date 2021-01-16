@@ -1,14 +1,12 @@
 package mapping
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"gogis/base"
 	"gogis/data"
-	"image/png"
+	"gogis/draw"
 	"math"
-	"sync"
 )
 
 // 定义坐标系常量
@@ -43,31 +41,32 @@ func NewMapTile(amap *Map, espg EPSG) *MapTile {
 
 // 缓存这个地图
 // path是最上层的目录，mapname是path下面的子目录
-func (this *MapTile) Cache(path string, mapname string) {
+func (this *MapTile) Cache(path string, mapname string, maptype draw.MapType) {
 	// 第一步，计算缓存的层级范围， 先假设都是经纬度数据
 	minLevel, maxLevel := this.calcCacheLevels()
 	fmt.Println("min & max Level:", minLevel, maxLevel)
 
-	this.tilestore = new(data.LeveldbTileStore) // data.FileTileStore LeveldbTileStore
-	this.tilestore.Open(path, mapname)
-	// 创建根目录
-	// os.MkdirAll(path, os.ModePerm)
+	this.tilestore = new(data.FileTileStore)    // data.FileTileStore LeveldbTileStore
+	this.tilestore.Open(path, mapname, maptype) // TypePng
 
 	// 第二步，分层级和范围进行并发生成缓存
-	var wg *sync.WaitGroup = new(sync.WaitGroup)
+	// var wg *sync.WaitGroup = new(sync.WaitGroup)
+	var gm *base.GoMax = new(base.GoMax)
+	gm.Init(5000) // 涉及文件操作，最大值10000
 	for i := minLevel; i <= maxLevel; i++ {
-		// for i := minLevel; i <= minLevel+3; i++ {
-		wg.Add(1)
-		go this.CacheOneLevel(i, path, wg)
+		// wg.Add(1)
+		gm.Add()
+		go this.CacheOneLevel(int(i), path, maptype, gm)
 	}
-	wg.Wait()
+	gm.Wait()
 
 	this.tilestore.Close()
 }
 
 // 缓存指定的层级
-func (this *MapTile) CacheOneLevel(level int, path string, wg *sync.WaitGroup) {
-	defer wg.Done()
+// func (this *MapTile) CacheOneLevel(level int, path string, maptype draw.MapType, wg *sync.WaitGroup) {
+func (this *MapTile) CacheOneLevel(level int, path string, maptype draw.MapType, gm *base.GoMax) {
+	defer gm.Done()
 
 	// 1，创建该层级根目录
 	// levelPath := filepath.Join(path, strconv.Itoa(level))
@@ -83,47 +82,30 @@ func (this *MapTile) CacheOneLevel(level int, path string, wg *sync.WaitGroup) {
 
 	// 3，并行生成 某个瓦片
 	for j := minCol; j <= maxCol; j++ {
-		// colPath := filepath.Join(levelPath, strconv.Itoa(j))
-		// os.MkdirAll(colPath, os.ModePerm)
-		var wg2 *sync.WaitGroup = new(sync.WaitGroup)
 		for i := minRow; i <= maxRow; i++ {
-			wg2.Add(1)
+			// wg.Add(1)
+			gm.Add()
 			// 具体生成瓦片文件
-			go this.CacheOneTile2File(level, j, i, wg2)
+			go this.CacheOneTile(level, j, i, maptype, gm)
 		}
-		wg2.Wait()
 		// base.DeleteEmptyDir(colPath)
 	}
-
 	// base.DeleteEmptyDir(levelPath)
 }
 
 // 具体生成一个瓦片文件
-func (this *MapTile) CacheOneTile2File(level int, col int, row int, wg *sync.WaitGroup) {
-	// defer wg.Done()
-	// filename := path + "/" + strconv.Itoa(row) + ".png"
-
-	tmap, _ := this.CacheOneTile2Map(level, col, row, wg)
-	if tmap != nil {
-		data := make([]byte, 0)
-		buf := bytes.NewBuffer(data)
-		png.Encode(buf, tmap.OutputImage())
-		data = buf.Bytes()
+func (this *MapTile) CacheOneTile(level int, col int, row int, maptype draw.MapType, gm *base.GoMax) {
+	data, err := this.CacheOneTile2Bytes(level, col, row, maptype)
+	if data != nil && err == nil {
 		this.tilestore.Put(level, col, row, data)
 	}
-
-	// if tmap != nil {
-	// 	tmap.canvas.Image()
-	// 	tmap.Output2File(filename, "png")
-	// }
+	if gm != nil {
+		defer gm.Done()
+	}
 }
 
-// 缓存一个瓦片，返回Map（无效返回 nil）
-func (this *MapTile) CacheOneTile2Map(level int, col int, row int, wg *sync.WaitGroup) (*Map, error) {
-	if wg != nil {
-		defer wg.Done()
-	}
-
+// 缓存一个瓦片，返回指定格式的数据切片
+func (this *MapTile) CacheOneTile2Bytes(level int, col int, row int, maptype draw.MapType) ([]byte, error) {
 	tmap := this.amap.Copy()
 	// 这里关键要把 map要绘制的范围设置对了；即根据 level，row，col来计算bbox
 	tmap.BBox = CalcBBox(level, col, row, this.epsg)
@@ -133,16 +115,24 @@ func (this *MapTile) CacheOneTile2Map(level int, col int, row int, wg *sync.Wait
 	}
 
 	tmap.Prepare(256, 256)
-	drawCount := tmap.Draw()
-	// fmt.Println("after draw, tile image:", this.canvas.img)
-
-	// 只有真正绘制对象了，才缓存为文件
-	if drawCount > 0 {
-		// 还得看一下 image中是否 赋值了
-		if tmap.canvas.CheckDrawn() {
-			return tmap, nil
+	// 图片格式
+	if maptype.IsImgType() {
+		drawCount := tmap.Draw()
+		// 只有真正绘制对象了，才缓存为文件
+		if drawCount > 0 {
+			// 还得看一下 image 中是否赋值了，彻底防止输出全空的图片
+			if tmap.canvas.CheckDrawn() {
+				return tmap.Output2Bytes(maptype), nil
+			}
+		}
+	} else if maptype == draw.TypeMvt {
+		// 非图片格式
+		data, count := tmap.OutputMvt()
+		if count > 0 {
+			return data, nil
 		}
 	}
+
 	return nil, errors.New("draw count is zeor.")
 }
 
@@ -179,7 +169,7 @@ func CalcBBox(level int, col int, row int, espg EPSG) (bbox base.Rect2D) {
 
 // 根据bbox和对象数量，计算缓存的最小最大合适层级
 // 再小的层级没有必要（图片上的显示范围太小）；再大的层级则瓦片上对象太稀疏
-func (this *MapTile) calcCacheLevels() (minLevel, maxLevel int) {
+func (this *MapTile) calcCacheLevels() (minLevel, maxLevel int32) {
 	geoCount := int64(0)
 	for _, layer := range this.amap.Layers {
 		geoCount += layer.feaset.GetCount()

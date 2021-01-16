@@ -6,6 +6,7 @@ import (
 	"gogis/base"
 	"gogis/geometry"
 	"gogis/index"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -74,7 +75,6 @@ func (this *ShpmemStore) Close() {
 type ShpmemFeaset struct {
 	MemFeaset
 	filename string
-	name     string
 	store    *ShpmemStore
 }
 
@@ -87,6 +87,9 @@ func (this *ShpmemFeaset) Open() (bool, error) {
 	this.bbox = base.NewRect2D(shape.Xmin, shape.Ymin, shape.Xmax, shape.Ymax)
 	this.geoType = geometry.ShpType2Geo(shape.GeoType)
 
+	// 处理投影坐标系
+	this.proj = base.PrjFromWkt(shape.prj)
+
 	this.loadShape(shape)
 	shape.Close()
 
@@ -95,10 +98,24 @@ func (this *ShpmemFeaset) Open() (bool, error) {
 	//  处理空间索引文件
 	this.loadSpatialIndex()
 
-	//  todo 矢量金字塔
-	// this.BuildPyramids()
+	this.loadPyramids()
 
 	return res, nil
+}
+
+func (this *ShpmemFeaset) loadPyramids() {
+	prdPath := strings.TrimSuffix(this.filename, ".shp") + ".pyramid/"
+
+	if base.DirIsExist(prdPath) {
+		this.pyramid = new(VectorPyramid)
+		this.pyramid.Load(prdPath)
+	} else {
+		// 创建目录
+		os.MkdirAll(prdPath, os.ModePerm)
+		this.pyramid = new(VectorPyramid)
+		this.pyramid.Build(this.bbox, this.features)
+		this.pyramid.Save(prdPath)
+	}
 }
 
 // 创建或者加载空间索引文件

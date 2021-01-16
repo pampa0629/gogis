@@ -21,9 +21,27 @@ func (this *GeoPoint) GetBounds() base.Rect2D {
 	return base.NewRect2D(this.X, this.Y, this.X, this.Y)
 }
 
+func (this *GeoPoint) Clone() Geometry {
+	res := new(GeoPoint)
+	res.id = this.id
+	res.Point2D = this.Point2D
+	return res
+}
+
 func (this *GeoPoint) Draw(canvas *draw.Canvas) {
 	pnt := canvas.Params.Forward(this.Point2D)
 	canvas.DrawPoint(pnt)
+}
+
+func (this *GeoPoint) ConvertPrj(prjc *base.PrjConvert) {
+	if prjc != nil {
+		this.Point2D = prjc.DoOne(this.Point2D)
+	}
+}
+
+// 点就只能返回自身
+func (this *GeoPoint) Thin(dis2 float64) Geometry {
+	return this
 }
 
 func (this *GeoPoint) From(data []byte, mode GeoMode) bool {

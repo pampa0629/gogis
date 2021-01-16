@@ -7,13 +7,10 @@ import (
 	"gogis/data"
 	"gogis/draw"
 	"image"
-	"image/jpeg"
-	"image/png"
-	"io"
 	"io/ioutil"
 	"os"
 
-	"github.com/chai2010/webp"
+	"github.com/tidwall/mvt"
 )
 
 type Map struct {
@@ -22,6 +19,11 @@ type Map struct {
 	Layers   []*Layer     // 0:最底层，先绘制
 	canvas   *draw.Canvas // 画布
 	BBox     base.Rect2D  // 所有数据的边框
+
+	trackLayer TrackLayer // 跟踪图层，用来绘制被选中的临时对象，不做保存
+
+	IsDynamicProj bool           `json:"Dynamic Projection"` // 是否支持动态投影
+	Proj          *base.ProjInfo `json:"Coordinate System"`
 }
 
 // 复制一个map对象，用来同一个地图的并发出图
@@ -43,6 +45,7 @@ func NewMap() *Map {
 	// 新建一个 指定大小的 RGBA位图
 	// gmap.canvas.img = image.NewNRGBA(image.Rect(0, 0, dx, dy))
 	gmap.BBox.Init() // 初始化bbox
+	gmap.trackLayer.style = draw.HilightStyle()
 	return gmap
 }
 
@@ -56,7 +59,15 @@ func NewMap() *Map {
 func (this *Map) RebuildBBox() {
 	this.BBox.Init()
 	for _, layer := range this.Layers {
-		this.BBox.Union(layer.feaset.GetBounds())
+		bbox := layer.feaset.GetBounds()
+		if this.IsDynamicProj {
+			prjc := base.NewPrjConvert(layer.feaset.GetProjection(), this.Proj)
+			if prjc != nil {
+				bbox.Min = prjc.DoOne(bbox.Min)
+				bbox.Max = prjc.DoOne(bbox.Max)
+			}
+		}
+		this.BBox.Union(bbox)
 	}
 }
 
@@ -64,11 +75,16 @@ func (this *Map) AddLayer(feaset data.Featureset, theme Theme) {
 	if len(this.Name) == 0 {
 		this.Name = feaset.GetName()
 	}
+	if this.Proj == nil {
+		// 自己若没有设置投影系统，则取图层的
+		this.Proj = feaset.GetProjection()
+	}
 	layer := NewLayer(feaset, theme)
 	if theme != nil {
 		theme.MakeDefault(feaset)
 	}
 	this.Layers = append(this.Layers, layer)
+	// todo 设置和开启动态投影时，map的bbos应该发生变化
 	this.BBox.Union(feaset.GetBounds())
 }
 
@@ -78,39 +94,69 @@ func (this *Map) Prepare(dx, dy int) {
 	this.canvas.Init(this.BBox, dx, dy)
 }
 
+// 选择，如点击、拉框、多边形等；操作后，被选中的对象放入track layer中
+// todo 暂时只支持obj为矩形
+func (this *Map) Select(obj interface{}) {
+	// 先清空之前的
+	this.trackLayer.geos = this.trackLayer.geos[:0]
+	for _, layer := range this.Layers {
+		// todo 这里要判断图层是否可被选择
+		this.trackLayer.geos = append(this.trackLayer.geos, layer.Select(obj)...)
+	}
+	// var geo geometry.GeoPolygon
+	// geo.Make(obj.(base.Rect2D))
+	// this.trackLayer.geos = append(this.trackLayer.geos, &geo)
+}
+
+// 设置是否动态投影
+func (this *Map) SetDynamicProj(isDynamicProj bool) {
+	if this.IsDynamicProj != isDynamicProj {
+		this.IsDynamicProj = isDynamicProj
+		// 重新计算和 设置bbox
+		this.RebuildBBox()
+		width, height := this.canvas.GetSize()
+		this.canvas.Params.Init(this.BBox, width, height)
+	}
+}
+
 // 返回绘制对象的个数
 func (this *Map) Draw() (drawCount int64) {
 	this.canvas.ClearDC()
-	for _, layer := range this.Layers {
-		drawCount += layer.Draw(this.canvas)
+	destPrj := this.Proj
+	if !this.IsDynamicProj {
+		destPrj = nil
 	}
+	for _, layer := range this.Layers {
+		drawCount += layer.Draw(this.canvas, destPrj)
+	}
+	this.trackLayer.Draw(this.canvas, destPrj)
 	return
+}
+
+// 输出mvt瓦片数据
+func (this *Map) OutputMvt() ([]byte, int64) {
+	var count int64
+	var tile mvt.Tile
+	for _, layer := range this.Layers {
+		l := tile.AddLayer(layer.Name)
+		count += layer.OutputMvt(l, this.canvas)
+	}
+	return tile.Render(), count
 }
 
 func (this *Map) OutputImage() image.Image {
 	return this.canvas.Image()
 }
 
-// todo 输出格式，后面再增加
-func (this *Map) Output(w io.Writer, imgType string) {
-	switch imgType {
-	case "png":
-		png.Encode(w, this.canvas.Image())
-	case "jpg", "jpeg":
-		jpeg.Encode(w, this.canvas.Image(), nil)
-	case "webp":
-		webp.Encode(w, this.canvas.Image(), nil)
-	default:
-		fmt.Println("不支持的图片格式：", imgType)
-	}
+func (this *Map) Output2Bytes(mapType draw.MapType) []byte {
+	return mapType.OutputImg2Bytes(this.canvas.Image())
 }
 
 // 输出到文件
-func (this *Map) Output2File(filename string, imgType string) {
+func (this *Map) Output2File(filename string, mapType draw.MapType) {
 	imgfile, _ := os.Create(filename)
 	defer imgfile.Close()
-
-	this.Output(imgfile, imgType)
+	mapType.OutputImg(imgfile, this.canvas.Image())
 }
 
 // 工作空间文件的保存

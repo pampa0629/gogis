@@ -175,6 +175,7 @@ type EsFeaset struct {
 	count   int64
 	bbox    base.Rect2D
 	geotype geometry.GeoType
+	projCommon
 }
 
 func (this *EsFeaset) getCount() {
@@ -221,7 +222,7 @@ func (this *EsFeaset) getBbox() {
 
 // 内部调用，和Open做区分
 func (this *EsFeaset) open() {
-	// todo 暂时没啥可干
+	this.proj = base.PrjFromEpsg(4326)
 }
 
 func (this *EsFeaset) Open() (bool, error) {

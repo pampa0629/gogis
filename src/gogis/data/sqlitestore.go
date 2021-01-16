@@ -35,8 +35,8 @@ func (this *SqliteStore) Open(params ConnParams) (res bool, err error) {
 	var count int64
 	this.db.QueryRow("select count(*) from " + SST_GEO_COLS).Scan(&count)
 	this.feasets = make([]Featureset, count)
-	// 再读取 名字、geom字段和类型
-	rows, err := this.db.Query("select f_table_name,f_geometry_column,geometry_type from " + SST_GEO_COLS)
+	// 再读取 名字、geom字段、类型和投影系统
+	rows, err := this.db.Query("select f_table_name,f_geometry_column,geometry_type,srid from " + SST_GEO_COLS)
 	if err == nil {
 		this.loadSys(rows)
 	} else {
@@ -51,6 +51,7 @@ type st3 struct {
 	name    string
 	geom    string
 	geotype int
+	srid    int
 }
 
 // 加载系统表
@@ -58,7 +59,7 @@ func (this *SqliteStore) loadSys(rows *sql.Rows) {
 	st3s := make([]st3, 0)
 	for i := 0; rows.Next(); i++ {
 		var st st3
-		err := rows.Scan(&st.name, &st.geom, &st.geotype)
+		err := rows.Scan(&st.name, &st.geom, &st.geotype, &st.srid)
 		if err == nil {
 			st3s = append(st3s, st)
 		}
@@ -71,6 +72,7 @@ func (this *SqliteStore) loadSys(rows *sql.Rows) {
 		feaset.name = v.name
 		feaset.geom = v.geom
 		feaset.geotype = v.geotype
+		feaset.proj = base.PrjFromEpsg(v.srid)
 		this.feasets[i] = feaset
 	}
 
@@ -190,6 +192,7 @@ type SqliteFeaset struct {
 	idx index.ZOrderIndex // 暂时只支持 zorder索引
 	// idx index.SpatialIndexDB
 	// index data 先不加载
+	projCommon
 	store *SqliteStore
 }
 

@@ -23,6 +23,20 @@ func (this *GeoPolyline) Type() GeoType {
 	return TGeoPolyline
 }
 
+func (this *GeoPolyline) Clone() Geometry {
+	res := new(GeoPolyline)
+	res.id = this.id
+	res.BBox = this.BBox
+	res.Points = make([][]base.Point2D, len(this.Points))
+	for i, v := range this.Points {
+		res.Points[i] = make([]base.Point2D, len(v))
+		for ii, vv := range v {
+			res.Points[i][ii] = vv
+		}
+	}
+	return res
+}
+
 func (this *GeoPolyline) GetBounds() base.Rect2D {
 	return this.BBox
 }
@@ -42,6 +56,57 @@ func (this *GeoPolyline) Draw(canvas *draw.Canvas) {
 		line.Points[i] = canvas.Params.Forwards(v)
 	}
 	canvas.DrawPolyPolyline(line)
+}
+
+func (this *GeoPolyline) ConvertPrj(prjc *base.PrjConvert) {
+	if prjc != nil {
+		for i, v := range this.Points {
+			this.Points[i] = prjc.Do(v)
+		}
+	}
+}
+
+// 抽稀一条折线
+func thinOneLine(points []base.Point2D, dis2 float64) (newPnts []base.Point2D) {
+	newPnts = make([]base.Point2D, 1, len(points))
+	// dis2 := math.Pow(dis, 2)
+	newPnts[0] = points[0]
+	pos := 0
+
+	count := len(points)
+	for i := 1; i < count; i++ {
+		// 距离够远，或者拐角够大的点，都应该保留下来
+		if base.DistanceSquare(points[pos].X, points[pos].Y, points[i].X, points[i].Y) > dis2 ||
+			(i < count-1 && base.Angle(points[pos], points[i], points[i+1]) < 120) {
+			newPnts = append(newPnts, points[i])
+			pos = i
+		}
+	}
+	// 点数不够，就重复一下
+	for len(newPnts) < 2 {
+		newPnts = append(newPnts, newPnts[0])
+	}
+	// 点数小于2，则返回nil
+	// if len(newPnts) < 2 {
+	// 	return nil
+	// }
+	return newPnts
+}
+
+func (this *GeoPolyline) Thin(dis2 float64) Geometry {
+	var newgeo GeoPolyline
+	newgeo.BBox = this.BBox
+	newgeo.Points = make([][]base.Point2D, 0, len(this.Points))
+	for _, v := range this.Points {
+		pnts := thinOneLine(v, dis2)
+		if pnts != nil {
+			newgeo.Points = append(newgeo.Points, pnts)
+		}
+	}
+	if len(newgeo.Points) == 0 {
+		return nil
+	}
+	return &newgeo
 }
 
 // wkb:
