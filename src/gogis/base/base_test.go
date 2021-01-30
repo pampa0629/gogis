@@ -6,6 +6,12 @@ import (
 	"testing"
 )
 
+func TestAlgorithm(t *testing.T) {
+	// var curve Curve
+	// curve = make([]Point2D, 10)
+	// fmt.Println(len(curve))
+}
+
 func TestIO(t *testing.T) {
 	fmt.Println(Float32ToBytes(11.1))
 }
@@ -42,6 +48,12 @@ func TestRectPoint(t *testing.T) {
 
 // 矩形与矩形
 func TestRectRect(t *testing.T) {
+	{
+		var rect Rect2D
+		rect.Init()
+		fmt.Println(rect)
+	}
+
 	var rect, rect1, rect2, rect3, rect4, rect5, rect6, rect7 Rect2D
 	rect.Min = Point2D{0, 0}
 	rect.Max = Point2D{100, 100}
@@ -97,48 +109,48 @@ func TestRectRect(t *testing.T) {
 	}
 
 	// 矩形覆盖矩形
-	if rect.IsCover(rect1) {
+	if rect.IsCovers(rect1) {
 		t.Errorf("矩形覆盖矩形错误1")
 	}
-	if rect.IsCover(rect2) {
+	if rect.IsCovers(rect2) {
 		t.Errorf("矩形覆盖矩形错误2")
 	}
-	if rect.IsCover(rect3) {
+	if rect.IsCovers(rect3) {
 		t.Errorf("矩形覆盖矩形错误3")
 	}
-	if rect.IsCover(rect4) {
+	if rect.IsCovers(rect4) {
 		t.Errorf("矩形覆盖矩形错误4")
 	}
-	if !rect.IsCover(rect5) {
+	if !rect.IsCovers(rect5) {
 		t.Errorf("矩形覆盖矩形错误5")
 	}
-	if !rect.IsCover(rect6) {
+	if !rect.IsCovers(rect6) {
 		t.Errorf("矩形覆盖矩形错误6")
 	}
-	if !rect.IsCover(rect7) {
+	if !rect.IsCovers(rect7) {
 		t.Errorf("矩形覆盖矩形错误7")
 	}
 
 	// 矩形与矩形相交
-	if rect.IsIntersect(rect1) {
+	if rect.IsIntersects(rect1) {
 		t.Errorf("矩形相交矩形错误1")
 	}
-	if !rect.IsIntersect(rect2) {
+	if !rect.IsIntersects(rect2) {
 		t.Errorf("矩形相交矩形错误2")
 	}
-	if !rect.IsIntersect(rect3) {
+	if !rect.IsIntersects(rect3) {
 		t.Errorf("矩形相交矩形错误3")
 	}
-	if !rect.IsIntersect(rect4) {
+	if !rect.IsIntersects(rect4) {
 		t.Errorf("矩形相交矩形错误4")
 	}
-	if !rect.IsIntersect(rect5) {
+	if !rect.IsIntersects(rect5) {
 		t.Errorf("矩形相交矩形错误5")
 	}
-	if !rect.IsIntersect(rect6) {
+	if !rect.IsIntersects(rect6) {
 		t.Errorf("矩形相交矩形错误6")
 	}
-	if !rect.IsIntersect(rect7) {
+	if !rect.IsIntersects(rect7) {
 		t.Errorf("矩形相交矩形错误7")
 	}
 

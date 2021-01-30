@@ -30,7 +30,7 @@ var gPath = "C:/temp/"
 
 // var gTitle = "chinapnt_84" // insurance chinapnt_84
 
-var gTitle = "Export_Output" // Export_Output DLTB New_Region
+var gTitle = "point2" // Export_Output DLTB New_Region
 
 // var gTitle = "JBNTBHTB"
 
@@ -45,11 +45,11 @@ func main() {
 	// testMapTile()
 	// testIndex()
 
-	testShpSelect()
+	// testShpQuery()
 
 	// testShpmemMap()
 	// testEsMap()
-	// testSqliteMap()
+	testSqliteMap()
 	// testHbaseMap()
 	fmt.Println("DONE!")
 	return
@@ -136,17 +136,17 @@ func testSqliteMap() {
 	tr := base.NewTimeRecorder()
 	var sqlDB data.SqliteStore
 	params := data.NewConnParams()
-	params["filename"] = "C:/temp/" + gTitle + ".sqlite"
+	params["filename"] = "C:/temp/" + gTitle + ".db"
 	sqlDB.Open(params)
-	// feaset, _ := sqlDB.GetFeasetByNum(0)
-	feaset, _ := sqlDB.GetFeasetByName(gTitle)
+	feaset, _ := sqlDB.GetFeasetByNum(0)
+	// feaset, _ := sqlDB.GetFeasetByName(gTitle)
 	feaset.Open()
 	tr.Output("open sqlite db")
 
 	gmap := mapping.NewMap()
-	var theme mapping.RangeTheme // UniqueTheme
-	gmap.AddLayer(feaset, &theme)
-	// gmap.AddLayer(feaset, nil)
+	// var theme mapping.RangeTheme // UniqueTheme
+	// gmap.AddLayer(feaset, &theme)
+	gmap.AddLayer(feaset, nil)
 	// gmap.Add
 	gmap.Prepare(1024, 768)
 	// gmap.Zoom(2)
@@ -160,41 +160,55 @@ func testSqliteMap() {
 	tr.Output("draw sqlite map")
 }
 
-func testShpSelect() {
+func testShpQuery() {
 	tr := base.NewTimeRecorder()
 	var store data.ShpmemStore
 	params := data.NewConnParams()
 	params["filename"] = "C:/temp/" + gTitle + ".shp"
 	store.Open(params)
-	feaset, _ := store.GetFeasetByName(gTitle)
+	temp, _ := store.GetFeasetByName(gTitle)
+	feaset := temp.(*data.ShpmemFeaset)
 	feaset.Open()
-	tr.Output("open shp by memery")
+	fmt.Println("all count:", feaset.GetCount())
+	tr.Output("open")
 
-	bbox := base.NewRect2D(99.28103066073646, 27.989405622871224, 104.66685245657567, 34.21144131006844)
+	var def data.QueryDef
+	// def.Fields = []string{"POPU", "POP_COU"}
+	// def.Where = "POPU>100 or POPU<80 and POP_COU>10"
+	// def.Where = "(Popu>10 or Pop_cou>10) or((a<=11) and (b>0) or c!=1)"
+	def.SpatialMode = base.Intersects // Intersects Within Disjoint "[T***F*FF*]"
+	def.SpatialObj = feaset.GetBounds().Scale(0.1)
+	feait := feaset.QueryByDef(def)
+	fmt.Println("query count:", feait.Count())
+	tr.Output("QueryByDef")
+
+	feait.PrepareBatch(int(feait.Count()))
+	feas, _ := feait.BatchNext(0)
+	fmt.Println("get count:", len(feas))
+	tr.Output("BatchNext")
 
 	// bbox := feaset.GetBounds()
 	// bbox.Extend((bbox.Dx() + bbox.Dy()) / -10.0)
 	// fmt.Println("bbox:", bbox)
 	// feait := feaset.QueryByBounds(bbox)
-	// fmt.Println("count:", feait.Count())
 
-	gmap := mapping.NewMap()
-	gmap.AddLayer(feaset, nil)
-	gmap.Prepare(1600, 1200)
-	tr.Output("new map")
-	gmap.Select(bbox)
+	// gmap := mapping.NewMap()
+	// gmap.AddLayer(feaset, nil)
+	// gmap.Prepare(1600, 1200)
+	// tr.Output("new map")
+	// gmap.Select(bbox)
 
-	tr.Output("select")
-	// gmap.Zoom(5)
-	gmap.Draw()
-	// 输出图片文件
-	gmap.Output2File("C:/temp/"+gTitle+".jpg", "jpg")
-	mapfile := gPath + gTitle + "." + base.EXT_MAP_FILE
-	gmap.Save(mapfile)
-	// nmap := mapping.NewMap()
-	// nmap.Open(mapfile)
+	// tr.Output("select")
+	// // gmap.Zoom(5)
+	// gmap.Draw()
+	// // 输出图片文件
+	// gmap.Output2File("C:/temp/"+gTitle+".jpg", "jpg")
+	// mapfile := gPath + gTitle + "." + base.EXT_MAP_FILE
+	// gmap.Save(mapfile)
+	// // nmap := mapping.NewMap()
+	// // nmap.Open(mapfile)
 
-	tr.Output("draw map")
+	// tr.Output("draw map")
 }
 
 func testShpmemMap() {
@@ -258,17 +272,6 @@ func id2code(id int64, idboxs [][]index.Idbbox) (code int, bbox base.Rect2D) {
 				bbox = vv.Bbox
 				return
 			}
-		}
-	}
-	return
-}
-
-func getIds(bbox base.Rect2D, idboxs [][]index.Idbbox) (ids []int64) {
-	for _, v := range idboxs {
-		for _, vv := range v {
-			// if vv.Bbox.IsIntersect(bbox) {
-			ids = append(ids, vv.Id)
-			// }
 		}
 	}
 	return

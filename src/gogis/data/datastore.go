@@ -4,9 +4,7 @@ import (
 	"errors"
 	"gogis/base"
 	"gogis/geometry"
-	"strconv"
 	"strings"
-	"time"
 )
 
 // func init() {
@@ -34,23 +32,43 @@ const (
 	StoreES          StoreType = "es"    // elasticsearch
 )
 
+type NewDatastoreFunc func() Datastore
+
+var gNewDatastores map[StoreType]NewDatastoreFunc
+
+// 支持用户自定义数据存储库类型
+func RegisterDatastore(storyType StoreType, newfunc NewDatastoreFunc) {
+	if gNewDatastores == nil {
+		gNewDatastores = make(map[StoreType]NewDatastoreFunc)
+	}
+	gNewDatastores[storyType] = newfunc
+}
+
 func NewDatastore(storyType StoreType) Datastore {
-	switch storyType {
-	case StoreShape:
-		return new(ShapeStore)
-	case StoreShapeMemory:
-		return new(ShpmemStore)
-	case StoreMemory:
-		return new(MemoryStore)
-	case StoreSqlite:
-		return new(SqliteStore)
-	case StoreHbase:
-		return new(HbaseStore)
-	case StoreES:
-		return new(EsStore)
+	newfunc, ok := gNewDatastores[storyType]
+	if ok {
+		return newfunc()
 	}
 	return nil
 }
+
+// func NewDatastore(storyType StoreType) Datastore {
+// 	switch storyType {
+// 	case StoreShape:
+// 		return new(ShapeStore)
+// 	case StoreShapeMemory:
+// 		return new(ShpmemStore)
+// 	case StoreMemory:
+// 		return new(MemoryStore)
+// 	case StoreSqlite:
+// 		return new(SqliteStore)
+// 	case StoreHbase:
+// 		return new(HbaseStore)
+// 	case StoreES:
+// 		return new(EsStore)
+// 	}
+// 	return nil
+// }
 
 // 数据存储库
 type Datastore interface {
@@ -145,122 +163,23 @@ type FeatureIterator interface {
 	Close() // 关闭，释放资源
 }
 
-// type FieldCompOp int
-
-// const (
-// 	UnknownOperator FieldCompOp = iota // UnknownOperator is the zero value for an Operator
-// 	Eq                                 // Eq -> "="
-// 	Ne                                 // Ne -> "!="
-// 	Gt                                 // Gt -> ">"
-// 	Lt                                 // Lt -> "<"
-// 	Gte                                // Gte -> ">="
-// 	Lte                                // Lte -> "<="
-// )
-
-// 属性查询条件定义
-type QueryDef struct {
-	Fields []string // 需要哪些字段
-	Wheres []string // {Field1="abc",Field2>=10,......}
-}
-
-// 字段比较
-type FieldComp struct {
-	Field string
-	Op    string
-	// Value string
-	Value interface{}
-}
-
-// 内部使用
-func splitByMoreStr(r rune) bool {
-	// 仅支持字段比较用的分隔符
-	return r == '=' || r == '>' || r == '<' || r == '!'
-}
-
-// 内部解析wheres条件
-func (this *QueryDef) Parser(finfos []FieldInfo) (comps []FieldComp, err error) {
-	for _, where := range this.Wheres {
-		res := strings.FieldsFunc(where, splitByMoreStr)
-		if len(res) == 2 {
-			op := strings.Trim(where, res[0])
-			op = strings.Trim(op, res[1])
-			op = strings.TrimSpace(op)
-			ftype := GetFieldTypeByName(finfos, res[0])
-			if ftype != TypeUnknown {
-				value := string2value(res[1], ftype)
-				newComp := FieldComp{res[0], op, value}
-				// fmt.Println(newComp)
-				comps = append(comps, newComp)
-			} else {
-				err = errors.New(res[0] + "'s field type is unknown.")
-			}
-		} else {
-			err = errors.New(where + " cannot be parsed.")
-		}
-	}
-	return
-}
-
-func GetFieldTypeByName(finfos []FieldInfo, name string) FieldType {
-	for _, finfo := range finfos {
-		if strings.ToUpper(finfo.Name) == strings.ToUpper(name) {
-			return finfo.Type
-		}
-	}
-	return TypeUnknown
-}
-
-// 把字符串性质的值，根据字段类型，转化为特定数据类型
-func string2value(str string, ftype FieldType) interface{} {
-	switch ftype {
-	case TypeBool:
-		// case "1", "t", "T", "true", "TRUE", "True":
-		// case "0", "f", "F", "false", "FALSE", "False":
-		value, _ := strconv.ParseBool(str)
-		return value
-	case TypeInt:
-		value, _ := strconv.Atoi(str)
-		return value
-	case TypeFloat:
-		value, _ := strconv.ParseFloat(str, 64)
-		return value
-	case TypeString:
-		return str
-	case TypeTime:
-		value, _ := time.Parse(TIME_LAYOUT, str)
-		return value
-	case TypeBlob:
-		return []byte(str)
-	}
-	return nil
-}
-
-type FieldType int32
-
-const (
-	TypeUnknown FieldType = 0
-	TypeBool    FieldType = 1 // bool
-	TypeInt     FieldType = 2 // int32
-	TypeFloat   FieldType = 3 // float64
-	TypeString  FieldType = 5 // string
-	TypeTime    FieldType = 6 // time.Time
-	TypeBlob    FieldType = 7 // []byte
-)
-
-// 字段描述信息
-type FieldInfo struct {
-	Name   string
-	Type   FieldType
-	Length int
-}
-
-// 一个矢量对象（带属性）
+// 矢量要素（带属性值）
 type Feature struct {
 	Geo geometry.Geometry
 	// todo which?
 	// Fields map[string]interface{}
 	Atts map[string]interface{}
 	// Atts []string
+}
+
+func (this *Feature) Clone() Feature {
+	var fea Feature
+	fea.Geo = this.Geo.Clone()
+	fea.Atts = make(map[string]interface{})
+	for k, v := range this.Atts {
+		fea.Atts[k] = v
+	}
+	return fea
 }
 
 // 栅格数据集合 todo

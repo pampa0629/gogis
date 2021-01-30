@@ -80,6 +80,7 @@ func (this *VectorPyramid) saveGeos(geos []geometry.Geometry, n1, n2 int, prdPat
 		} else {
 			data := v.To(geometry.WKB)
 			binary.Write(w, binary.LittleEndian, int32(v.Type()))
+			binary.Write(w, binary.LittleEndian, int64(v.GetID()))
 			binary.Write(w, binary.LittleEndian, int32(len(data)))
 			binary.Write(w, binary.LittleEndian, data)
 		}
@@ -134,7 +135,9 @@ func (this *VectorPyramid) loadGeos(geos []geometry.Geometry, n1, n2 int, prdPat
 	binary.Read(r, binary.LittleEndian, &geoCount)
 	for i := int32(0); i < geoCount; i++ {
 		var geotype, length int32
+		var id int64
 		binary.Read(r, binary.LittleEndian, &geotype)
+		binary.Read(r, binary.LittleEndian, &id)
 		if geometry.GeoType(geotype) != geometry.TGeoEmpty {
 			binary.Read(r, binary.LittleEndian, &length)
 			data := make([]byte, length)
@@ -228,6 +231,6 @@ func (this *VectorPyramid) thinBatch(start, count, level int, features []Feature
 	index := this.levels[int32(level)]
 	end := start + count
 	for i := start; i < end; i++ {
-		this.pyramids[index][i] = features[i].Geo.Thin(dis2)
+		this.pyramids[index][i] = features[i].Geo.Thin(dis2, 120.0)
 	}
 }

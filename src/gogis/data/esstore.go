@@ -15,6 +15,14 @@ import (
 	"github.com/elastic/go-elasticsearch/esapi"
 )
 
+func init() {
+	RegisterDatastore(StoreES, NewEsStore)
+}
+
+func NewEsStore() Datastore {
+	return new(EsStore)
+}
+
 // elasticsearc 引擎，优先存储点数据，做网格聚合图等
 // 只存储经纬度数据
 type EsStore struct {

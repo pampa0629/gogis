@@ -76,14 +76,14 @@ func (this *ZOrderIndex) checkBbox() bool {
 		}
 		for _, v := range idbboxes {
 			// 本层级的bbox，必须能cover 所有id的bbox
-			if !bbox.IsCover(v.Bbox) {
+			if !bbox.IsCovers(v.Bbox) {
 				return false
 			}
 			// 如果还有下一层
 			if int(this.level) > len(bits)/2 {
 				for _, downBbox := range downBboxes {
 					// 且id bbox 不能被下一级的bbox所cover
-					if downBbox.IsCover(v.Bbox) {
+					if downBbox.IsCovers(v.Bbox) {
 						return false
 					}
 				}
@@ -285,19 +285,59 @@ func (this *ZOrderIndex) QueryDB(bbox base.Rect2D) (codes []int32) {
 	}
 
 	// 这里查询本层和下层的
-	codes = append(codes, this.queryThisDownDB(bbox, bits)...)
+	codes = append(codes, this.queryThisDownDB(bbox, bits, false)...)
 
 	sort.Sort(base.Int32s(codes))
 	return
 }
 
+// 查询可能不被bbox所覆盖的codes
+func (this *ZOrderIndex) QueryNoCoveredDB(bbox base.Rect2D) []int32 {
+	// 先queryThisDownDB，要求必须cover的codes
+	bits := this.calcBboxBits(bbox)
+	codes := this.queryThisDownDB(bbox, bits, true)
+	// 再与全集做差
+	allCodes := this.getAllCodes()
+	remains := base.GetRemains(allCodes, codes)
+
+	// 最后记得排序
+	sort.Sort(base.Int32s(remains))
+	return remains
+}
+
+func (this *ZOrderIndex) getAllCodes() (codes []int32) {
+	if this.code2ids != nil {
+		codes = make([]int32, 0, len(this.code2ids))
+		for code, v := range this.code2ids {
+			if v != nil {
+				codes = append(codes, int32(code))
+			}
+		}
+	} else {
+		totalCount := int32(calcCodeCount(int(this.level)))
+		codes = make([]int32, totalCount)
+		for i := int32(0); i < totalCount; i++ {
+			codes[i] = i
+		}
+	}
+
+	return
+}
+
+// 根据层级，计算cell的总数
+func calcCodeCount(level int) (count int) {
+	for i := 0; i <= level; i++ {
+		count += int(math.Pow(4.0, float64(i)))
+	}
+	return
+}
+
 // 查询本层以及下层的，需要迭代执行，直到最底层
-func (this *ZOrderIndex) queryThisDownDB(bbox base.Rect2D, bits []byte) (codes []int32) {
+// cover: 是否必须Cover；false：intersece即可
+func (this *ZOrderIndex) queryThisDownDB(bbox base.Rect2D, bits []byte, cover bool) (codes []int32) {
 	// 得到本层的 code
 	code := Bits2code(bits)
 	codes = append(codes, code)
-
-	// fmt.Println("level:", len(bits)/2, "bits:", bits, "ids:", ids, "code:", code, "cell bbox:", cellBbox, "bbox:", bbox)
 
 	// 若存在更低层的level，则构造下层的bits，判断bbox是否相交，再做查询
 	if len(bits)/2 < int(this.level) { // 不是最底层
@@ -305,8 +345,9 @@ func (this *ZOrderIndex) queryThisDownDB(bbox base.Rect2D, bits []byte) (codes [
 		// fmt.Println("bits:", bits, "downBitss:", downBitss)
 		for _, downBits := range downBitss {
 			downBbox := this.calcBbox(downBits)
-			if bbox.IsIntersect(downBbox) {
-				downCode := this.queryThisDownDB(bbox, downBits)
+			if (cover && bbox.IsCovers(downBbox)) ||
+				bbox.IsIntersects(downBbox) {
+				downCode := this.queryThisDownDB(bbox, downBits, cover)
 				codes = append(codes, downCode...)
 			}
 		}
@@ -336,13 +377,35 @@ func (this *ZOrderIndex) Query(bbox base.Rect2D) (ids []int64) {
 	}
 
 	// 这里查询本层和下层的
-	ids = append(ids, this.queryThisDown(bbox, bits)...)
+	ids = append(ids, this.queryThisDown(bbox, bits, false)...)
 
 	return
 }
 
+// 查询可能不被bbox所覆盖的ids
+func (this *ZOrderIndex) QueryNoCovered(bbox base.Rect2D) []int64 {
+	// 先queryThisDownDB，要求必须cover的codes
+	bits := this.calcBboxBits(bbox)
+	ids := this.queryThisDown(bbox, bits, true)
+	// 再与全集做差
+	allIds := this.getAllIds()
+	remains := base.GetRemains64(allIds, ids)
+	return remains
+}
+
+func (this *ZOrderIndex) getAllIds() []int64 {
+	res := make([]int64, 0)
+	for _, ids := range this.code2ids {
+		for _, v := range ids {
+			res = append(res, v.Id)
+		}
+	}
+	return res
+}
+
 // 查询本层以及下层的，需要迭代执行，直到最底层
-func (this *ZOrderIndex) queryThisDown(bbox base.Rect2D, bits []byte) (ids []int64) {
+// cover: 是否必须Cover；false：intersece即可
+func (this *ZOrderIndex) queryThisDown(bbox base.Rect2D, bits []byte, cover bool) (ids []int64) {
 	// 得到本层的 code
 	code := Bits2code(bits)
 	// 计算本cell的bbox
@@ -355,8 +418,9 @@ func (this *ZOrderIndex) queryThisDown(bbox base.Rect2D, bits []byte) (ids []int
 		downBitss := buildDownBitss(bits)
 		for _, downBits := range downBitss {
 			downBbox := this.calcBbox(downBits)
-			if bbox.IsIntersect(downBbox) {
-				downIds := this.queryThisDown(bbox, downBits)
+			if (cover && bbox.IsCovers(downBbox)) ||
+				bbox.IsIntersects(downBbox) {
+				downIds := this.queryThisDown(bbox, downBits, cover)
 				ids = append(ids, downIds...)
 			}
 		}
@@ -383,14 +447,14 @@ func buildDownBitss(bits []byte) (downBitss [][]byte) {
 // 根据code，加上box判断，添加ids
 func (this *ZOrderIndex) getIdsByBbox(bbox, cellBbox base.Rect2D, code int32) (ids []int64) {
 	// box覆盖，就全部拿下
-	if bbox.IsCover(cellBbox) {
+	if bbox.IsCovers(cellBbox) {
 		for _, v := range this.code2ids[code] {
 			ids = append(ids, v.Id)
 		}
 	} else {
 		// 否则就还得 一个个box的判断
 		for _, v := range this.code2ids[code] {
-			if bbox.IsIntersect(v.Bbox) {
+			if bbox.IsIntersects(v.Bbox) {
 				ids = append(ids, v.Id)
 			}
 		}

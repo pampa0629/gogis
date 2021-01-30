@@ -9,6 +9,14 @@ import (
 	"strconv"
 )
 
+func init() {
+	RegisterTheme(ThemeGrid, NewGridTheme)
+}
+
+func NewGridTheme() Theme {
+	return new(GridTheme)
+}
+
 // 格网聚合图
 // todo 当前只支持es引擎
 type GridTheme struct {

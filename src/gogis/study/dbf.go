@@ -37,7 +37,7 @@ func testQuery() {
 
 	var def data.QueryDef
 	def.Fields = []string{"TKXS"}
-	def.Wheres = []string{"TKXS>10"}
+	def.Where = "TKXS>10"
 
 	// ft := set.QueryByDef(def)
 	// fmt.Println("fea count:", ft.Count())

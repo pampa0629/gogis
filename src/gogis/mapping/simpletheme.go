@@ -7,6 +7,14 @@ import (
 	"sync"
 )
 
+func init() {
+	RegisterTheme(ThemeSimple, NewSimpleTheme)
+}
+
+func NewSimpleTheme() Theme {
+	return new(SimpleTheme)
+}
+
 // 简单图层，统一风格
 type SimpleTheme struct {
 	Style draw.Style
@@ -35,8 +43,8 @@ func (this *SimpleTheme) Draw(canvas *draw.Canvas, feaItr data.FeatureIterator, 
 	forCount := feaItr.PrepareBatch(ONE_DRAW_COUNT)
 	// tr.Output("query layer " + this.Name + ", object count:" + strconv.Itoa(int(objCount)) + ", go count:" + strconv.Itoa(forCount))
 
-	// 直接绘制
 	if forCount == 1 {
+		// 直接绘制
 		this.drawBatch(feaItr, 0, canvas, prjc)
 	} else {
 		// 并发绘制
@@ -50,6 +58,15 @@ func (this *SimpleTheme) Draw(canvas *draw.Canvas, feaItr data.FeatureIterator, 
 
 	// tr.Output("draw layer " + this.Name)
 	return objCount
+}
+
+func (this *SimpleTheme) goDrawBatch(itr data.FeatureIterator, pos int, canvas *draw.Canvas, prjc *base.PrjConvert, wg *sync.WaitGroup) {
+	defer wg.Done()
+	canvasBatch := canvas.Clone()
+	// tr := base.NewTimeRecorder()
+	this.drawBatch(itr, pos, canvasBatch, prjc)
+	// tr.Output(strconv.Itoa(pos))
+	canvas.DrawImage(canvasBatch.Image(), 0, 0)
 }
 
 func (this *SimpleTheme) drawBatch(itr data.FeatureIterator, batchNo int, canvas *draw.Canvas, prjc *base.PrjConvert) {
@@ -66,11 +83,4 @@ func (this *SimpleTheme) drawBatch(itr data.FeatureIterator, batchNo int, canvas
 		}
 	}
 	features = features[:0]
-}
-
-func (this *SimpleTheme) goDrawBatch(itr data.FeatureIterator, pos int, canvas *draw.Canvas, prjc *base.PrjConvert, wg *sync.WaitGroup) {
-	defer wg.Done()
-	canvasBatch := canvas.Clone()
-	this.drawBatch(itr, pos, canvasBatch, prjc)
-	canvas.DrawImage(canvasBatch.Image(), 0, 0)
 }

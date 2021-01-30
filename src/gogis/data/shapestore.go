@@ -14,19 +14,16 @@ import (
 	"strings"
 )
 
-// 快捷方法，打开一个shape文件，得到要素集对象
-func OpenShape(filename string) Featureset {
-	// 默认用内存模式
-	shp := new(ShpmemStore)
-	params := NewConnParams()
-	params["filename"] = filename
-	shp.Open(params)
-	feaset, _ := shp.GetFeasetByNum(0)
-	feaset.Open()
-	return feaset
+func init() {
+	RegisterDatastore(StoreShape, NewShapeStore)
+}
+
+func NewShapeStore() Datastore {
+	return new(ShapeStore)
 }
 
 // todo 未来还要考虑实现打开一个文件夹
+// 硬盘模式的shape存储库
 type ShapeStore struct {
 	feaset   *ShapeFeaset
 	filename string //  filename

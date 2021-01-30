@@ -30,6 +30,9 @@ type SpatialIndex interface {
 	// 范围查询，返回id数组
 	Query(bbox base.Rect2D) []int64
 
+	// 查询不被bbox所覆盖的id数组
+	QueryNoCovered(bbox base.Rect2D) []int64
+
 	// 清空
 	Clear()
 
@@ -115,8 +118,10 @@ type SpatialIndexDB interface {
 	// 构建后，检查是否有问题；没问题返回true
 	Check() bool
 
-	// 范围查询，返回 code
+	// 范围查询，返回 code数组
 	QueryDB(bbox base.Rect2D) []int32
+	// 查询不被bbox所覆盖的code数组
+	QueryNoCoveredDB(bbox base.Rect2D) []int32
 
 	// 清空
 	Clear()

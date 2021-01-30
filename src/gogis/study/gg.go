@@ -10,7 +10,7 @@ import (
 )
 
 func ggmain() {
-	ggText()
+	ggColor()
 	// ggDong()
 	fmt.Println("gg DONE")
 }
@@ -45,11 +45,11 @@ func ggColor() {
 	dc1.SetStrokeColor(color.RGBA{255, 20, 20, 255})
 
 	dc1.MoveTo(200, 200)
-	dc1.LineTo(200, 400)
+	dc1.LineTo(200, 410)
 	dc1.LineTo(400, 400)
 	dc1.LineTo(400, 200)
 	dc1.LineTo(200, 200)
-	dc1.FillPreserve()
+	// dc1.FillPreserve()
 	dc1.Stroke()
 
 	// dc1.MoveTo(200, 200)

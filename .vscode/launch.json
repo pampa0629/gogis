@@ -9,9 +9,9 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            // "program": "${fileDirname}",
+            "program": "${fileDirname}",
             // "program": "${fileDirname}/${fileBasenameNoExtension}.exe", 
-            "program": "C:/zengzm/GitHub/gogis", 
+            // "program": "C:/zengzm/GitHub/gogis", 
             "env": {},
             "args": []
         }

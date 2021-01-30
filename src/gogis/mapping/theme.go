@@ -18,19 +18,39 @@ const (
 	// Theme      ThemeType = ""
 )
 
+type NewThemeFunc func() Theme
+
+var gNewThemes map[ThemeType]NewThemeFunc
+
+// 支持用户自定义专题图类型
+func RegisterTheme(themetype ThemeType, newfunc NewThemeFunc) {
+	if gNewThemes == nil {
+		gNewThemes = make(map[ThemeType]NewThemeFunc)
+	}
+	gNewThemes[themetype] = newfunc
+}
+
 func NewTheme(themeType ThemeType) Theme {
-	switch themeType {
-	case ThemeSimple:
-		return new(SimpleTheme)
-	case ThemeGrid:
-		return new(GridTheme)
-	case ThemeUnique:
-		return new(UniqueTheme)
-	case ThemeRange:
-		return new(RangeTheme)
+	newfunc, ok := gNewThemes[themeType]
+	if ok {
+		return newfunc()
 	}
 	return nil
 }
+
+// func NewTheme(themeType ThemeType) Theme {
+// 	switch themeType {
+// 	case ThemeSimple:
+// 		return new(SimpleTheme)
+// 	case ThemeGrid:
+// 		return new(GridTheme)
+// 	case ThemeUnique:
+// 		return new(UniqueTheme)
+// 	case ThemeRange:
+// 		return new(RangeTheme)
+// 	}
+// 	return nil
+// }
 
 type Theme interface {
 	Draw(canvas *draw.Canvas, feaItr data.FeatureIterator, prjc *base.PrjConvert) int64

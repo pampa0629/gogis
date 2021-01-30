@@ -2,6 +2,7 @@ package mapping
 
 import (
 	"encoding/json"
+	"fmt"
 	"gogis/base"
 	"gogis/data"
 	"gogis/draw"
@@ -103,6 +104,9 @@ func (this *Layer) Select(obj interface{}) (geos []geometry.Geometry) {
 	bbox, ok := obj.(base.Rect2D)
 	if ok {
 		// tr := base.NewTimeRecorder()
+		// var def data.QueryDef
+		// def.SpatialMode = data.Intersects
+		// def.SpatialObj = bbox
 		feait := this.feaset.QueryByBounds(bbox)
 		// tr.Output("layer query bounds")
 		geos = make([]geometry.Geometry, 0, feait.Count())
@@ -120,9 +124,19 @@ func (this *Layer) Select(obj interface{}) (geos []geometry.Geometry) {
 					// 	wg.Add(1)
 					// 	go polygonIsIntersectRect(polygon, bbox, temps, j, wg)
 					// }
-					if ok && polygon.IsIntersect(bbox) {
-						// if ok {
-						geos = append(geos, polygon)
+					// if ok && polygon.IsIntersectsRect(bbox) {
+					if ok {
+						var geoBbox geometry.GeoPolygon
+						geoBbox.Make(bbox)
+						var rel geometry.GeoRelation
+						rel.A = &geoBbox
+						rel.B = polygon
+						if rel.IsIntersects() {
+							geos = append(geos, polygon)
+						}
+
+					} else {
+						fmt.Println("id:", polygon.GetID())
 					}
 				}
 				// wg.Wait()
@@ -138,23 +152,19 @@ func (this *Layer) Select(obj interface{}) (geos []geometry.Geometry) {
 	return
 }
 
-// func polygonIsIntersectRect(polygon *geometry.GeoPolygon, bbox base.Rect2D, geos []geometry.Geometry, n int, wg *sync.WaitGroup) {
-// 	defer wg.Done()
-// 	if polygon.IsIntersect(bbox) {
-// 		geos[n] = polygon
-// 	}
-// }
-
 func (this *Layer) Draw(canvas *draw.Canvas, proj *base.ProjInfo) (objCount int64) {
 	feaPrj := this.feaset.GetProjection()
 	prjc := base.NewPrjConvert(proj, feaPrj)
 	bbox := canvas.Params.GetBounds()
 	// 查询数据的bbox，要反过来先做投影转化；这样才能查出实际数据来
 	if prjc != nil {
-		bbox.Min = prjc.DoOne(bbox.Min)
-		bbox.Max = prjc.DoOne(bbox.Max)
+		bbox.Min = prjc.DoPnt(bbox.Min)
+		bbox.Max = prjc.DoPnt(bbox.Max)
 	}
+	tr := base.NewTimeRecorder()
 	feait := this.feaset.QueryByBounds(bbox)
+	tr.Output("query")
+	fmt.Println("count:", feait.Count())
 
 	if this.theme != nil {
 		prjc := base.NewPrjConvert(feaPrj, proj)

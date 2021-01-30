@@ -63,11 +63,11 @@ func (this *Map) RebuildBBox() {
 		if this.IsDynamicProj {
 			prjc := base.NewPrjConvert(layer.feaset.GetProjection(), this.Proj)
 			if prjc != nil {
-				bbox.Min = prjc.DoOne(bbox.Min)
-				bbox.Max = prjc.DoOne(bbox.Max)
+				bbox.Min = prjc.DoPnt(bbox.Min)
+				bbox.Max = prjc.DoPnt(bbox.Max)
 			}
 		}
-		this.BBox.Union(bbox)
+		this.BBox = this.BBox.Union(bbox)
 	}
 }
 
@@ -85,7 +85,7 @@ func (this *Map) AddLayer(feaset data.Featureset, theme Theme) {
 	}
 	this.Layers = append(this.Layers, layer)
 	// todo 设置和开启动态投影时，map的bbos应该发生变化
-	this.BBox.Union(feaset.GetBounds())
+	this.BBox = this.BBox.Union(feaset.GetBounds())
 }
 
 // 为绘制做好准备，第一次绘制前必须调用
@@ -95,7 +95,8 @@ func (this *Map) Prepare(dx, dy int) {
 }
 
 // 选择，如点击、拉框、多边形等；操作后，被选中的对象放入track layer中
-// todo 暂时只支持obj为矩形
+// todo 选择方式包括：包括质心、包含、相交、bbox相交、选中（仅支持点对象）
+// todo 暂时只支持obj为矩形； obj 应为 屏幕坐标（而非地图坐标）
 func (this *Map) Select(obj interface{}) {
 	// 先清空之前的
 	this.trackLayer.geos = this.trackLayer.geos[:0]

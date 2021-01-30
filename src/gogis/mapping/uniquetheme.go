@@ -7,6 +7,14 @@ import (
 	"strconv"
 )
 
+func init() {
+	RegisterTheme(ThemeUnique, NewUniqueTheme)
+}
+
+func NewUniqueTheme() Theme {
+	return new(UniqueTheme)
+}
+
 // 单值专题图，原则上每个对象都有自己的绘制风格
 type UniqueTheme struct {
 	// 对象和风格一一对应

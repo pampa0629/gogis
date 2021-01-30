@@ -17,6 +17,14 @@ import (
 	"github.com/tsuna/gohbase/hrpc"
 )
 
+func init() {
+	RegisterDatastore(StoreHbase, NewHbaseStore)
+}
+
+func NewHbaseStore() Datastore {
+	return new(HbaseStore)
+}
+
 type HbaseStore struct {
 	address string // zookeeper's address, such as: localhost:2182 or ip:2181
 	// feasets []*HbaseFeaset
@@ -293,13 +301,13 @@ func (this *HbaseFeaset) BatchWrite(feas []Feature) {
 		putRequest, _ := hrpc.NewPut(context.Background(), []byte(this.name), rowkey, value)
 		client.Put(putRequest)
 
-		bbox.Union(v.Geo.GetBounds()) //
+		bbox = bbox.Union(v.Geo.GetBounds()) //
 	}
 	this.store.closeClient(client)
 
 	this.lock.Lock()
 	this.count += int64(len(feas))
-	this.bbox.Union(bbox)
+	this.bbox = this.bbox.Union(bbox)
 	this.lock.Unlock()
 	return
 }
@@ -472,7 +480,7 @@ func (this *HbaseFeaItr) batchNext(feass [][]Feature, num int, start, end []byte
 			}
 		}
 		// bbox相交，才取出去
-		if this.bbox.IsIntersect(fea.Geo.GetBounds()) {
+		if this.bbox.IsIntersects(fea.Geo.GetBounds()) {
 			// count++
 			feass[num] = append(feass[num], fea)
 		}
@@ -521,7 +529,7 @@ func (this *HbaseFeaItr) BatchNext(batchNo int) (feas []Feature, result bool) {
 					}
 				}
 				// bbox相交，才取出去
-				if this.bbox.IsIntersect(fea.Geo.GetBounds()) {
+				if this.bbox.IsIntersects(fea.Geo.GetBounds()) {
 					feas = append(feas, fea)
 				}
 			}

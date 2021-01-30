@@ -262,7 +262,7 @@ func (this *RTreeNode) checkBbox() bool {
 		var bbox base.Rect2D
 		bbox.Init()
 		for _, v := range this.nodes {
-			bbox.Union(v.bbox)
+			bbox = bbox.Union(v.bbox)
 		}
 		if bbox != this.bbox {
 			return false
@@ -341,12 +341,12 @@ func (this *RTreeNode) AddOne(bbox base.Rect2D, id int64) {
 	//     若不是叶子节点，则往下找一个最合适的节点，以此类推，直到找到最合适的叶子节点来存放（之后有可能引发自己的分裂）
 	//         最合适的标准为：加入后，使得节点范围的面积增加值最小
 
-	this.bbox.Union(bbox) // 自己的范围要扩大
+	this.bbox = this.bbox.Union(bbox) // 自己的范围要扩大
 
 	if this.isLeaf {
 		this.ids = append(this.ids, id)
 		this.bboxes = append(this.bboxes, bbox)
-		this.bbox.Union(bbox)
+		this.bbox = this.bbox.Union(bbox)
 		if len(this.ids) >= RTREE_OBJ_COUNT {
 			this.split()
 		}
@@ -366,7 +366,7 @@ func (this *RTreeNode) findBestChild(bbox base.Rect2D) *RTreeNode {
 	minNode := (*RTreeNode)(nil)
 	for _, node := range this.nodes {
 		newBbox := node.bbox
-		newBbox.Union(bbox)
+		newBbox = newBbox.Union(bbox)
 		moreArea := newBbox.Area() - node.bbox.Area()
 		if moreArea < minMoreArea {
 			minMoreArea = moreArea
@@ -504,10 +504,10 @@ func splitNodes(nodes []*RTreeNode) (leftNodes, rightNodes []*RTreeNode, leftBbo
 			// 谁导致增加量小，就给谁
 			if leftMore < rightMore {
 				leftNodes = append(leftNodes, v)
-				leftBbox.Union(v.bbox)
+				leftBbox = leftBbox.Union(v.bbox)
 			} else {
 				rightNodes = append(rightNodes, v)
-				rightBbox.Union(v.bbox)
+				rightBbox = rightBbox.Union(v.bbox)
 			}
 		}
 	}
@@ -550,8 +550,7 @@ func splitBoxes(bboxes []base.Rect2D, ids []int64) (leftBboxes []base.Rect2D, le
 
 // 计算合并后面积的增量
 func calcMoreArea(bbox1, bbox2 base.Rect2D) float64 {
-	newBbox := bbox1.Clone()
-	newBbox.Union(bbox2)
+	newBbox := bbox1.Union(bbox2)
 	return newBbox.Area() - bbox2.Area()
 }
 
@@ -685,21 +684,21 @@ func (this *RTreeNode) splitLeaf() (left, right *RTreeNode) {
 func (this *RTreeNode) Query(bbox base.Rect2D) (ids []int64) {
 	// fmt.Println("RTreeNode.Query(),bbox:", bbox)
 
-	if this.bbox.IsIntersect(bbox) {
+	if this.bbox.IsIntersects(bbox) {
 		if this.isLeaf {
-			if bbox.IsCover(this.bbox) {
+			if bbox.IsCovers(this.bbox) {
 				ids = append(ids, this.ids...)
 			} else {
 				// 精确查找
 				for i, v := range this.bboxes {
-					if bbox.IsIntersect(v) {
+					if bbox.IsIntersects(v) {
 						ids = append(ids, this.ids[i])
 					}
 				}
 			}
 		} else {
 			for _, v := range this.nodes {
-				if bbox.IsIntersect(v.bbox) {
+				if bbox.IsIntersects(v.bbox) {
 					ids = append(ids, v.Query(bbox)...)
 				}
 			}
@@ -707,6 +706,12 @@ func (this *RTreeNode) Query(bbox base.Rect2D) (ids []int64) {
 	}
 	// fmt.Println("query ids count:", len(ids))
 	return
+}
+
+// todo
+// 查询不被bbox所覆盖的id数组
+func (this *RTreeNode) QueryNoCovered(bbox base.Rect2D) []int64 {
+	return nil
 }
 
 func (this *RTreeNode) Clear() {

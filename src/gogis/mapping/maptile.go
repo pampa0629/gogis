@@ -110,7 +110,7 @@ func (this *MapTile) CacheOneTile2Bytes(level int, col int, row int, maptype dra
 	// 这里关键要把 map要绘制的范围设置对了；即根据 level，row，col来计算bbox
 	tmap.BBox = CalcBBox(level, col, row, this.epsg)
 	// 不相交就直接返回
-	if !tmap.BBox.IsIntersect(this.amap.BBox) {
+	if !tmap.BBox.IsIntersects(this.amap.BBox) {
 		return nil, errors.New("bbox is not intersect.")
 	}
 

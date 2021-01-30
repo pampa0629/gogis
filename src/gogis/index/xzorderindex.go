@@ -179,11 +179,18 @@ func (this *XzorderIndex) Load(r io.Reader) {
 
 }
 
+// todo
 // 范围查询，返回id数组
 func (this *XzorderIndex) Query(bbox base.Rect2D) []int64 {
 	// level := this.ensureLevel(bbox)
 	// code := this.calcCode(bbox, level)
 
+	return nil
+}
+
+// todo
+// 查询不被bbox所覆盖的id数组
+func (this *XzorderIndex) QueryNoCovered(bbox base.Rect2D) []int64 {
 	return nil
 }
 

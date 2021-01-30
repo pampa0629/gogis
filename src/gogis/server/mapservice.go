@@ -171,7 +171,7 @@ func (this *MapService) GetTile(level int, col int, row int, epsg mapping.EPSG) 
 	bbox := mapping.CalcBBox(level, col, row, epsg)
 	fmt.Println("map:", this.maptitle, "level=", level, "col=", col, "row=", row, "BBox:", bbox)
 
-	if !this.gmap.BBox.IsIntersect(bbox) {
+	if !this.gmap.BBox.IsIntersects(bbox) {
 		return
 	}
 

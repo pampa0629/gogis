@@ -3,11 +3,19 @@ package geometry
 import (
 	"bytes"
 	"encoding/binary"
+	"gogis/algorithm"
 	"gogis/base"
 	"gogis/draw"
 	"io"
-	"math"
 )
+
+func init() {
+	RegisterGeo(TGeoPolygon, NewGeoPolygon)
+}
+
+func NewGeoPolygon() Geometry {
+	return new(GeoPolygon)
+}
 
 type GeoPolygon struct {
 	Points [][][]base.Point2D // []: 点串 [][]: 带洞的单个多边形 [][][] 带岛的多边形
@@ -45,12 +53,28 @@ func (this *GeoPolygon) GetBounds() base.Rect2D {
 	return this.BBox
 }
 
+func (this *GeoPolygon) Dim() int {
+	return 2
+}
+
+func (this *GeoPolygon) DimB() int {
+	return 1
+}
+
+func (this *GeoPolygon) SubCount() int {
+	return len(this.Points)
+}
+
+func (this *GeoPolygon) GetSubRegion(num int) algorithm.Region {
+	return this.Points[num]
+}
+
 func (this *GeoPolygon) ComputeBounds() base.Rect2D {
 	this.BBox.Init()
 	for _, polygon := range this.Points {
 		// 只有第一个是岛，需要计算bounds；后面有也是洞，可以不理会
 		if len(polygon) >= 1 {
-			this.BBox.Union(base.ComputeBounds(polygon[0]))
+			this.BBox = this.BBox.Union(base.ComputeBounds(polygon[0]))
 		}
 	}
 	return this.BBox
@@ -73,29 +97,14 @@ func (this *GeoPolygon) ConvertPrj(prjc *base.PrjConvert) {
 	if prjc != nil {
 		for i, v := range this.Points {
 			for ii, vv := range v {
-				this.Points[i][ii] = prjc.Do(vv)
+				this.Points[i][ii] = prjc.DoPnts(vv)
 			}
 		}
 	}
+	this.ComputeBounds()
 }
 
-// 抽稀一个封闭区域
-func thinOneGon(points []base.Point2D, dis2 float64) (newPnts []base.Point2D) {
-	newPnts = thinOneLine(points, dis2)
-	// 不够三个点，就不要了
-	count := len(newPnts)
-	if count < 3 {
-		// return newPnts[0:1]
-		return nil
-	}
-	// 封闭区域
-	if newPnts[0] != newPnts[count-1] {
-		newPnts = append(newPnts, newPnts[0])
-	}
-	return
-}
-
-func (this *GeoPolygon) Thin(dis2 float64) Geometry {
+func (this *GeoPolygon) Thin(dis2, angle float64) Geometry {
 	var newgeo GeoPolygon
 	newgeo.BBox = this.BBox
 	newgeo.id = this.id
@@ -103,7 +112,7 @@ func (this *GeoPolygon) Thin(dis2 float64) Geometry {
 	for i, _ := range this.Points {
 		pntss := make([][]base.Point2D, 0, len(this.Points[i]))
 		for _, v := range this.Points[i] {
-			pnts := thinOneGon(v, dis2)
+			pnts := algorithm.Ring(v).Thin(dis2, angle)
 			if len(pnts) >= 3 {
 				pntss = append(pntss, pnts)
 			}
@@ -124,159 +133,11 @@ func (this *GeoPolygon) Make(bbox base.Rect2D) {
 	this.Points = make([][][]base.Point2D, 1)
 	this.Points[0] = make([][]base.Point2D, 1)
 	this.Points[0][0] = make([]base.Point2D, 5)
-	copy(this.Points[0][0][0:4], bbox.ToPoints())
+	copy(this.Points[0][0][0:4], bbox.ToPoints(false))
 	this.Points[0][0][4] = this.Points[0][0][0]
 }
 
-// 自己的bbox（含子对象的），被bbox包裹
-func (this *GeoPolygon) BboxesIsCovered(bbox base.Rect2D) bool {
-	if bbox.IsCover(this.BBox) {
-		return true
-	}
-	// 如果有多个子对象，则每个都要单独判断；有一个就ok
-	if len(this.Points) > 1 {
-		for _, v := range this.Points {
-			subBbox := base.ComputeBounds(v[0])
-			if bbox.IsCover(subBbox) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// 子对象的bbox，是否与bbox相交；有一个相交就返回true
-// 没有子对象，就用自己的
-func (this *GeoPolygon) SubBboxesIsIntersect(bbox base.Rect2D) bool {
-	if len(this.Points) > 1 {
-		for _, v := range this.Points {
-			subBbox := base.ComputeBounds(v[0])
-			if subBbox.IsIntersect(bbox) {
-				return true
-			}
-		}
-	} else {
-		if this.BBox.IsIntersect(bbox) {
-			return true
-		}
-	}
-	return false
-}
-
-// 判断是否和bbox相交（或者被bbox所包裹）
-func (this *GeoPolygon) IsIntersect(bbox base.Rect2D) bool {
-	// 先用bbox是否conver进行判断
-	if this.BboxesIsCovered(bbox) {
-		return true
-	}
-	// 子对象的bbox都没有一个相交的，肯定不会相交了
-	if !this.SubBboxesIsIntersect(bbox) {
-		return false
-	}
-
-	// 如果bbox有任意一个顶点在一个子对象的外环之内，且bbox整体不在该子对象的某个内环之内，返回true
-	pnts := this.BBox.ToPoints()
-	for _, v := range this.Points {
-		oneInPolygon := false
-		for _, pnt := range pnts {
-			if PntIsWithin(pnt, v[0]) {
-				oneInPolygon = true
-				break
-			}
-		}
-		if oneInPolygon {
-			for j := 1; j < len(v); j++ {
-				if PntsIsWithin(pnts, v[j]) {
-					oneInPolygon = false
-					break
-				}
-			}
-		}
-		if oneInPolygon {
-			return true
-		}
-	}
-
-	return false
-}
-
-// 判断几个点是否都在一个环之内
-func PntsIsWithin(pnts []base.Point2D, ring []base.Point2D) bool {
-	for _, v := range pnts {
-		if !PntIsWithin(v, ring) {
-			return false
-		}
-	}
-	return true
-}
-
-// 判断点是否在一个环之内
-// 采用射线法，看水平方向射线与所有边的交点个数的奇偶性；奇数为内，偶数为外
-// 点若在线上，不属于在环内
-func PntIsWithin(pnt base.Point2D, ring []base.Point2D) bool {
-	count := 0
-	for i := 1; i < len(ring); i++ {
-		p1 := ring[i-1]
-		p2 := ring[i]
-		if PntOnSegment(pnt, p1, p2) {
-			return false
-		}
-		count += PntRaySegment(pnt, p1, p2)
-	}
-
-	if count%2 == 0 {
-		return false
-	}
-	return true
-}
-
-// 点往X+做射线，看是否与线段有交点；有返回1，没有返回0
-func PntRaySegment(p, p1, p2 base.Point2D) int {
-	// 水平的线段，认为没有交点（交点可能有无限多个）
-	if p1.Y == p2.Y {
-		return 0
-	}
-	// 如果点的射线，与一个节点相交，则忽略y值较小的情况
-	miny := math.Min(p1.Y, p2.Y)
-	maxy := math.Max(p1.Y, p2.Y)
-	if p.Y == p1.Y || p.Y == p2.Y {
-		if p.Y == miny {
-			return 0
-		} else {
-			return 1
-		}
-	}
-	// 如果点的Y 在 p1.y 和 p2.y 之间，则说明有交点
-	if p.Y > miny && p.Y < maxy {
-		return 1
-	}
-	return 0
-}
-
-// 判断点是否在线上
-func PntOnSegment(p, p1, p2 base.Point2D) bool {
-	// 这里先假定两个节点不能相同
-	if p1 == p2 {
-		panic("two point of a segment cannot be same.")
-	}
-	// 等于某个节点，自然在了
-	if p == p1 || p == p2 {
-		return true
-	}
-	// 点必须在两个点的范围内
-	if p.X >= math.Min(p1.X, p2.X) && p.X <= math.Max(p1.X, p2.X) &&
-		p.Y >= math.Min(p1.Y, p2.Y) && p.Y <= math.Max(p1.Y, p2.Y) {
-		if base.IsEqual(CrossX(p1, p, p2), 0) {
-			return true
-		}
-	}
-	return false
-}
-
-// 叉乘；若结果为0，说明共线
-func CrossX(a, b, c base.Point2D) float64 {
-	return (b.X-a.X)*(c.Y-a.Y) - (c.X-a.X)*(b.Y-a.Y)
-}
+// ================================================================ //
 
 // wkb:
 // WKBPolygon{
@@ -409,3 +270,348 @@ func (this *GeoPolygon) toWkb() []byte {
 	}
 	return buf.Bytes()
 }
+
+// ================================================================ //
+
+func (this *GeoPolygon) IsRelate(mode base.SpatialMode, rect base.Rect2D) bool {
+	switch mode {
+	case base.BBoxIntersects:
+		return this.BBox.IsIntersects(rect)
+	case base.Intersects, base.Undefined:
+		return this.IsIntersects(rect)
+	case base.Disjoint:
+		return !this.IsIntersects(rect)
+	case base.Within:
+		// 在rect内部，且边界不接触
+		return rect.IsContains(this.BBox)
+	case base.CoveredBy:
+		// 在rect的内部（且边界可接触）
+		return rect.IsCovers(this.BBox)
+	case base.Touches:
+		return this.IsTouches(rect)
+	case base.Crosses:
+		// 面无法cross面，返回false
+		return false
+	case base.Equals:
+		return this.IsEquals(rect)
+		// todo
+		// var polygon GeoPolygon
+		// polygon.Make(rect)
+		// return this.IsEquals(&polygon)
+		// return false
+	case base.Contains:
+		return this.IsContains(rect)
+	case base.Covers:
+		return this.IsCovers(rect)
+	case base.Overlaps:
+		return this.IsOverlaps(rect)
+	default:
+		var im base.D9IM
+		if im.Init(string(mode)) {
+			imRes := this.CalcRelateIM(rect)
+			return imRes.MatchIM(im)
+		}
+	}
+	return false
+}
+
+// 计算点和rect的九交模型矩阵；
+func (this *GeoPolygon) CalcRelateIM(rect base.Rect2D) (im base.D9IM) {
+	// 初始化为 disjoint
+	im.Init("FFFFFFFF*")
+	// 如果有线段和rect相交，那么II/IB/BI/BB 都能确定
+	for _, v := range this.Points {
+		for _, vv := range v {
+			if algorithm.Line(vv).IsCrossesRect(rect) {
+				im.Set(base.I, base.I, '2')
+				im.Set(base.I, base.B, '1')
+				im.Set(base.B, base.I, '1')
+				im.Set(base.B, base.B, '0')
+				goto EndBI
+			}
+		}
+	}
+EndBI:
+
+	// 如果点在rect内,则说明 II=2,BI=1
+	if im.Get(base.I, base.I) != '2' && im.Get(base.B, base.I) != '1' {
+		for _, v := range this.Points {
+			for _, vv := range v {
+				for i := 0; i < len(vv); i++ {
+					if rect.IsContainsPnt(vv[i]) {
+						im.Set(base.I, base.I, '2')
+						im.Set(base.B, base.I, '1')
+						goto EndII
+					}
+				}
+			}
+		}
+	}
+EndII:
+
+	// 如果rect的某个角点在面内部，II=2，IB=1
+	if im.Get(base.I, base.I) != '2' && im.Get(base.I, base.B) != '1' {
+		cPnts := rect.ToPoints(false)
+		for _, pnt := range cPnts {
+			for _, v := range this.Points {
+				if algorithm.Region(v).IsContainsPnt(pnt) {
+					im.Set(base.I, base.I, '2')
+					im.Set(base.I, base.B, '1')
+					goto EndIB
+				}
+			}
+		}
+	}
+EndIB:
+
+	// 再看两个的边界是否重叠（1维）
+	for _, v := range this.Points {
+		for _, vv := range v {
+			for i := 1; i < len(vv); i++ {
+				if (algorithm.Segment{P1: vv[i-1], P2: vv[i]}).IsTouchesRect(rect) {
+					im.Set(base.B, base.B, '1')
+					goto EndBB
+				}
+			}
+		}
+	}
+EndBB:
+
+	// 如果不能覆盖rect，则说明自己的外部和rect内部、边界均有交集
+	if !this.IsCovers(rect) {
+		im.Set(base.E, base.I, '2')
+		im.Set(base.E, base.B, '1')
+	}
+	// 如果自己不被rect覆盖，说明自己的内部和边界，与rect的外部有交集
+	if !rect.IsCovers(this.BBox) {
+		im.Set(base.I, base.E, '2')
+		im.Set(base.B, base.E, '1')
+	}
+	return
+}
+
+func (this *GeoPolygon) IsEquals(rect base.Rect2D) bool {
+	if !this.BBox.IsEquals(rect) {
+		return false
+	}
+	// 只有一个子对象，且不能有洞
+	if len(this.Points) != 1 || len(this.Points[0]) != 1 {
+		return false
+	}
+	// 各自的节点都在对方的边界上
+	shell := this.Points[0][0]
+	for _, pnt := range shell {
+		if !rect.IsTouchesPnt(pnt) {
+			return false
+		}
+	}
+	cPnts := rect.ToPoints(false)
+	for _, pnt := range cPnts {
+		if !algorithm.Line(shell).IsCoversPnt(pnt) {
+			return false
+		}
+	}
+	return true
+}
+
+// 内部和内部部分相交
+func (this *GeoPolygon) IsOverlaps(rect base.Rect2D) bool {
+	// 和一个子对象overlap，那就ok
+	for _, v := range this.Points {
+		if algorithm.Region(v).IsOverlapsRect(rect) {
+			return true
+		}
+	}
+	// 若有多个子对象，有在rect内的，还有在rect外的，也是overlap
+	var in, out bool
+	for _, v := range this.Points {
+		bbox := base.ComputeBounds(v[0])
+		if bbox.IsCovers(rect) {
+			in = true
+		} else {
+			out = true
+		}
+		if in && out {
+			return true
+		}
+	}
+	return false
+}
+
+// 内部不能有交集,但是内部与边界，边界与边界有交集
+func (this *GeoPolygon) IsTouches(rect base.Rect2D) bool {
+	// bbox 必然有交集
+	if !this.subBboxesIsIntersects(rect) {
+		return false
+	}
+
+	touchOne := false
+	for _, v := range this.Points {
+		// 有一个子对象和rect touch
+		if !touchOne && algorithm.Region(v).IsTouchesRect(rect) {
+			touchOne = true
+		}
+		// 且所有的子对象都不能和rect内部有交集（overlaps）
+		if algorithm.Region(v).IsOverlapsRect(rect) {
+			return false
+		}
+	}
+	return touchOne
+}
+
+// 自己的bbox（含子对象的），是否存在被bbox包裹的情况；
+// 有一个就ok；用在拉框查询时
+func (this *GeoPolygon) bboxesIsCoveredBy(bbox base.Rect2D) bool {
+	if bbox.IsCovers(this.BBox) {
+		return true
+	}
+	// 如果有多个子对象，则每个都要单独判断；有一个就ok
+	if len(this.Points) > 1 {
+		for _, v := range this.Points {
+			// 这里只需要判断外环；内环是洞，无需理会
+			subBbox := base.ComputeBounds(v[0])
+			if bbox.IsCovers(subBbox) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// 子对象的bbox，是否与bbox相交；有一个相交就返回true
+// 没有子对象，就用自己的
+func (this *GeoPolygon) subBboxesIsIntersects(bbox base.Rect2D) bool {
+	if len(this.Points) > 1 {
+		for _, v := range this.Points {
+			subBbox := base.ComputeBounds(v[0])
+			if subBbox.IsIntersects(bbox) {
+				return true
+			}
+		}
+	} else {
+		if this.BBox.IsIntersects(bbox) {
+			return true
+		}
+	}
+	return false
+}
+
+// 判断是否与rect相交
+func (this *GeoPolygon) IsIntersects(rect base.Rect2D) bool {
+	// 先用bbox是否cover进行判断
+	if this.bboxesIsCoveredBy(rect) {
+		return true
+	}
+	// 子对象的bbox都没有一个相交的，肯定不会相交了
+	if !this.subBboxesIsIntersects(rect) {
+		return false
+	}
+
+	// 如果rect有任意一个顶点在一个子对象的外环之内（边界亦可），
+	// 且bbox整体不在该子对象的某个内环之内（边界不可），返回true
+	pnts := rect.ToPoints(false)
+	for _, v := range this.Points {
+		oneInPolygon := false
+		for _, pnt := range pnts {
+			if algorithm.Ring(v[0]).IsCoversPnt(pnt) {
+				oneInPolygon = true
+				break
+			}
+		}
+		if oneInPolygon {
+			for j := 1; j < len(v); j++ {
+				if algorithm.Ring(v[j]).IsContainsPnts(pnts) {
+					oneInPolygon = false
+					break
+				}
+			}
+		}
+		if oneInPolygon {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (this *GeoPolygon) IsCovers(rect base.Rect2D) bool {
+	// 先用bbox是否cover进行判断
+	if !this.bboxesIsCoveredBy(rect) {
+		return false
+	}
+	// 子对象的bbox都没有一个相交的，肯定没关系了
+	if !this.subBboxesIsIntersects(rect) {
+		return false
+	}
+	// 有一个子对象cover，就ok
+	for _, v := range this.Points {
+		if algorithm.Region(v).IsCoversRect(rect) {
+			return true
+		}
+	}
+	return false
+}
+
+func (this *GeoPolygon) IsContains(rect base.Rect2D) bool {
+	// 首先必须cover
+	if this.IsCovers(rect) {
+		// 然后角点不能在边界上，外环内环都不行
+		cPnts := rect.ToPoints(false)
+		for _, v := range this.Points {
+			for _, vv := range v {
+				for _, pnt := range cPnts {
+					if algorithm.Line(vv).IsCoversPnt(pnt) {
+						return false
+					}
+				}
+			}
+		}
+		return true
+	}
+	return false
+}
+
+// ================================================================ //
+/*
+func (this *GeoPolygon) IsRelated(mode base.SpatialMode, geo Geometry) bool {
+	return false
+}
+
+// todo
+func (this *GeoPolygon) CalcRelateIM(geo Geometry) (im base.D9IM) {
+	im.Init("FFFFFFFFF")
+	return
+}
+
+func (this *GeoPolygon) IsEquals(geo Geometry) bool {
+	// 类型必须一样
+	if geoPolygon, ok := geo.(*GeoPolygon); ok {
+		// 边框必须一致
+		if this.BBox != geoPolygon.BBox {
+			return false
+		}
+		// 子对象个数必须 相等
+		if len(this.Points) != len(geoPolygon.Points) {
+			return false
+		}
+		// 对比每个子对象；允许子对象顺序调换
+		used := make([]bool, len(geoPolygon.Points))
+		for i, v := range this.Points {
+			subBbox1 := base.ComputeBounds(v[0])
+			for ii, vv := range geoPolygon.Points {
+				if !used[ii] { // 没用过的才进行对比
+					subBbox2 := base.ComputeBounds(vv[0])
+					// 用bbox判断是否为对应的子对象，不能保证完全准确
+					if subBbox1 == subBbox2 {
+						if !algorithm.Region(v).IsEquals(algorithm.Region(vv)) {
+							return false
+						}
+						used[i] = true
+					}
+				}
+			}
+		}
+	}
+	return true
+}
+*/

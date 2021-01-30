@@ -8,6 +8,14 @@ import (
 	"strings"
 )
 
+func init() {
+	RegisterTheme(ThemeRange, NewRangeTheme)
+}
+
+func NewRangeTheme() Theme {
+	return new(RangeTheme)
+}
+
 type Range struct {
 	Min, Max float64
 }

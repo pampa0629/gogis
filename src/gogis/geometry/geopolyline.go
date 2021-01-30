@@ -3,10 +3,19 @@ package geometry
 import (
 	"bytes"
 	"encoding/binary"
+	"gogis/algorithm"
 	"gogis/base"
 	"gogis/draw"
 	"io"
 )
+
+func init() {
+	RegisterGeo(TGeoPolyline, NewGeoPolyline)
+}
+
+func NewGeoPolyline() Geometry {
+	return new(GeoPolyline)
+}
 
 type GeoPolyline struct {
 	Points [][]base.Point2D
@@ -41,10 +50,49 @@ func (this *GeoPolyline) GetBounds() base.Rect2D {
 	return this.BBox
 }
 
+func (this *GeoPolyline) Dim() int {
+	return 1
+}
+
+func (this *GeoPolyline) DimB() int {
+	return 1
+}
+
+func (this *GeoPolyline) SubCount() int {
+	return len(this.Points)
+}
+
+func (this *GeoPolyline) GetPntsB() (pnts []base.Point2D) {
+	pnts = make([]base.Point2D, len(this.Points)*2)
+	for i, v := range this.Points {
+		pnts[i*2] = v[0]
+		pnts[i*2+1] = v[len(v)-1]
+	}
+	return
+}
+
+func (this *GeoPolyline) GetSubLine(num int) algorithm.Line {
+	return this.Points[num]
+}
+
+// func (this *GeoPolyline) GetPnts(ibe base.IBE) (pnts [][]base.Point2D) {
+// 	switch ibe {
+// 	case  base.I:
+// 	case  base.B:
+// 		pnts = make([][]base.Point2D, 1)
+// 		pnts[0] = make([]base.Point2D, 0, len(this.Points)*2)
+// 		for _,v:=range this.Points {
+// 			pnts[0] = append(pnts[0], v[0])
+// 			pnts[0] = append(pnts[0], v[len(v)-1])
+// 		}
+// 	}
+// 	return
+// }
+
 func (this *GeoPolyline) ComputeBounds() base.Rect2D {
 	this.BBox.Init()
 	for _, points := range this.Points {
-		this.BBox.Union(base.ComputeBounds(points))
+		this.BBox = this.BBox.Union(base.ComputeBounds(points))
 	}
 	return this.BBox
 }
@@ -61,44 +109,21 @@ func (this *GeoPolyline) Draw(canvas *draw.Canvas) {
 func (this *GeoPolyline) ConvertPrj(prjc *base.PrjConvert) {
 	if prjc != nil {
 		for i, v := range this.Points {
-			this.Points[i] = prjc.Do(v)
+			this.Points[i] = prjc.DoPnts(v)
 		}
 	}
+	this.ComputeBounds()
 }
 
-// 抽稀一条折线
-func thinOneLine(points []base.Point2D, dis2 float64) (newPnts []base.Point2D) {
-	newPnts = make([]base.Point2D, 1, len(points))
-	// dis2 := math.Pow(dis, 2)
-	newPnts[0] = points[0]
-	pos := 0
+// ================================================================ //
 
-	count := len(points)
-	for i := 1; i < count; i++ {
-		// 距离够远，或者拐角够大的点，都应该保留下来
-		if base.DistanceSquare(points[pos].X, points[pos].Y, points[i].X, points[i].Y) > dis2 ||
-			(i < count-1 && base.Angle(points[pos], points[i], points[i+1]) < 120) {
-			newPnts = append(newPnts, points[i])
-			pos = i
-		}
-	}
-	// 点数不够，就重复一下
-	for len(newPnts) < 2 {
-		newPnts = append(newPnts, newPnts[0])
-	}
-	// 点数小于2，则返回nil
-	// if len(newPnts) < 2 {
-	// 	return nil
-	// }
-	return newPnts
-}
-
-func (this *GeoPolyline) Thin(dis2 float64) Geometry {
+func (this *GeoPolyline) Thin(dis2, angle float64) Geometry {
 	var newgeo GeoPolyline
+	newgeo.id = this.id
 	newgeo.BBox = this.BBox
 	newgeo.Points = make([][]base.Point2D, 0, len(this.Points))
 	for _, v := range this.Points {
-		pnts := thinOneLine(v, dis2)
+		pnts := algorithm.Line(v).Thin(dis2, angle)
 		if pnts != nil {
 			newgeo.Points = append(newgeo.Points, pnts)
 		}
@@ -108,6 +133,8 @@ func (this *GeoPolyline) Thin(dis2 float64) Geometry {
 	}
 	return &newgeo
 }
+
+// ================================================================ //
 
 // wkb:
 // WKBLineString
@@ -210,3 +237,362 @@ func (this *GeoPolyline) toWkb() []byte {
 	}
 	return buf.Bytes()
 }
+
+// ======================================================== //
+
+func (this *GeoPolyline) IsRelate(mode base.SpatialMode, rect base.Rect2D) bool {
+	switch mode {
+	case base.Intersects, base.Undefined:
+		return this.IsIntersects(rect)
+	case base.BBoxIntersects:
+		return this.BBox.IsIntersects(rect)
+	case base.Disjoint:
+		return !this.IsIntersects(rect)
+	case base.Touches:
+		return this.IsTouches(rect)
+	case base.Within:
+		// 在rect内部，且边界不接触
+		return rect.IsContains(this.BBox)
+	case base.CoveredBy:
+		// 在rect的内部（且边界可接触）
+		return rect.IsCovers(this.BBox)
+	case base.Equals, base.Contains, base.Covers, base.Overlaps:
+		return false
+	case base.Crosses:
+		return this.IsCrosses(rect)
+	default:
+		var im base.D9IM
+		if im.Init(string(mode)) {
+			imRes := this.CalcRelateIM(rect)
+			return imRes.MatchIM(im)
+		}
+	}
+	return false
+}
+
+// 计算点和rect的九交模型矩阵；
+func (this *GeoPolyline) CalcRelateIM(rect base.Rect2D) (im base.D9IM) {
+	// 初始化为 disjoint
+	im.Init("FFFFFF***")
+
+	// 先看 线的端点:
+	var in, on, out bool
+	for _, v := range this.Points {
+		for _, pnt := range v {
+			// 若有端点到rect内部，则 BI=0, 且II=1
+			if !in && rect.IsContainsPnt(pnt) {
+				in = true
+				im.Set(base.B, base.I, '0')
+				im.Set(base.I, base.I, '1')
+			}
+			// 若有端点在rect边界上，则BB=0
+			if !on && rect.IsTouchesPnt(pnt) {
+				on = true
+				im.Set(base.B, base.B, '0')
+			}
+			// 若有端点在rect之外，则 BE=0, 且IE=1
+			if !out && rect.IsDisjointPnt(pnt) {
+				out = true
+				im.Set(base.B, base.E, '0')
+				im.Set(base.I, base.E, '1')
+			}
+			if in && on && out {
+				break
+			}
+		}
+		if in && on && out {
+			break
+		}
+	}
+
+	// 剩下线面IB需要仔细判断，交集有可能是点，也有可能是线
+	var res0 bool
+	for _, v := range this.Points {
+		for i := 1; i < len(v); i++ {
+			seg := algorithm.Segment{P1: v[i], P2: v[i-1]}
+			if !res0 && seg.IsCrossesRect(rect) {
+				res0 = true
+				im.Set(base.I, base.B, '0')
+			}
+			// 若有1，则可以返回了
+			if seg.IsTouchesRect(rect) {
+				im.Set(base.I, base.B, '1')
+				return
+			}
+		}
+	}
+	return
+}
+
+// 内部是否有交集
+func (this *GeoPolyline) IsIIRect(rect base.Rect2D) bool {
+	if !this.subBboxesIsIntersects(rect) {
+		return false
+	}
+	// 只要有一个点在rect内，就ok
+	for _, v := range this.Points {
+		for _, pnt := range v {
+			if rect.IsContainsPnt(pnt) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (this *GeoPolyline) IsCrosses(rect base.Rect2D) bool {
+	for _, v := range this.Points {
+		if algorithm.Line(v).IsCrossesRect(rect) {
+			return true
+		}
+	}
+	return false
+}
+
+// 挨着，但折线不能到rect内部
+func (this *GeoPolyline) IsTouches(rect base.Rect2D) bool {
+	// 边框还是要有交集的
+	if !this.subBboxesIsIntersects(rect) {
+		return false
+	}
+	// 必须有一个子对象和rect touch，但所有子对象都不能到rect内部（即线不能cross rect）
+	for _, v := range this.Points {
+		if algorithm.Line(v).IsCrossesRect(rect) {
+			return false
+		}
+	}
+
+	for _, v := range this.Points {
+		if algorithm.Line(v).IsTouchesRect(rect) {
+			return true
+		}
+	}
+	return false
+}
+
+func (this *GeoPolyline) IsIntersects(rect base.Rect2D) bool {
+	// 先用bbox是否被cover进行判断
+	if this.bboxesIsCoveredBy(rect) {
+		return true
+	}
+	// 子对象的bbox都没有一个相交的，肯定不会相交了
+	if !this.subBboxesIsIntersects(rect) {
+		return false
+	}
+
+	// 如果有任意一个点被 bbox所覆盖，就ok
+	for _, v := range this.Points {
+		for _, vv := range v {
+			if rect.IsCoversPnt(vv) {
+				return true
+			}
+		}
+	}
+
+	// 仍然没有判断出来，就必须看看每个线段是否与bbox相交了
+	for _, v := range this.Points {
+		if algorithm.Line(v).IsIntersectsRect(rect) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// 自己的bbox（含子对象的），是否存在被bbox包裹的情况；
+// 有一个就ok；用在拉框查询时
+func (this *GeoPolyline) bboxesIsCoveredBy(rect base.Rect2D) bool {
+	if rect.IsCovers(this.BBox) {
+		return true
+	}
+	// 如果有多个子对象，则每个都要单独判断；有一个就ok
+	if len(this.Points) > 1 {
+		for _, v := range this.Points {
+			subBbox := base.ComputeBounds(v)
+			if rect.IsCovers(subBbox) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// 子对象的bbox，是否与bbox相交；有一个相交就返回true
+// 没有子对象，就用自己的
+func (this *GeoPolyline) subBboxesIsIntersects(rect base.Rect2D) bool {
+	if len(this.Points) > 1 {
+		for _, v := range this.Points {
+			subBbox := base.ComputeBounds(v)
+			if subBbox.IsIntersects(rect) {
+				return true
+			}
+		}
+	} else {
+		if this.BBox.IsIntersects(rect) {
+			return true
+		}
+	}
+	return false
+}
+
+// 前提是 bbox退化为一个点
+// func (this *GeoPolyline) IsCoversRect(bbox base.Rect2D) bool {
+// 	// 允许bbox在端点上
+// 	if bbox.Max == bbox.Min && this.BBox.IsCoversPnt(bbox.Max) {
+// 		for _, v := range this.Points {
+// 			if !base.ComputeBounds(v).IsCoversPnt(bbox.Max) {
+// 				return false
+// 			}
+// 			if algorithm.Line(v).IsCoversPnt(bbox.Max) {
+// 				return true
+// 			}
+// 		}
+// 	}
+// 	return false
+// }
+
+// 前提是 bbox退化为一个点
+// func (this *GeoPolyline) IsContainsRect(bbox base.Rect2D) bool {
+// 	if this.IsCoversRect(bbox) {
+// 		for _, v := range this.Points {
+// 			// 不允许bbox在端点上
+// 			if v[0] == bbox.Max || v[len(v)-1] == bbox.Max {
+// 				return false
+// 			}
+// 		}
+// 	}
+// 	return false
+// }
+
+// ================================================================ //
+/*
+func (this *GeoPolyline) IsRelated(mode base.SpatialMode, geo Geometry) bool {
+	switch mode {
+	case base.Equals:
+		return this.IsEquals(geo)
+	case base.BBoxIntersects:
+		return this.GetBounds().IsIntersects(geo.GetBounds())
+	case base.Intersects, base.Undefined:
+		return this.IsIntersects(geo)
+
+		// todo
+	case base.Disjoint:
+		// return this.IsDisjoint(geo)
+	case base.Touches:
+		// return this.IsTouches(geo)
+	case base.Within:
+		// return this.IsWithin(geo)
+	case base.CoveredBy:
+		// return this.IsCoveredBy(geo)
+	case base.Overlaps:
+		// return this.IsOverlaps(geo)
+	case base.Contains:
+		// return this.IsContains(geo)
+	case base.Covers:
+		// return this.IsCovers(geo)
+	case base.Crosses: // 点无法cross任何对象
+		return false
+	default:
+		var im base.D9IM
+		if im.Init(string(mode)) {
+			imRes := this.CalcRelateIM(geo)
+			return imRes.MatchIM(im)
+		}
+	}
+	return false
+}
+
+// todo
+func (this *GeoPolyline) CalcRelateIM(geo Geometry) (im base.D9IM) {
+	im.Init("FFFFFFFFF")
+	return
+}
+
+func (this *GeoPolyline) IsIntersects(geo Geometry) bool {
+	switch geo.Type() {
+	case TGeoPoint:
+		if pnt, ok := geo.(*GeoPoint); ok {
+			return this.IsIntersectsPnt(pnt)
+		}
+	case TGeoPolyline:
+		if polyline, ok := geo.(*GeoPolyline); ok {
+			return this.IsIntersectsPolyline(polyline)
+		}
+	case TGeoPolygon:
+		if polygon, ok := geo.(*GeoPolygon); ok {
+			return this.IsIntersectsPolygon(polygon)
+		}
+	}
+	return false
+}
+
+// todo
+func (this *GeoPolyline) IsIntersectsPolygon(polygon *GeoPolygon) bool {
+	if this.BBox.IsDisjoint(this.BBox) {
+		return false
+	}
+	// for _, v := range this.Points {
+	// 	for _, vv := range polyline.Points {
+	// 		if algorithm.Line(v).IsIntersects(vv) {
+	// 			return true
+	// 		}
+	// 	}
+	// }
+	return false
+}
+
+func (this *GeoPolyline) IsIntersectsPolyline(polyline *GeoPolyline) bool {
+	if this.BBox.IsDisjoint(this.BBox) {
+		return false
+	}
+	for _, v := range this.Points {
+		for _, vv := range polyline.Points {
+			if algorithm.Line(v).IsIntersects(vv) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (this *GeoPolyline) IsIntersectsPnt(geoPnt *GeoPoint) bool {
+	for _, v := range this.Points {
+		if algorithm.Line(v).IsCoversPnt(geoPnt.Point2D) {
+			return true
+		}
+	}
+	return false
+}
+
+func (this *GeoPolyline) IsEquals(geo Geometry) bool {
+	// 类型必须一样 todo
+	if geoPolyline, ok := geo.(*GeoPolyline); ok {
+		// 边框必须一致
+		if this.BBox != geoPolyline.BBox {
+			return false
+		}
+		// 子对象个数必须 相等
+		if len(this.Points) != len(geoPolyline.Points) {
+			return false
+		}
+		// 对比每个子对象；允许子对象顺序调换
+		used := make([]bool, len(geoPolyline.Points))
+		for i, v := range this.Points {
+			subBbox1 := base.ComputeBounds(v)
+			for ii, vv := range geoPolyline.Points {
+				if !used[ii] { // 没用过的才进行对比
+					subBbox2 := base.ComputeBounds(vv)
+					// 用bbox判断是否为对应的子对象，不能保证完全准确
+					if subBbox1 == subBbox2 {
+						if !algorithm.Line(v).IsEquals(vv) {
+							return false
+						}
+						used[i] = true
+					}
+				}
+			}
+		}
+	}
+	return true
+}
+*/

@@ -5,11 +5,17 @@ import (
 	"gogis/base"
 	"gogis/geometry"
 	"gogis/index"
-	"time"
 )
 
+func init() {
+	RegisterDatastore(StoreMemory, NewMemoryStore)
+}
+
+func NewMemoryStore() Datastore {
+	return new(MemoryStore)
+}
+
 type MemoryStore struct {
-	// feasets []*MemFeaset
 	Feasets
 }
 
@@ -26,30 +32,6 @@ func (this *MemoryStore) GetConnParams() ConnParams {
 func (this *MemoryStore) GetType() StoreType {
 	return StoreMemory
 }
-
-// func (this *MemoryStore) GetFeasetByNum(num int) (Featureset, error) {
-// 	if num < len(this.feasets) {
-// 		return this.feasets[num], nil
-// 	}
-// 	return nil, errors.New(strconv.Itoa(num) + " beyond the num of feature sets")
-// }
-
-// func (this *MemoryStore) GetFeasetByName(name string) (Featureset, error) {
-// 	for _, v := range this.feasets {
-// 		if v.name == name {
-// 			return v, nil
-// 		}
-// 	}
-// 	return nil, errors.New("feature set: " + name + " cannot find")
-// }
-
-// func (this *MemoryStore) GetFeasetNames() []string {
-// 	names := make([]string, len(this.feasets))
-// 	for i, v := range this.feasets {
-// 		names[i] = v.name
-// 	}
-// 	return names
-// }
 
 // 关闭，释放资源
 func (this *MemoryStore) Close() {
@@ -117,102 +99,49 @@ func (this *MemFeaset) GetFieldInfos() []FieldInfo {
 	return this.fieldInfos
 }
 
-// 范围和属性联合查询 todo
-// func (this *MemFeaset) Query(bbox base.Rect2D, def QueryDef) FeatureIterator {
-// 	return nil
-// }
-
-// 属性查询
+// 综合查询
 func (this *MemFeaset) QueryByDef(def QueryDef) FeatureIterator {
 	var feaitr MemFeaItr
 	feaitr.feaset = this
 	feaitr.fields = def.Fields
-	feaitr.ids = make([]int64, 0)
+	// 先根据空间查询条件做筛选
+	feaitr.squery.Init(def.SpatialObj, def.SpatialMode)
+	ids := feaitr.squery.QueryIds(this.index)
 
-	// 先解析 wheres语句
-	comps, _ := def.Parser(this.fieldInfos)
-	// 得到需要 处理的字段的类型
-	ftypes := make([]FieldType, len(comps))
-	for i, comp := range comps {
-		ftypes[i] = GetFieldTypeByName(this.fieldInfos, comp.Field)
-	}
-
-	for i, fea := range this.features {
-		if IsAllMatch(fea, comps, ftypes) {
-			feaitr.ids = append(feaitr.ids, int64(i))
+	// 再解析 where 语句
+	var comps FieldComps
+	comps.Parse(def.Where, this.fieldInfos)
+	for _, id := range ids {
+		if comps.Match(this.features[id]) {
+			feaitr.ids = append(feaitr.ids, int64(id))
 		}
 	}
 
 	return &feaitr
 }
 
-// 判断feature是否符合属性要求
-func IsAllMatch(fea Feature, comps []FieldComp, ftypes []FieldType) bool {
-	// 有一条不符合，就返回false
-	for i, comp := range comps {
-		switch ftypes[i] {
-		case TypeBool:
-			if !base.IsMatchBool(fea.Atts[comp.Field].(bool), comp.Op, comp.Value.(bool)) {
-				return false
-			}
-		case TypeInt:
-			if !base.IsMatchInt(fea.Atts[comp.Field].(int), comp.Op, comp.Value.(int)) {
-				return false
-			}
-		case TypeFloat:
-			if !base.IsMatchFloat(fea.Atts[comp.Field].(float64), comp.Op, comp.Value.(float64)) {
-				return false
-			}
-		case TypeString:
-			if !base.IsMatchString(fea.Atts[comp.Field].(string), comp.Op, comp.Value.(string)) {
-				return false
-			}
-		case TypeTime:
-			if !base.IsMatchTime(fea.Atts[comp.Field].(time.Time), comp.Op, comp.Value.(time.Time)) {
-				return false
-			}
-		case TypeBlob:
-			// 暂不支持
-		}
-	}
-	// 每一条都符合，才能通过
-	return true
-}
-
-// func isMatchBool(value interface{}, op string, value2 string, ftype FieldType) bool {
-// 	// 每一条都符合，才能通过
-
-// 	return true
-// }
-
 // 根据空间范围查询，返回范围内geo的ids
 func (this *MemFeaset) QueryByBounds(bbox base.Rect2D) FeatureIterator {
-	feaitr := new(MemFeaItr)
-	feaitr.feaset = this
-	feaitr.ids = this.index.Query(bbox)
-	// 看是否需要用金字塔
-	level, _ := base.CalcMinMaxLevels(bbox, 0)
-	minLevel := int32(100)
-	for k, v := range this.pyramid.levels {
-		// 需要取所有比需要的level大的金字塔中，最小的哪个
-		if k >= level && k <= minLevel {
-			feaitr.geoPyramid = &this.pyramid.pyramids[v]
-			minLevel = k
-		}
-	}
-	return feaitr
-}
+	var def QueryDef
+	def.SpatialMode = base.Intersects
+	def.SpatialObj = bbox
+	temp := this.QueryByDef(def)
 
-// 判断和bbox相交的ids
-func (this *MemFeaset) GetIntersects(bbox base.Rect2D, ids []int64) (outs []int64) {
-	outs = make([]int64, 0, len(ids))
-	for _, id := range ids {
-		polygon, ok := this.features[id].Geo.(*geometry.GeoPolygon)
-		if ok && polygon.IsIntersect(bbox) {
-			outs = append(outs, id)
+	feaitr := temp.(*MemFeaItr)
+	// 看是否需要用金字塔
+	if this.pyramid != nil {
+		level, _ := base.CalcMinMaxLevels(bbox, 0)
+		minLevel := int32(100)
+		for k, v := range this.pyramid.levels {
+			// 需要取所有比需要的level大的金字塔中，最小的哪个
+			if k >= level && k <= minLevel {
+				feaitr.geoPyramid = &this.pyramid.pyramids[v]
+				minLevel = k
+			}
 		}
 	}
-	return
+
+	return feaitr
 }
 
 // 清空内存数据
@@ -256,16 +185,13 @@ func (this *MemFeaset) BuildSpatialIndex(indexType index.SpatialIndexType) index
 	return nil
 }
 
-// func (this *MemFeaset) BuildPyramids() {
-
-// }
-
 type MemFeaItr struct {
 	ids              []int64              // id数组
 	feaset           *MemFeaset           // 数据集指针
 	geoPyramid       *[]geometry.Geometry // 金字塔层的对象
 	objCountPerBatch int                  // 每个批次要读取的对象数量
 	fields           []string             // 字段名，空则为所有字段
+	squery           SpatailQuery
 }
 
 func (this *MemFeaItr) Count() int64 {
@@ -307,46 +233,49 @@ func (this *MemFeaItr) BatchNext(batchNo int) (feas []Feature, result bool) {
 			objCount = remainCount
 		}
 		start := batchNo * this.objCountPerBatch
-		if this.geoPyramid != nil {
-			feas = this.getFeasByIdsFromGeos(*this.geoPyramid, this.ids[start:start+objCount])
-		} else {
-			feas = this.getFeasByIds(this.feaset.features, this.ids[start:start+objCount])
-		}
-
+		feas = this.getFeaturesByIds(this.ids[start : start+objCount])
 		result = true
 	}
 	return
 }
 
-func (this *MemFeaItr) getFeasByIdsFromGeos(geos []geometry.Geometry, ids []int64) []Feature {
-	newfeas := make([]Feature, len(ids))
-	for i, id := range ids {
-		// 把克隆后的提供出去，避免外部修改
-		newfeas[i].Geo = geos[id].Clone()
-		// newfeas[i].Geo = geos[id]
+func (this *MemFeaItr) getFeaturesByIds(ids []int64) []Feature {
+	feas := make([]Feature, 0, len(ids))
+	for _, id := range ids {
+		if fea, ok := this.getOneFeature(id); ok {
+			feas = append(feas, fea)
+		}
 	}
-	return newfeas
+	return feas
 }
 
-func (this *MemFeaItr) getFeasByIds(features []Feature, ids []int64) []Feature {
-	newfeas := make([]Feature, len(ids))
-	for i, id := range ids {
-		newfeas[i] = this.getFeaByAtts(features[id])
+// 返回 false，说明这个不能要
+func (this *MemFeaItr) getOneFeature(id int64) (fea Feature, res bool) {
+	if this.geoPyramid != nil {
+		fea.Geo = (*this.geoPyramid)[id].Clone()
+	} else {
+		fea.Geo = this.feaset.features[id].Geo.Clone()
 	}
-	return newfeas
+	if this.squery.Match(fea.Geo) {
+		this.setFeaAtts(fea, this.feaset.features[id])
+		res = true
+	}
+
+	return
 }
 
 // 根据需要，只取一部分字段值
-func (this *MemFeaItr) getFeaByAtts(fea Feature) Feature {
+func (this *MemFeaItr) setFeaAtts(out, fea Feature) {
+	out.Atts = make(map[string]interface{})
+	// 所有属性全要
 	if this.fields == nil || len(this.fields) == 0 {
-		return fea
+		for k, v := range fea.Atts {
+			out.Atts[k] = v
+		}
+	} else {
+		// 根据 fields 来设置属性
+		for _, field := range this.fields {
+			out.Atts[field] = fea.Atts[field]
+		}
 	}
-	newfea := new(Feature)
-	newfea.Geo = fea.Geo.Clone()
-	// newfea.Geo = fea.Geo
-	newfea.Atts = make(map[string]interface{})
-	for _, field := range this.fields {
-		newfea.Atts[field] = fea.Atts[field]
-	}
-	return *newfea
 }

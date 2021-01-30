@@ -3,7 +3,6 @@
     // "go.buildOnSave": "package",
     // "go.buildFlags": ["-o", "C:/zengzm/GitHub/gogis"],    
     "go.editorContextMenuCommands": {
-
         "toggleTestFile": true,
         "addTags": true,
         "removeTags": false,

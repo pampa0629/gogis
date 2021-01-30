@@ -12,6 +12,26 @@ import (
 	"sync"
 )
 
+// 快捷方法，打开一个shape文件，得到要素集对象
+func OpenShape(filename string) Featureset {
+	// 默认用内存模式
+	shp := new(ShpmemStore)
+	params := NewConnParams()
+	params["filename"] = filename
+	shp.Open(params)
+	feaset, _ := shp.GetFeasetByNum(0)
+	feaset.Open()
+	return feaset
+}
+
+func init() {
+	RegisterDatastore(StoreShapeMemory, NewShpmemStore)
+}
+
+func NewShpmemStore() Datastore {
+	return new(ShpmemStore)
+}
+
 // todo 未来还要考虑实现打开一个文件夹
 // 内存模式的shape存储库
 type ShpmemStore struct {
@@ -98,7 +118,7 @@ func (this *ShpmemFeaset) Open() (bool, error) {
 	//  处理空间索引文件
 	this.loadSpatialIndex()
 
-	this.loadPyramids()
+	// this.loadPyramids()
 
 	return res, nil
 }
@@ -141,7 +161,7 @@ const ONE_LOAD_COUNT = 50000
 // 用多文件读取的方式，把geometry都转载到内存中
 func (this *ShpmemFeaset) loadShape(shape *ShapeFile) {
 	// 设置字段信息
-	// this.fieldInfos = shape.GetFieldInfos()
+	this.fieldInfos = shape.GetFieldInfos()
 
 	// 计算一下，需要加载多少次
 	concount := (int)(shape.recordNum/ONE_LOAD_COUNT) + 1

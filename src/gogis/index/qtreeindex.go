@@ -128,7 +128,7 @@ func (this *QTreeNode) Check() bool {
 
 	// bboxes的并，要被bbox所覆盖
 	if len(this.bboxes) > 0 {
-		if !this.bbox.IsCover(base.UnionBounds(this.bboxes)) {
+		if !this.bbox.IsCovers(base.UnionBounds(this.bboxes)) {
 			return false
 		}
 	}
@@ -139,7 +139,7 @@ func (this *QTreeNode) Check() bool {
 		bbox.Init()
 		nodes := this.getChildNodes()
 		for _, v := range nodes {
-			bbox.Union(v.bbox)
+			bbox = bbox.Union(v.bbox)
 		}
 		if bbox != this.bbox {
 			return false
@@ -299,7 +299,7 @@ func (this *QTreeNode) whichChildNode(bbox base.Rect2D) *QTreeNode {
 	nodes := this.getChildNodes()
 	for _, v := range nodes {
 		// 允许两个矩形的边界相交
-		if v.bbox.IsCover(bbox) {
+		if v.bbox.IsCovers(bbox) {
 			return v
 		}
 	}
@@ -331,14 +331,14 @@ func (this *QTreeNode) Clear() {
 // 范围查询，返回id数组
 func (this *QTreeNode) Query(bbox base.Rect2D) (ids []int64) {
 	// 有交集再继续
-	if this.bbox.IsIntersect(bbox) {
+	if this.bbox.IsIntersects(bbox) {
 		// 先判断根节点，cover就都纳入
-		if bbox.IsCover(this.bbox) {
+		if bbox.IsCovers(this.bbox) {
 			ids = append(ids, this.ids...)
 		} else {
 			// 否则就精确判断
 			for i, v := range this.ids {
-				if this.bboxes[i].IsIntersect(bbox) {
+				if this.bboxes[i].IsIntersects(bbox) {
 					ids = append(ids, v)
 				}
 			}
@@ -356,6 +356,12 @@ func (this *QTreeNode) Query(bbox base.Rect2D) (ids []int64) {
 	return
 }
 
+// todo
+// 查询不被bbox所覆盖的id数组
+func (this *QTreeNode) QueryNoCovered(bbox base.Rect2D) []int64 {
+	return nil
+}
+
 // 查询时，判断采用哪个子节点
 // 区别在于：构建索引时，对象必须全部落到 节点的bounds中；
 // 而查询范围,则是两个矩形有交叠（有范围相交）即OK
@@ -364,7 +370,7 @@ func (this *QTreeNode) whichChildNode2(bbox base.Rect2D) *QTreeNode {
 
 	nodes := this.getChildNodes()
 	for _, v := range nodes {
-		if v.bbox.IsOverlap(bbox) {
+		if v.bbox.IsOverlaps(bbox) {
 			return v
 		}
 	}

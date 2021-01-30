@@ -2,10 +2,40 @@ package data
 
 import (
 	"fmt"
+	"gogis/algorithm"
 	"gogis/base"
 	"strconv"
 	"testing"
 )
+
+func TestQuery(t *testing.T) {
+	// var store = new(ShpmemStore)
+	var store = new(SqliteStore)
+	params := NewConnParams()
+	// params["filename"] = "./testdata/chinapnt.shp"
+	params["filename"] = "./testdata/chinapnt_84.sqlite"
+	ok, err := store.Open(params)
+	if !ok || err != nil {
+		t.Errorf(err.Error())
+	}
+	temp, _ := store.GetFeasetByNum(0)
+	feaset := temp.(*SqliteFeaset)
+	// feaset := temp.(*ShpmemFeaset)
+	feaset.Open()
+	var def QueryDef
+	def.Fields = []string{"POPU", "POP_COU"}
+	def.Where = "POPU>100 or POPU<80 and POP_COU>10"
+	// def.Where = "(Popu>10 or Pop_cou>10) or((a<=11) and (b>0) or c!=1)"
+	def.SpatialMode = algorithm.Disjoint // Intersects Within Disjoint "[T***F*FF*]"
+	def.SpatialObj = feaset.bbox.Scale(0.5)
+	feait := feaset.QueryByDef(def)
+	feait.PrepareBatch(3000)
+	feas, ok := feait.BatchNext(0)
+	fmt.Println("count:", len(feas))
+	// for _, v := range feas {
+	// 	fmt.Println(v.Geo.GetID(), v.Atts)
+	// }
+}
 
 func TestConvertShp2Es(t *testing.T) {
 	tr := base.NewTimeRecorder()

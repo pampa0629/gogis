@@ -110,6 +110,41 @@ func RemoveRepByMap(ids []int64) []int64 {
 	return result
 }
 
+// 从全集中排除一部分数组，返回剩下的
+func GetRemains(all, values []int32) (remains []int32) {
+	remains = make([]int32, 0, len(all))
+	tempMap := map[int32]byte{} // 存放不重复主键
+	// 先把需要排除的数组放到map中
+	for _, v := range values {
+		tempMap[v] = 0
+	}
+	// 再遍历全集
+	for _, v := range all {
+		// 如果某个元素不在map中，则需要拿出来
+		if _, ok := tempMap[v]; !ok {
+			remains = append(remains, v)
+		}
+	}
+	return
+}
+
+func GetRemains64(all, values []int64) (remains []int64) {
+	remains = make([]int64, 0, len(all))
+	tempMap := map[int64]byte{} // 存放不重复主键
+	// 先把需要排除的数组放到map中
+	for _, v := range values {
+		tempMap[v] = 0
+	}
+	// 再遍历全集
+	for _, v := range all {
+		// 如果某个元素不在map中，则需要拿出来
+		if _, ok := tempMap[v]; !ok {
+			remains = append(remains, v)
+		}
+	}
+	return
+}
+
 // ================================================== //
 
 // 把一个数组尽可能均分为 n 份，返回数组的 数组

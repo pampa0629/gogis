@@ -191,12 +191,12 @@ func (this *GridIndex) Query(bbox base.Rect2D) (ids []int64) {
 	for i := minRow; i <= maxRow; i++ { // 高度（y方向）代表行
 		for j := minCol; j <= maxCol; j++ {
 			// 全包括，就不用一一比较了
-			if bbox.IsCover(this.bboxes[i][j]) {
+			if bbox.IsCovers(this.bboxes[i][j]) {
 				ids = append(ids, this.ids[i][j]...)
 			} else {
 				// 否则就需要一个个对比 bbox
 				for k, v := range this.idBboxes[i][j] {
-					if v.IsIntersect(bbox) {
+					if v.IsIntersects(bbox) {
 						ids = append(ids, this.ids[i][j][k])
 					}
 				}
@@ -207,6 +207,12 @@ func (this *GridIndex) Query(bbox base.Rect2D) (ids []int64) {
 	// 去掉重复id
 	ids = base.RemoveRepByMap(ids)
 	return
+}
+
+// todo
+// 查询不被bbox所覆盖的id数组
+func (this *GridIndex) QueryNoCovered(bbox base.Rect2D) []int64 {
+	return nil
 }
 
 // 计算索引重复度，为后续有可能增加多级格网做准备

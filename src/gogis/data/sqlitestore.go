@@ -13,6 +13,14 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+func init() {
+	RegisterDatastore(StoreSqlite, NewSqliteStore)
+}
+
+func NewSqliteStore() Datastore {
+	return new(SqliteStore)
+}
+
 // sqlite 数据存储库，采用 spatialite 空间存储
 type SqliteStore struct {
 	db       *sql.DB
@@ -292,7 +300,7 @@ func fetchGeo(rows *sql.Rows, geoType geometry.GeoType) geometry.Geometry {
 
 // 读取索引 codes
 func (this *SqliteFeaset) loadCodes() (codes map[int]int32) {
-	sql := "select rowid," + this.geom + " from " + this.name
+	sql := "select pk," + this.geom + " from " + this.name
 	rows, err := this.store.db.Query(sql)
 	codes = make(map[int]int32, this.count)
 	if err == nil {
@@ -316,7 +324,7 @@ func (this *SqliteFeaset) updateIndex() {
 	db, err := sql.Open("sqlite3", this.store.filename)
 	if err == nil {
 		tx, _ := db.Begin()
-		update := "UPDATE " + this.name + " SET " + SSF_INDEX_CODE + " =? where rowid=?"
+		update := "UPDATE " + this.name + " SET " + SSF_INDEX_CODE + " =? where pk=?"
 		stmt, _ := tx.Prepare(update)
 		defer stmt.Close()
 
@@ -334,8 +342,7 @@ func (this *SqliteFeaset) updateIndex() {
 // spatialite 中的 geo type转化为 这里的type
 func SPL2GeoType(splType int) geometry.GeoType {
 	switch splType {
-	case 1:
-	case 4: // 估计是多点，先按照单点处理
+	case 1, 4: // 4估计是多点，先按照单点处理
 		return geometry.TGeoPoint
 	case 6:
 		return geometry.TGeoPolygon
@@ -448,32 +455,43 @@ func buildSqlIn(values []int32) string {
 	return in
 }
 
-func (this *SqliteFeaset) QueryByBounds(bbox base.Rect2D) FeatureIterator {
-	codes := this.idx.QueryDB(bbox)
+// 综合查询
+func (this *SqliteFeaset) QueryByDef(def QueryDef) FeatureIterator {
+	feaitr := new(SqliteFeaItr)
+	feaitr.feaset = this
+	feaitr.fields = def.Fields
 
+	// 根据空间查询条件做筛选
+	feaitr.squery.Init(def.SpatialObj, def.SpatialMode)
+	feaitr.codes = feaitr.squery.QueryCodes(&this.idx)
+	feaitr.where = def.Where
+	feaitr.geotype = this.geotype
 	from := " from " + this.name
-	where := " where " + SSF_INDEX_CODE
-	in := buildSqlIn(codes)
-	// sql := "select rowid," + this.geom + from + where + in
-
-	// rows, err := this.store.db.Query(sql)
-	// if err == nil {
-	itr := new(SqliteFeaItr)
-	// itr.rows = rows
-	itr.feaset = this
-	itr.bbox = bbox
-	itr.codes = codes
-	itr.geotype = this.geotype
-	this.store.db.QueryRow("select count(*) " + from + where + in).Scan(&itr.count)
-	return itr
-	// }
-	// fmt.Println(sql, "error:", err)
-	// return nil
+	where := buildWhere(feaitr.codes, def.Where)
+	this.store.db.QueryRow("select count(*) " + from + where).Scan(&feaitr.count)
+	return feaitr
 }
 
-// func (this *SqliteFeaset) QueryByDef(def QueryDef) FeatureIterator {
-// 	return nil
-// }
+func (this *SqliteFeaset) QueryByBounds(bbox base.Rect2D) FeatureIterator {
+	var def QueryDef
+	def.SpatialMode = base.Intersects
+	def.SpatialObj = bbox
+	return this.QueryByDef(def)
+	// codes := this.idx.QueryDB(bbox)
+
+	// from := " from " + this.name
+
+	// // where := " where " + SSF_INDEX_CODE
+	// // in := buildSqlIn(codes)
+	// where := buildWhere(codes, "")
+	// itr := new(SqliteFeaItr)
+	// itr.feaset = this
+	// itr.bbox = bbox
+	// itr.codes = codes
+	// itr.geotype = this.geotype
+	// this.store.db.QueryRow("select count(*) " + from + where).Scan(&itr.count)
+	// return itr
+}
 
 // 迭代器
 type SqliteFeaItr struct {
@@ -483,6 +501,9 @@ type SqliteFeaItr struct {
 	codes   []int32
 	codess  [][]int32 // 每个批次所对应的index codes
 	geotype int       // gaia 的geo类型
+	fields  []string  // 要哪些字段
+	where   string    // sql where
+	squery  SpatailQuery
 
 	countPerGo int // 每一个批次的对象数量
 }
@@ -501,39 +522,86 @@ func (this *SqliteFeaItr) Next() (fea Feature, ok bool) {
 }
 
 // 为了批量读取做准备，返回批量的次数
-func (this *SqliteFeaItr) PrepareBatch(objCount int) int {
-	goCount := int(this.count)/objCount + 1
-	// 这里假设每个code中所包含的对象，是大体平均分布的
-	this.codess = base.SplitSlice32(this.codes, goCount)
-	// fmt.Println("codes:", this.codes)
-	// fmt.Println("codess:", this.codess)
-	this.countPerGo = objCount
-	return goCount
+func (this *SqliteFeaItr) PrepareBatch(objCount int) (goCount int) {
+	if len(this.codes) > 0 {
+		goCount = int(this.count)/objCount + 1
+		// 这里假设每个code中所包含的对象，是大体平均分布的
+		this.codess = base.SplitSlice32(this.codes, goCount)
+		// fmt.Println("codes:", this.codes)
+		// fmt.Println("codess:", this.codess)
+		this.countPerGo = objCount
+	} else {
+		// 没有空间查询的编码，怎么划分，再研究 todo
+		goCount = 1
+	}
+
+	return
 }
 
-// func (this *SqliteFeaItr) BatchNext(pos int64, count int) ([]Feature, int64, bool) {
-// 	return nil, 0, false
-// }
+func buildWhere(codes []int32, where string) (out string) {
+	in := ""
+	// 先处理可能的空间索引编码
+	// if len(codes) > 0 {
+	if codes != nil {
+		// 如果编码存在，且长度为0，则说明啥也不能要
+		if len(codes) == 0 {
+			codes = []int32{-1}
+		}
+		in = SSF_INDEX_CODE + buildSqlIn(codes)
+		out += in
+	}
+	// 有用户输入的where内容，再加上去
+	if len(where) > 0 {
+		// 两个都有时，还需要加  and ( )
+		if len(in) > 0 {
+			where = " and (" + where + ")"
+		}
+		out += where
+	}
+	if len(out) > 0 {
+		out = " where " + out
+	}
+	return
+}
+
+// 构造 选择 语句
+func (this *SqliteFeaItr) buildSelect() string {
+	sel := " select "
+	// 选择特定字段
+	if len(this.fields) > 0 {
+		sel += " pk, " + this.feaset.geom
+		for _, v := range this.fields {
+			sel += ", " + v
+		}
+	} else {
+		// 选择所有字段
+		sel += " * "
+	}
+	return sel
+}
 
 // 读取某个批次的所有数据
 func (this *SqliteFeaItr) BatchNext(batchNo int) (feas []Feature, result bool) {
 	// fmt.Println("db open:" + this.feaset.store.filename)
 	db, err := sql.Open("sqlite3", this.feaset.store.filename)
 	if err == nil && db != nil {
+		sel := this.buildSelect()
 		from := " from " + this.feaset.name
-		where := " where " + SSF_INDEX_CODE
-		in := buildSqlIn(this.codess[batchNo])
-		sql := "select rowid," + this.feaset.geom + from + where + in
-
+		codes := []int32{}
+		if this.codess != nil && batchNo < len(this.codess) {
+			codes = this.codess[batchNo]
+		}
+		where := buildWhere(codes, this.where)
+		sql := sel + from + where
 		rows, err := db.Query(sql)
 		if err == nil {
 			result = true
+			geotype := SPL2GeoType(this.geotype)
 			feas = make([]Feature, 0, this.countPerGo)
 			for rows.Next() {
-				geo := fetchGeo(rows, SPL2GeoType(this.geotype))
-				// if geo != nil && this.bbox.IsIntersect(geo.GetBounds()) {
-				if geo != nil { // todo
-					feas = append(feas, Feature{Geo: geo})
+				fea := fetchFea(rows, geotype, this.feaset.geom)
+				if fea.Geo != nil && this.squery.Match(fea.Geo) {
+					feas = append(feas, fea)
 				}
 			}
 			rows.Close()
@@ -548,15 +616,30 @@ func (this *SqliteFeaItr) BatchNext(batchNo int) (feas []Feature, result bool) {
 	return
 }
 
-// 只要读取到一个数据，达不到count的要求，也返回true
-// func (this *SqliteFeaItr) BatchNext(pos int64, count int) ([]Feature, int64, bool) {
-// 	feas := make([]Feature, 0, count)
-// 	for this.rows.Next() {
-// 		geo := fetchGeo(this.rows, SPL2GeoType(this.geotype))
-// 		if geo != nil {
-// 			feas = append(feas, Feature{Geo: geo})
-// 		}
-// 	}
-
-// 	return feas, pos + int64(len(feas)), true
-// }
+// 获取feature
+func fetchFea(rows *sql.Rows, geoType geometry.GeoType, geom string) (fea Feature) {
+	cols, _ := rows.Columns()
+	atts := make([]interface{}, len(cols))
+	for i, _ := range atts {
+		atts[i] = new(interface{})
+	}
+	err := rows.Scan(atts...)
+	if err == nil {
+		fea.Geo = geometry.CreateGeo(geoType)
+		fea.Atts = make(map[string]interface{})
+		for i, v := range cols {
+			att := *atts[i].(*interface{})
+			switch v {
+			case "pk":
+				fea.Geo.SetID(att.(int64))
+			case geom:
+				fea.Geo.From(att.([]byte), geometry.GAIA)
+			default:
+				fea.Atts[v] = att
+			}
+		}
+	} else {
+		fmt.Println("fetch feature error:", err)
+	}
+	return
+}

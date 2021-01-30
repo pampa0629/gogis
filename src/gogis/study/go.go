@@ -9,13 +9,45 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	// pool "github.com/silenceper/poor"
 )
 
 func gomain() {
-	testFileCount()
+	testType()
 	fmt.Println("DONE!")
+}
+
+type Point2Ds []base.Point2D
+
+func (this *Point2Ds) Test() {
+	fmt.Println("func (this *Point2Ds) Test() {")
+}
+
+func Test2(pnt Point2Ds) {
+	fmt.Println("func (this *Point2Ds) Test() {", pnt)
+}
+
+func testType() {
+	pnts := make([]base.Point2D, 3)
+	ps := Point2Ds(pnts)
+	ps.Test()
+	Test2(pnts)
+}
+
+func testInterface() {
+	var bbox base.Rect2D
+	var inter interface{}
+	inter = bbox
+	name := reflect.TypeOf(inter)
+	fmt.Println(name)
+	// b1, o1 := inter.(base.Bounds)
+	// fmt.Println(b1, o1)
+	// var b2 base.Bounds = inter
+	// b2, o2 := (&b1).(base.Bounds)
+	// fmt.Println(b2)
+
 }
 
 func testFileCount() {

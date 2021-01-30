@@ -93,7 +93,7 @@ type ShapeFile struct {
 // 清空内存
 func (this *ShapeFile) Close() {
 	this.records = this.records[:0]
-	// this.table.Close()
+	this.table.Close()
 }
 
 func (this *ShapeFile) Open(filename string) bool {
@@ -122,8 +122,8 @@ func (this *ShapeFile) Open(filename string) bool {
 	this.prj = string(prjData)
 
 	// dbf 文件
-	// dbfName := strings.TrimSuffix(filename, ".shp") + ".dbf"
-	// this.table, _ = godbf.NewFromFile(dbfName, "UTF8")
+	dbfName := strings.TrimSuffix(filename, ".shp") + ".dbf"
+	this.table, _ = godbf.NewFromFile(dbfName, "UTF8")
 
 	return true
 }
@@ -216,15 +216,15 @@ func (this *ShapeFile) BatchLoad(f *os.File, start int, count int, features []Fe
 	r := bytes.NewBuffer(data)
 
 	// 属性字段处理
-	// fieldInfos := this.table.Fields()
-	// fields := this.table.FieldNames()
-	// fieldCount := len(fieldInfos)
+	fieldInfos := this.table.Fields()
+	fields := this.table.FieldNames()
+	fieldCount := len(fieldInfos)
 	for i := 0; i < count; i++ {
 		features[i].Geo = loadFromByte(r, this.GeoType)
-		// features[i].Atts = make(map[string]interface{}, fieldCount)
-		// for j, name := range fields {
-		// 	features[i].Atts[name] = dbfString2Value(this.table.FieldValue(i+start, j), fieldInfos[j].FieldType())
-		// }
+		features[i].Atts = make(map[string]interface{}, fieldCount)
+		for j, name := range fields {
+			features[i].Atts[name] = dbfString2Value(this.table.FieldValue(i+start, j), fieldInfos[j].FieldType())
+		}
 	}
 }
 

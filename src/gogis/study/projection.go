@@ -8,7 +8,7 @@ import (
 	"github.com/go-spatial/proj"
 )
 
-func main() {
+func prjmain() {
 	// testLoad()
 	testproj()
 	// testParse()

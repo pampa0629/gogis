@@ -205,13 +205,13 @@ func NewPrjConvert(from, to *ProjInfo) (prjc *PrjConvert) {
 	return
 }
 
-func (this *PrjConvert) DoOne(pnt Point2D) (dest Point2D) {
+func (this *PrjConvert) DoPnt(pnt Point2D) (dest Point2D) {
 	pnts := make([]Point2D, 1)
 	pnts[0] = pnt
-	return this.Do(pnts)[0]
+	return this.DoPnts(pnts)[0]
 }
 
-func (this *PrjConvert) Do(pnts []Point2D) (dest []Point2D) {
+func (this *PrjConvert) DoPnts(pnts []Point2D) (dest []Point2D) {
 	// 具体分为四种情况，分别为：
 	// 1）经纬 转 经纬，无需转化
 	if !this.from.IsProjection() && !this.to.IsProjection() {
