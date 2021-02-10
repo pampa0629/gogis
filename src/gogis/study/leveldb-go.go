@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"gogis/base"
-	"gogis/data"
+	"gogis/data/shape"
 	"gogis/geometry"
 	"io/ioutil"
 	"os"
@@ -24,8 +24,8 @@ func SaveDB() {
 	dbPath := gPath + gTitle + ".db"
 	db, _ := leveldb.OpenFile(dbPath, nil)
 
-	feset := data.OpenShape(gPath + gTitle + gExt)
-	feait := feset.QueryByBounds(feset.GetBounds())
+	feset := shape.OpenShape(gPath+gTitle+gExt, true, []string{})
+	feait := feset.Query(nil)
 	fmt.Println("count:", feait.Count())
 
 	startTime := time.Now().UnixNano()

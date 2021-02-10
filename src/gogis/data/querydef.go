@@ -15,6 +15,13 @@ type QueryDef struct {
 	SpatialObj interface{} // 查询对象，即用本对象去查询符合条件的对象
 }
 
+// 创建默认的查询定义
+func NewQueryDef(bbox base.Rect2D) *QueryDef {
+	def := new(QueryDef)
+	def.SpatialObj = bbox
+	return def
+}
+
 // 空间查询类
 type SpatailQuery struct {
 	obj  interface{}
@@ -124,5 +131,5 @@ func BboxMatchGeo(bbox base.Rect2D, mode base.SpatialMode, geo geometry.Geometry
 		im.Invert()
 		return geo.IsRelate(base.SpatialMode(im.String()), bbox)
 	}
-	return true
+	// return true
 }

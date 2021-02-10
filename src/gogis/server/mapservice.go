@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"gogis/base"
 	"gogis/data"
+	"gogis/data/shape"
 	"gogis/draw"
 	"gogis/mapping"
 	"io"
@@ -150,7 +151,7 @@ func (this *MapService) OpenGmp(mapfile string, cachepath string) {
 // 打开 shape文件，生成地图服务
 // todo 未来应识别更多数据文件
 func (this *MapService) OpenShp(shpfile string, cachepath string) {
-	feaset := data.OpenShape(shpfile)
+	feaset := shape.OpenShape(shpfile, true, []string{})
 	// 创建地图
 	this.gmap = mapping.NewMap()
 	this.gmap.AddLayer(feaset, nil)

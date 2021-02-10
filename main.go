@@ -6,6 +6,11 @@ import (
 
 	"gogis/base"
 	"gogis/data"
+	"gogis/data/es"
+	"gogis/data/hbase"
+	_ "gogis/data/memory"
+	"gogis/data/shape"
+	"gogis/data/sqlite"
 	"gogis/draw"
 	"gogis/index"
 	"gogis/mapping"
@@ -30,9 +35,9 @@ var gPath = "C:/temp/"
 
 // var gTitle = "chinapnt_84" // insurance chinapnt_84
 
-var gTitle = "point2" // Export_Output DLTB New_Region
+// var gTitle = "DLTB" // Export_Output DLTB New_Region point2 railway
 
-// var gTitle = "JBNTBHTB"
+var gTitle = "JBNTBHTB"
 
 var gExt = ".shp"
 
@@ -47,10 +52,14 @@ func main() {
 
 	// testShpQuery()
 
-	// testShpmemMap()
+	// testShpMap()
 	// testEsMap()
-	testSqliteMap()
+	// testSqliteMap()
 	// testHbaseMap()
+
+	// testLine2Point()
+
+	testDrawTiff()
 	fmt.Println("DONE!")
 	return
 }
@@ -84,7 +93,7 @@ func testIndex() {
 
 func testEsMap() {
 	tr := base.NewTimeRecorder()
-	var store data.EsStore
+	var store es.EsStore
 	params := data.NewConnParams()
 	params["addresses"] = "http://localhost:9200"
 	store.Open(params)
@@ -112,7 +121,7 @@ func testEsMap() {
 
 func testHbaseMap() {
 	tr := base.NewTimeRecorder()
-	var store data.HbaseStore
+	var store hbase.HbaseStore
 	params := data.NewConnParams()
 	params["address"] = "localhost:2181"
 	store.Open(params)
@@ -134,13 +143,14 @@ func testHbaseMap() {
 
 func testSqliteMap() {
 	tr := base.NewTimeRecorder()
-	var sqlDB data.SqliteStore
+	var sqlDB sqlite.SqliteStore
 	params := data.NewConnParams()
-	params["filename"] = "C:/temp/" + gTitle + ".db"
+	params["filename"] = "C:/temp/" + gTitle + ".sqlite" // sqlite udbx
 	sqlDB.Open(params)
-	feaset, _ := sqlDB.GetFeasetByNum(0)
+	feaset := sqlDB.GetFeasetByNum(0)
 	// feaset, _ := sqlDB.GetFeasetByName(gTitle)
 	feaset.Open()
+	// feaset = data.Cache(feaset, []string{})
 	tr.Output("open sqlite db")
 
 	gmap := mapping.NewMap()
@@ -149,43 +159,45 @@ func testSqliteMap() {
 	gmap.AddLayer(feaset, nil)
 	// gmap.Add
 	gmap.Prepare(1024, 768)
-	// gmap.Zoom(2)
+	// gmap.Zoom(10)
 	gmap.Draw()
+	tr.Output("draw sqlite map")
 	// 输出图片文件
 	gmap.Output2File("C:/temp/"+gTitle+".jpg", "jpg")
+	tr.Output("output")
 	mapfile := gPath + gTitle + "." + base.EXT_MAP_FILE
 	gmap.Save(mapfile)
 	gmap.Save(mapfile) // 支持反复存储
+	tr.Output("save map file")
 
-	tr.Output("draw sqlite map")
 }
 
 func testShpQuery() {
-	tr := base.NewTimeRecorder()
-	var store data.ShpmemStore
-	params := data.NewConnParams()
-	params["filename"] = "C:/temp/" + gTitle + ".shp"
-	store.Open(params)
-	temp, _ := store.GetFeasetByName(gTitle)
-	feaset := temp.(*data.ShpmemFeaset)
-	feaset.Open()
-	fmt.Println("all count:", feaset.GetCount())
-	tr.Output("open")
+	// tr := base.NewTimeRecorder()
+	// var store shape.ShapeStore
+	// params := data.NewConnParams()
+	// params["filename"] = "C:/temp/" + gTitle + ".shp"
+	// store.Open(params)
+	// temp, _ := store.GetFeasetByNum(0)
+	// feaset := temp.(*shape.ShapeFeaset)
+	// feaset.Open()
+	// fmt.Println("all count:", feaset.GetCount())
+	// tr.Output("open")
 
-	var def data.QueryDef
-	// def.Fields = []string{"POPU", "POP_COU"}
-	// def.Where = "POPU>100 or POPU<80 and POP_COU>10"
-	// def.Where = "(Popu>10 or Pop_cou>10) or((a<=11) and (b>0) or c!=1)"
-	def.SpatialMode = base.Intersects // Intersects Within Disjoint "[T***F*FF*]"
-	def.SpatialObj = feaset.GetBounds().Scale(0.1)
-	feait := feaset.QueryByDef(def)
-	fmt.Println("query count:", feait.Count())
-	tr.Output("QueryByDef")
+	// var def data.QueryDef
+	// // def.Fields = []string{"POPU", "POP_COU"}
+	// // def.Where = "POPU>100 or POPU<80 and POP_COU>10"
+	// // def.Where = "(Popu>10 or Pop_cou>10) or((a<=11) and (b>0) or c!=1)"
+	// def.SpatialMode = base.Intersects // Intersects Within Disjoint "[T***F*FF*]"
+	// def.SpatialObj = feaset.GetBounds().Scale(0.1)
+	// feait := feaset.QueryByDef(def)
+	// fmt.Println("query count:", feait.Count())
+	// tr.Output("QueryByDef")
 
-	feait.PrepareBatch(int(feait.Count()))
-	feas, _ := feait.BatchNext(0)
-	fmt.Println("get count:", len(feas))
-	tr.Output("BatchNext")
+	// feait.PrepareBatch(int(feait.Count()))
+	// feas, _ := feait.BatchNext(0)
+	// fmt.Println("get count:", len(feas))
+	// tr.Output("BatchNext")
 
 	// bbox := feaset.GetBounds()
 	// bbox.Extend((bbox.Dx() + bbox.Dy()) / -10.0)
@@ -211,16 +223,19 @@ func testShpQuery() {
 	// tr.Output("draw map")
 }
 
-func testShpmemMap() {
+func testShpMap() {
 	tr := base.NewTimeRecorder()
-	var store data.ShpmemStore
+	var store shape.ShapeStore
 	params := data.NewConnParams()
 	params["filename"] = "C:/temp/" + gTitle + ".shp"
+	// params["cache"] = true
+	params["fields"] = []string{}
 	store.Open(params)
-	// feaset, _ := sqlDB.GetFeasetByNum(0)
-	feaset, _ := store.GetFeasetByName(gTitle)
+	feaset := store.GetFeasetByNum(0)
+	// feaset, _ := store.GetFeasetByName(gTitle)
 	feaset.Open()
-	tr.Output("open shp by memery")
+	// feaset = data.Cache(feaset, []string{})
+	tr.Output("open shp ")
 
 	gmap := mapping.NewMap()
 
@@ -234,14 +249,20 @@ func testShpmemMap() {
 	// gmap.Zoom(5)
 
 	gmap.Draw()
+
 	// 输出图片文件
 	gmap.Output2File("C:/temp/"+gTitle+".jpg", "jpg")
+	tr.Output("draw map")
 	mapfile := gPath + gTitle + "." + base.EXT_MAP_FILE
 	gmap.Save(mapfile)
-	nmap := mapping.NewMap()
-	nmap.Open(mapfile)
 
-	tr.Output("draw map")
+	// nmap := mapping.NewMap()
+	// nmap.Open(mapfile)
+	// nmap.Prepare(1200, 900)
+	// nmap.Draw()
+	// nmap.Output2File("C:/temp/"+gTitle+"2.jpg", "jpg")
+
+	// tr.Output("draw map")
 }
 
 func testMapTile() {
@@ -279,7 +300,7 @@ func id2code(id int64, idboxs [][]index.Idbbox) (code int, bbox base.Rect2D) {
 
 func startMap() *mapping.Map {
 	// 打开shape文件
-	feaset := data.OpenShape(filename)
+	feaset := shape.OpenShape(filename, true, []string{})
 	// // 创建地图
 	gmap := mapping.NewMap()
 	gmap.AddLayer(feaset, nil)
@@ -339,4 +360,53 @@ func testMapFile() {
 
 	// // 记录时间
 	tr.Output("testMapFile total")
+}
+
+func testLine2Point() {
+	tr := base.NewTimeRecorder()
+
+	title := "china2" // JBNTBHTB chinapnt_84
+
+	fromParams := data.NewConnParams()
+	fromParams["filename"] = "c:/temp/" + title + ".udbx" // line.udbx
+	fromParams["type"] = string(data.StoreSqlite)
+	fromStore := data.NewDatastore(data.StoreSqlite)
+	fromStore.Open(fromParams)
+	fromFeaset := fromStore.GetFeasetByNum(0)
+	fromFeaset.Open()
+
+	toParams := data.NewConnParams()
+	toParams["filename"] = "c:/temp/" + "railway" + ".sqlite"
+	toParams["type"] = string(data.StoreSqlite)
+	toStore := data.NewDatastore(data.StoreSqlite)
+	toStore.Open(toParams)
+
+	var cvt data.Converter
+	cvt.Polyline2Point(fromFeaset, toStore, "point")
+	tr.Output("Polyline2Point")
+}
+
+func testDrawTiff() {
+	tr := base.NewTimeRecorder()
+
+	// title := "raster" // JBNTBHTB chinapnt_84
+	// filename := "C:/BigData/10_Data/testimage/image/filelist.txt"
+	filename := "C:/temp/filelist.txt"
+	// filename := "C:/temp/raster.txt"
+
+	var raset data.MosaicRaset
+	raset.Open(filename)
+	tr.Output("open data")
+
+	gmap := mapping.NewMap()
+	gmap.AddRasterLayer(raset)
+
+	gmap.Prepare(1024, 768)
+	gmap.Draw()
+
+	// 输出图片文件
+	tr.Output("draw map")
+	gmap.Output2File(gPath+"image.jpg", "jpg")
+	tr.Output("save picture file")
+
 }

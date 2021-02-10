@@ -14,11 +14,12 @@ import (
 )
 
 type Map struct {
-	Name     string       `json:"MapName"`
-	filename string       // 保存为map文件的文件名
-	Layers   []*Layer     // 0:最底层，先绘制
-	canvas   *draw.Canvas // 画布
-	BBox     base.Rect2D  // 所有数据的边框
+	Name      string         `json:"MapName"`
+	filename  string         // 保存为map文件的文件名
+	Layers    []*Layer       // 0:最底层，先绘制
+	RasLayers []*RasterLayer // todo 与layers合并
+	canvas    *draw.Canvas   // 画布
+	BBox      base.Rect2D    // 所有数据的边框
 
 	trackLayer TrackLayer // 跟踪图层，用来绘制被选中的临时对象，不做保存
 
@@ -71,6 +72,12 @@ func (this *Map) RebuildBBox() {
 	}
 }
 
+func (this *Map) AddRasterLayer(raset data.MosaicRaset) {
+	layer := newRasterLayer(raset)
+	this.RasLayers = append(this.RasLayers, layer)
+	this.BBox = this.BBox.Union(raset.GetBounds())
+}
+
 func (this *Map) AddLayer(feaset data.Featureset, theme Theme) {
 	if len(this.Name) == 0 {
 		this.Name = feaset.GetName()
@@ -79,7 +86,7 @@ func (this *Map) AddLayer(feaset data.Featureset, theme Theme) {
 		// 自己若没有设置投影系统，则取图层的
 		this.Proj = feaset.GetProjection()
 	}
-	layer := NewLayer(feaset, theme)
+	layer := newLayer(feaset, theme)
 	if theme != nil {
 		theme.MakeDefault(feaset)
 	}
@@ -92,6 +99,11 @@ func (this *Map) AddLayer(feaset data.Featureset, theme Theme) {
 func (this *Map) Prepare(dx, dy int) {
 	// this.canvas.ClearDC()
 	this.canvas.Init(this.BBox, dx, dy)
+}
+
+func (this *Map) PrepareImage(img *image.RGBA) {
+	// this.canvas.ClearDC()
+	this.canvas.InitFromImage(this.BBox, img)
 }
 
 // 选择，如点击、拉框、多边形等；操作后，被选中的对象放入track layer中
@@ -126,6 +138,9 @@ func (this *Map) Draw() (drawCount int64) {
 	destPrj := this.Proj
 	if !this.IsDynamicProj {
 		destPrj = nil
+	}
+	for _, layer := range this.RasLayers {
+		drawCount += layer.Draw(this.canvas, destPrj)
 	}
 	for _, layer := range this.Layers {
 		drawCount += layer.Draw(this.canvas, destPrj)

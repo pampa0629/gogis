@@ -67,7 +67,7 @@ func NewRect2D(minx, miny, maxx, maxy float64) (rect Rect2D) {
 
 // 是否为合法的矩形
 func (rect Rect2D) IsValid() bool {
-	return rect.Area() > 0
+	return rect.Max.X > rect.Min.X && rect.Max.Y > rect.Min.Y
 }
 
 func (rect Rect2D) GetBounds() Rect2D {
@@ -375,6 +375,19 @@ func (rect Rect2D) IsTouches(rect2 Rect2D) bool {
 // 相等
 func (rect Rect2D) IsEquals(rect2 Rect2D) bool {
 	return rect == rect2
+}
+
+// ================================================================ //
+
+// 两个矩形求交集；若不相交，返回的矩形不合法
+func (rect Rect2D) Intersects(rect2 Rect2D) (out Rect2D) {
+	// 两个最大值的较小者，作为新的最大值
+	out.Max.X = math.Min(rect.Max.X, rect2.Max.X)
+	out.Max.Y = math.Min(rect.Max.Y, rect2.Max.Y)
+	// 两个最小值的较大者，作为新的最小值
+	out.Min.X = math.Max(rect.Min.X, rect2.Min.X)
+	out.Min.Y = math.Max(rect.Min.Y, rect2.Min.Y)
+	return
 }
 
 // ================================================================ //

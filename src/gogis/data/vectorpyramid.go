@@ -13,14 +13,14 @@ import (
 
 // 矢量金字塔
 type VectorPyramid struct {
-	pyramids           [][]geometry.Geometry
+	Pyramids           [][]geometry.Geometry
 	minLevel, maxLevel int32
-	levels             map[int32]int32 // 通过level找到pyramids数组的index
+	Levels             map[int32]int32 // 通过level找到pyramids数组的index
 }
 
 func (this *VectorPyramid) Clear() {
-	this.pyramids = this.pyramids[:0]
-	this.levels = make(map[int32]int32, 0)
+	this.Pyramids = this.Pyramids[:0]
+	this.Levels = make(map[int32]int32, 0)
 }
 
 func saveMaps(maps map[int32]int32, w io.Writer) {
@@ -97,17 +97,17 @@ func (this *VectorPyramid) Save(prdPath string) {
 	defer prd.Close()
 	binary.Write(prd, binary.LittleEndian, this.minLevel)
 	binary.Write(prd, binary.LittleEndian, this.maxLevel)
-	saveMaps(this.levels, prd)
-	binary.Write(prd, binary.LittleEndian, int32(len(this.pyramids)))
-	for _, v := range this.pyramids {
+	saveMaps(this.Levels, prd)
+	binary.Write(prd, binary.LittleEndian, int32(len(this.Pyramids)))
+	for _, v := range this.Pyramids {
 		binary.Write(prd, binary.LittleEndian, int32(len(v)))
 	}
 
 	// 2) 分层,分ids存储的数据文件 n1-n2.data
 	var wg *sync.WaitGroup = new(sync.WaitGroup)
-	for i := 0; i < len(this.pyramids); i++ {
+	for i := 0; i < len(this.Pyramids); i++ {
 		wg.Add(1)
-		go this.saveOnePyramid(this.pyramids[i], i, prdPath, wg)
+		go this.saveOnePyramid(this.Pyramids[i], i, prdPath, wg)
 	}
 	wg.Wait()
 }
@@ -156,10 +156,10 @@ func (this *VectorPyramid) Load(prdPath string) {
 
 	binary.Read(prd, binary.LittleEndian, &this.minLevel)
 	binary.Read(prd, binary.LittleEndian, &this.maxLevel)
-	this.levels = loadMaps(prd)
+	this.Levels = loadMaps(prd)
 	var prdCount int32
 	binary.Read(prd, binary.LittleEndian, &prdCount)
-	this.pyramids = make([][]geometry.Geometry, prdCount)
+	this.Pyramids = make([][]geometry.Geometry, prdCount)
 
 	var wg *sync.WaitGroup = new(sync.WaitGroup)
 	for i := int32(0); i < prdCount; i++ {
@@ -168,7 +168,7 @@ func (this *VectorPyramid) Load(prdPath string) {
 
 		wg.Add(1)
 		// this.pyramids[i] = make([]geometry.Geometry, geoCount)
-		go this.loadOnePyramid(this.pyramids, int(i), int(prdCount), int(geoCount), prdPath, wg)
+		go this.loadOnePyramid(this.Pyramids, int(i), int(prdCount), int(geoCount), prdPath, wg)
 	}
 	wg.Wait()
 }
@@ -181,12 +181,12 @@ func (this *VectorPyramid) Build(bbox base.Rect2D, features []Feature) {
 	const LEVEL_GAP = 3 // 每隔若干层级构建一个矢量金字塔
 	gap := int((this.maxLevel-this.minLevel)/LEVEL_GAP) + 1
 	fmt.Println("矢量金字塔层数：", gap)
-	this.pyramids = make([][]geometry.Geometry, gap)
-	this.levels = make(map[int32]int32)
+	this.Pyramids = make([][]geometry.Geometry, gap)
+	this.Levels = make(map[int32]int32)
 	index := int32(0)
 	for level := this.minLevel; level <= this.maxLevel; level += LEVEL_GAP {
-		this.levels[level] = index
-		this.pyramids[index] = make([]geometry.Geometry, len(features))
+		this.Levels[level] = index
+		this.Pyramids[index] = make([]geometry.Geometry, len(features))
 		index++
 	}
 
@@ -228,9 +228,9 @@ func (this *VectorPyramid) thinOneLevel(level int, dis2 float64, features []Feat
 
 func (this *VectorPyramid) thinBatch(start, count, level int, features []Feature, dis2 float64, wg2 *sync.WaitGroup) {
 	defer wg2.Done()
-	index := this.levels[int32(level)]
+	index := this.Levels[int32(level)]
 	end := start + count
 	for i := start; i < end; i++ {
-		this.pyramids[index][i] = features[i].Geo.Thin(dis2, 120.0)
+		this.Pyramids[index][i] = features[i].Geo.Thin(dis2, 120.0)
 	}
 }

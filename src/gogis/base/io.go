@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"reflect"
@@ -184,4 +185,17 @@ func BoolToInt32(value bool) (result int32) {
 		result = 1
 	}
 	return result
+}
+
+func CopyFile(dstFileName string, srcFileName string) (written int64, err error) {
+	srcFile, err := os.Open(srcFileName)
+	PrintError("OpenFile", err)
+	defer srcFile.Close()
+
+	//打开dstFileName
+	dstFile, err := os.OpenFile(dstFileName, os.O_WRONLY|os.O_CREATE, 0755)
+	PrintError("CreateFile", err)
+	defer dstFile.Close()
+
+	return io.Copy(dstFile, srcFile)
 }

@@ -41,6 +41,13 @@ func (this *Canvas) Init(bbox base.Rect2D, width, height int) {
 	// fmt.Println("dc:", this.dc)
 }
 
+func (this *Canvas) InitFromImage(bbox base.Rect2D, img *image.RGBA) {
+	this.Params.Init(bbox, img.Rect.Size().X, img.Rect.Size().Y)
+	// this.dc = gg.NewContext(width, height)
+	this.dc = gg.NewContextForRGBA(img)
+	// fmt.Println("dc:", this.dc)
+}
+
 // 清空DC，为下次绘制做好准备
 func (this *Canvas) ClearDC() {
 	this.dc.Clear()

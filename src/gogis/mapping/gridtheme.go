@@ -3,6 +3,7 @@ package mapping
 import (
 	"gogis/base"
 	"gogis/data"
+	"gogis/data/es"
 	"gogis/draw"
 	"gogis/geometry"
 	"image/color"
@@ -53,7 +54,7 @@ func (this *GridTheme) Draw(canvas *draw.Canvas, feaItr data.FeatureIterator, pr
 	canvas.SetTextColor(color.RGBA{0, 255, 0, 255})
 	var style draw.Style
 
-	feait := feaItr.(*data.EsFeaItr)
+	feait := feaItr.(*es.EsFeaItr)
 	width, height := canvas.GetSize()
 	precision := calcGridPrecision(canvas.Params.GetBounds(), width, height)
 	bboxes, counts := feait.AggGrids(precision)

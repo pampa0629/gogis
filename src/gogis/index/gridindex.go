@@ -28,7 +28,11 @@ func (this *GridIndex) Save(w io.Writer) {
 	binary.Write(w, binary.LittleEndian, this.len)
 	binary.Write(w, binary.LittleEndian, this.row)
 	binary.Write(w, binary.LittleEndian, this.col)
-	binary.Write(w, binary.LittleEndian, this.bboxes)
+
+	for _, v := range this.bboxes {
+		binary.Write(w, binary.LittleEndian, v)
+	}
+
 	for i := int32(0); i < this.row; i++ {
 		for j := int32(0); j < this.col; j++ {
 			count := int32(len(this.ids[i][j]))
@@ -48,8 +52,8 @@ func (this *GridIndex) Load(r io.Reader) {
 	this.bboxes = make([][]base.Rect2D, this.row)
 	for i := int32(0); i < this.row; i++ {
 		this.bboxes[i] = make([]base.Rect2D, this.col)
+		binary.Read(r, binary.LittleEndian, this.bboxes[i])
 	}
-	binary.Read(r, binary.LittleEndian, this.bboxes)
 
 	this.ids = make([][][]int64, this.row)
 	this.idBboxes = make([][][]base.Rect2D, this.row)

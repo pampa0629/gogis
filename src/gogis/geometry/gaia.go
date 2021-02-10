@@ -1,6 +1,7 @@
 package geometry
 
 import (
+	"bytes"
 	"encoding/binary"
 	"gogis/base"
 	"io"
@@ -17,6 +18,13 @@ type GAIAInfo struct {
 	mark  byte
 }
 
+func (this *GAIAInfo) Init(bbox base.Rect2D, srid int32) {
+	this.bbox = bbox
+	this.srid = srid
+	this.order = 1
+	this.mark = 0x7c
+}
+
 func (this *GAIAInfo) From(r io.Reader) binary.ByteOrder {
 	binary.Read(r, binary.LittleEndian, &this.order)
 	byteOrder := GAIAByte2Order(this.order)
@@ -27,6 +35,15 @@ func (this *GAIAInfo) From(r io.Reader) binary.ByteOrder {
 		panic("gaia info mark error:" + string(this.mark))
 	}
 	return byteOrder
+}
+
+func (this *GAIAInfo) To() []byte {
+	var buf bytes.Buffer
+	binary.Write(&buf, binary.LittleEndian, this.order)
+	binary.Write(&buf, binary.LittleEndian, this.srid)
+	binary.Write(&buf, binary.LittleEndian, this.bbox)
+	binary.Write(&buf, binary.LittleEndian, this.mark)
+	return buf.Bytes()
 }
 
 // 字节顺序，一个字节存储
@@ -67,6 +84,25 @@ func gaia2Polygon(r io.Reader, byteOrder binary.ByteOrder) [][]base.Point2D {
 			pnts[i] = gaia2Ring(r, byteOrder)
 		}
 		return pnts
+	}
+	return nil
+}
+
+// LineStringEntity {
+// 	static byte gaiaEntityMark = 0x69;//子对象标识
+// 	static int32 geoType = 2; //Geometry 类型标识
+// 	int32 numPoints; //点个数
+// 	Point[] pnts[numPoints]; //每个点的坐标值
+// 	}
+func gaia2LineString(r io.Reader, byteOrder binary.ByteOrder) []base.Point2D {
+	var mark byte
+	binary.Read(r, binary.LittleEndian, &mark)
+	if mark == 0X69 {
+		var geoType int32
+		binary.Read(r, byteOrder, &geoType)
+		if geoType == 2 {
+			return gaia2Ring(r, byteOrder)
+		}
 	}
 	return nil
 }

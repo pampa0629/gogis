@@ -314,7 +314,7 @@ func (this *ZOrderIndex) getAllCodes() (codes []int32) {
 			}
 		}
 	} else {
-		totalCount := int32(calcCodeCount(int(this.level)))
+		totalCount := int32(CalcCodeCount(int(this.level)))
 		codes = make([]int32, totalCount)
 		for i := int32(0); i < totalCount; i++ {
 			codes[i] = i
@@ -325,7 +325,7 @@ func (this *ZOrderIndex) getAllCodes() (codes []int32) {
 }
 
 // 根据层级，计算cell的总数
-func calcCodeCount(level int) (count int) {
+func CalcCodeCount(level int) (count int) {
 	for i := 0; i <= level; i++ {
 		count += int(math.Pow(4.0, float64(i)))
 	}

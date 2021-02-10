@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gogis/base"
-	"gogis/data"
+	"gogis/data/shape"
 	"gogis/mapping"
 	"image/color"
 	"time"
@@ -43,7 +43,7 @@ func stestMapFile() {
 
 	var filename = gPath + gTitle + gExt
 
-	feaset := data.OpenShape(filename)
+	feaset := shape.OpenShape(filename, true, []string{})
 	gmap := mapping.NewMap()
 	gmap.AddLayer(feaset, nil)
 	fmt.Println("map:", gmap)

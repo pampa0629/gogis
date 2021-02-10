@@ -47,7 +47,7 @@ type StringStruct struct {
 	len int
 }
 
-func mainc() {
+func cmain() {
 	str := "Hello from stdio"
 	ss := (*StringStruct)(unsafe.Pointer(&str))
 	// fmt.Println(unsafe.Pointer(&str))

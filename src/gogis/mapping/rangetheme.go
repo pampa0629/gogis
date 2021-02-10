@@ -72,7 +72,7 @@ func (this *RangeTheme) MakeDefault(feaset data.Featureset) {
 
 func (this *RangeTheme) Draw(canvas *draw.Canvas, feait data.FeatureIterator, prjc *base.PrjConvert) int64 {
 	objCount := 1000
-	forCount := feait.PrepareBatch(objCount)
+	forCount := feait.BeforeNext(objCount)
 
 	for i := 0; i < forCount; i++ {
 		if feas, ok := feait.BatchNext(i); ok {

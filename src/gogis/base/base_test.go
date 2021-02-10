@@ -23,24 +23,24 @@ func TestRectPoint(t *testing.T) {
 	rect.Max = Point2D{100, 100}
 
 	// 矩形包含点
-	if rect.IsContainsPoint(Point2D{0, 0}) {
+	if rect.IsContainsPnt(Point2D{0, 0}) {
 		t.Errorf("矩形包含点错误1")
 	}
-	if !rect.IsContainsPoint(Point2D{50, 50}) {
+	if !rect.IsContainsPnt(Point2D{50, 50}) {
 		t.Errorf("矩形包含点错误2")
 	}
-	if rect.IsContainsPoint(Point2D{-1, -1}) {
+	if rect.IsContainsPnt(Point2D{-1, -1}) {
 		t.Errorf("矩形包含点错误3")
 	}
 
 	// 矩形覆盖点
-	if !rect.IsCoverPoint(Point2D{0, 0}) {
+	if !rect.IsCoversPnt(Point2D{0, 0}) {
 		t.Errorf("矩形覆盖点错误1")
 	}
-	if !rect.IsCoverPoint(Point2D{50, 50}) {
+	if !rect.IsCoversPnt(Point2D{50, 50}) {
 		t.Errorf("矩形覆盖点错误2")
 	}
-	if rect.IsCoverPoint(Point2D{-1, -1}) {
+	if rect.IsCoversPnt(Point2D{-1, -1}) {
 		t.Errorf("矩形覆盖点错误3")
 	}
 
@@ -155,25 +155,25 @@ func TestRectRect(t *testing.T) {
 	}
 
 	// 矩形与矩形有交叠，即相交部分存在二维
-	if rect.IsOverlap(rect1) {
+	if rect.IsOverlaps(rect1) {
 		t.Errorf("矩形交叠矩形错误1")
 	}
-	if rect.IsOverlap(rect2) {
+	if rect.IsOverlaps(rect2) {
 		t.Errorf("矩形交叠矩形错误2")
 	}
-	if rect.IsOverlap(rect3) {
+	if rect.IsOverlaps(rect3) {
 		t.Errorf("矩形交叠矩形错误3")
 	}
-	if !rect.IsOverlap(rect4) {
+	if !rect.IsOverlaps(rect4) {
 		t.Errorf("矩形交叠矩形错误4")
 	}
-	if !rect.IsOverlap(rect5) {
+	if !rect.IsOverlaps(rect5) {
 		t.Errorf("矩形交叠矩形错误5")
 	}
-	if !rect.IsOverlap(rect6) {
+	if !rect.IsOverlaps(rect6) {
 		t.Errorf("矩形交叠矩形错误6")
 	}
-	if !rect.IsOverlap(rect7) {
+	if !rect.IsOverlaps(rect7) {
 		t.Errorf("矩形交叠矩形错误7")
 	}
 

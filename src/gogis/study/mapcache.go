@@ -2,7 +2,7 @@ package main
 
 import (
 	"gogis/base"
-	"gogis/data"
+	"gogis/data/shape"
 	"gogis/draw"
 	"gogis/mapping"
 )
@@ -27,15 +27,15 @@ func startMap() *mapping.Map {
 
 	// var gTitle = "chinapnt_84"
 
-	var gTitle = "DLTB"
+	// var gTitle = "DLTB"
 
-	// var gTitle = "JBNTBHTB"
+	var gTitle = "JBNTBHTB"
 
 	var gExt = ".shp"
 	var filename = gPath + gTitle + gExt
 
 	// 打开shape文件
-	feaset := data.OpenShape(filename)
+	feaset := shape.OpenShape(filename, true, []string{})
 	// // 创建地图
 	gmap := mapping.NewMap()
 	gmap.AddLayer(feaset, nil)

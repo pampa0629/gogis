@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"gogis/base"
 	"gogis/data"
+	_ "gogis/data/memory"
+	_ "gogis/data/shape"
 	"gogis/mapping"
 	"os"
 
@@ -23,13 +25,15 @@ func testMapTile() {
 	// var gTitle = "JBNTBHTB"
 
 	tr := base.NewTimeRecorder()
-	var store data.ShpmemStore
+	// var store data.ShpmemStore
+	store := data.NewDatastore(data.StoreShape)
 	params := data.NewConnParams()
 	params["filename"] = "C:/temp/" + gTitle + ".shp"
 	store.Open(params)
 	// feaset, _ := sqlDB.GetFeasetByNum(0)
 	feaset, _ := store.GetFeasetByName(gTitle)
 	feaset.Open()
+	// feaset = data.Cache(feaset)
 	tr.Output("open shp by memery")
 
 	gmap := mapping.NewMap()

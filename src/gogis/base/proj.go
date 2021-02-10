@@ -20,6 +20,10 @@ func init() {
 	goProj.Load()
 }
 
+func GlobalProj() *Proj {
+	return &goProj
+}
+
 // 空间参考系的全部信息，epsg、proj4和wkt，三者有一个即可确定
 type ProjInfo struct {
 	Epsg  int
@@ -36,16 +40,19 @@ func (this *ProjInfo) IsProjection() bool {
 }
 
 type Proj struct {
-	projInfos []*ProjInfo
+	ProjInfos []*ProjInfo
+	Filename  string
 }
 
 func (this *Proj) Load() {
 	fmt.Println("app path:", os.Args[0])
 	dbPath := GetAbsolutePath(os.Args[0], "./proj.db")
-	if !IsExist(dbPath) {
-		dbPath = GetAbsolutePath(os.Args[0], "../../../proj.db")
+	for relPath := "proj.db"; !IsExist(dbPath); relPath = "../" + relPath {
+		dbPath = GetAbsolutePath(os.Args[0], relPath)
 	}
+
 	db, err := sql.Open("sqlite3", dbPath)
+	this.Filename = dbPath
 	PrintError("open proj db", err)
 	sql := "select srid,ref_sys_name,proj4text,srtext from spatial_ref_sys"
 	rows, err := db.Query(sql)
@@ -57,7 +64,7 @@ func (this *Proj) Load() {
 			oneProj.Name = strings.TrimSpace(oneProj.Name)
 			oneProj.Proj4 = strings.TrimSpace(oneProj.Proj4)
 			oneProj.Wkt = strings.TrimSpace(oneProj.Wkt)
-			this.projInfos = append(this.projInfos, &oneProj)
+			this.ProjInfos = append(this.ProjInfos, &oneProj)
 		}
 	}
 	rows.Close() // 记得关闭
@@ -65,7 +72,7 @@ func (this *Proj) Load() {
 
 // 根据 wkt string 得到 proj info
 func PrjFromEpsg(epsg int) *ProjInfo {
-	for _, v := range goProj.projInfos {
+	for _, v := range goProj.ProjInfos {
 		if v.Epsg == epsg {
 			return v
 		}
@@ -98,7 +105,7 @@ func (this *Proj) matchEpsg(wkt *WktProj) *ProjInfo {
 	name = strings.Replace(name, "_19", " ", -1)
 	name = strings.Replace(name, "_", " ", -1)
 	name = strings.Replace(name, "\"", "", -1)
-	for _, v := range this.projInfos {
+	for _, v := range this.ProjInfos {
 		if v.Name == name {
 			return v
 		} else {

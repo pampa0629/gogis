@@ -7,6 +7,8 @@ import (
 	"gogis/data"
 	"gogis/draw"
 	"math"
+	"strconv"
+	// "github.com/qianlnk/pgbar"
 )
 
 // 定义坐标系常量
@@ -49,58 +51,66 @@ func (this *MapTile) Cache(path string, mapname string, maptype draw.MapType) {
 	this.tilestore = new(data.FileTileStore)    // data.FileTileStore LeveldbTileStore
 	this.tilestore.Open(path, mapname, maptype) // TypePng
 
+	// 进程条
+	pgbar, bars := this.prepareBars(mapname, minLevel, maxLevel)
+
 	// 第二步，分层级和范围进行并发生成缓存
 	// var wg *sync.WaitGroup = new(sync.WaitGroup)
 	var gm *base.GoMax = new(base.GoMax)
 	gm.Init(5000) // 涉及文件操作，最大值10000
 	for i := minLevel; i <= maxLevel; i++ {
-		// wg.Add(1)
 		gm.Add()
-		go this.CacheOneLevel(int(i), path, maptype, gm)
+		go this.CacheOneLevel(int(i), path, maptype, gm, bars[i-minLevel])
 	}
 	gm.Wait()
+	pgbar.End()
 
 	this.tilestore.Close()
+	fmt.Println() // 回车
+}
+
+func (this *MapTile) prepareBars(mapname string, minLevel, maxLevel int32) (*base.Pgbar, []*base.Bar) {
+	// init033()
+	pgb := base.NewPgbar("正在生成地图缓存:" + mapname)
+	bars := make([]*base.Bar, maxLevel-minLevel+1)
+
+	for i := minLevel; i <= maxLevel; i++ {
+		minCol, maxCol, minRow, maxRow := calcColRow(int(i), this.amap.BBox, this.epsg)
+		msg := "Level:" + strconv.Itoa(int(i))
+		bars[i-minLevel] = pgb.NewSubbar(msg, int64((maxCol-minCol+1)*(maxRow-minRow+1)))
+	}
+	return pgb, bars
 }
 
 // 缓存指定的层级
-// func (this *MapTile) CacheOneLevel(level int, path string, maptype draw.MapType, wg *sync.WaitGroup) {
-func (this *MapTile) CacheOneLevel(level int, path string, maptype draw.MapType, gm *base.GoMax) {
+func (this *MapTile) CacheOneLevel(level int, path string, maptype draw.MapType, gm *base.GoMax, bar *base.Bar) {
 	defer gm.Done()
 
-	// 1，创建该层级根目录
-	// levelPath := filepath.Join(path, strconv.Itoa(level))
-	// os.MkdirAll(levelPath, os.ModePerm)
-
-	// 2，根据范围计算下一级子目录
+	// 根据范围计算下一级子目录
 	// 先计算，当前层级每个瓦片的边长
 	minCol, maxCol, minRow, maxRow := calcColRow(level, this.amap.BBox, this.epsg)
-
-	// 开始生成缓存
-	fmt.Printf("开始生成第%v层瓦片，行范围：%v-%v，列范围：%v-%v", level, minRow, maxRow, minCol, maxCol)
-	fmt.Println("")
-
-	// 3，并行生成 某个瓦片
+	// 并行生成 某个瓦片
 	for j := minCol; j <= maxCol; j++ {
 		for i := minRow; i <= maxRow; i++ {
-			// wg.Add(1)
 			gm.Add()
+			// bar.Add(1)
 			// 具体生成瓦片文件
-			go this.CacheOneTile(level, j, i, maptype, gm)
+			go this.CacheOneTile(level, j, i, maptype, gm, bar)
 		}
-		// base.DeleteEmptyDir(colPath)
 	}
-	// base.DeleteEmptyDir(levelPath)
 }
 
 // 具体生成一个瓦片文件
-func (this *MapTile) CacheOneTile(level int, col int, row int, maptype draw.MapType, gm *base.GoMax) {
+func (this *MapTile) CacheOneTile(level int, col int, row int, maptype draw.MapType, gm *base.GoMax, bar *base.Bar) {
 	data, err := this.CacheOneTile2Bytes(level, col, row, maptype)
 	if data != nil && err == nil {
 		this.tilestore.Put(level, col, row, data)
 	}
 	if gm != nil {
 		defer gm.Done()
+	}
+	if bar != nil {
+		defer bar.Add(1)
 	}
 }
 

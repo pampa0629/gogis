@@ -252,6 +252,8 @@ func (this *GeoPolygon) To(mode GeoMode) []byte {
 		return this.toWkb()
 	case WKT:
 		// todo
+	case GAIA:
+		return this.toGAIA()
 	}
 	return nil
 }
@@ -268,6 +270,27 @@ func (this *GeoPolygon) toWkb() []byte {
 			WkbPolygon2Bytes(v, &buf)
 		}
 	}
+	return buf.Bytes()
+}
+
+func (this *GeoPolygon) toGAIA() []byte {
+	var buf bytes.Buffer
+	binary.Write(&buf, binary.LittleEndian, byte(0))
+	var info GAIAInfo
+	info.Init(this.BBox, 0)
+	binary.Write(&buf, binary.LittleEndian, info.To())
+	binary.Write(&buf, binary.LittleEndian, int32(6)) // type
+	binary.Write(&buf, binary.LittleEndian, int32(len(this.Points)))
+	for _, v := range this.Points {
+		binary.Write(&buf, binary.LittleEndian, byte(0x69))
+		binary.Write(&buf, binary.LittleEndian, int32(3))
+		binary.Write(&buf, binary.LittleEndian, int32(len(v)))
+		for _, vv := range v {
+			binary.Write(&buf, binary.LittleEndian, int32(len(vv)))
+			binary.Write(&buf, binary.LittleEndian, vv)
+		}
+	}
+	binary.Write(&buf, binary.LittleEndian, byte(0xFE))
 	return buf.Bytes()
 }
 

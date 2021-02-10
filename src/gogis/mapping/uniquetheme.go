@@ -31,9 +31,10 @@ func (this *UniqueTheme) MakeDefault(feaset data.Featureset) {
 	this.Field = "gid" // todo
 	count := feaset.GetCount()
 	this.Styles = make(map[string]draw.Style, count)
-	feait := feaset.QueryByBounds(feaset.GetBounds())
+	bbox := feaset.GetBounds()
+	feait := feaset.Query(&data.QueryDef{SpatialObj: &bbox})
 	objCount := 1000
-	forCount := feait.PrepareBatch(objCount)
+	forCount := feait.BeforeNext(objCount)
 
 	for i := 0; i < forCount; i++ {
 		if feas, ok := feait.BatchNext(i); ok {
@@ -50,7 +51,7 @@ func (this *UniqueTheme) WhenOpenning() {
 
 func (this *UniqueTheme) Draw(canvas *draw.Canvas, feait data.FeatureIterator, prjc *base.PrjConvert) int64 {
 	objCount := 1000
-	forCount := feait.PrepareBatch(objCount)
+	forCount := feait.BeforeNext(objCount)
 
 	for i := 0; i < forCount; i++ {
 		if feas, ok := feait.BatchNext(i); ok {

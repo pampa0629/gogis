@@ -159,6 +159,8 @@ func (this *GeoPoint) To(mode GeoMode) []byte {
 		return this.toWKB()
 	case WKT:
 		// todo
+	case GAIA:
+		return this.toGAIA()
 	}
 	return nil
 }
@@ -168,6 +170,23 @@ func (this *GeoPoint) toWKB() []byte {
 	binary.Write(&buf, binary.LittleEndian, byte(WkbLittle))
 	binary.Write(&buf, binary.LittleEndian, uint32(TGeoPoint))
 	binary.Write(&buf, binary.LittleEndian, this.Point2D)
+	return buf.Bytes()
+}
+
+func (this *GeoPoint) toGAIA() []byte {
+	var buf bytes.Buffer
+	binary.Write(&buf, binary.LittleEndian, byte(0))
+
+	var info GAIAInfo
+	var bbox base.Rect2D
+	bbox.Max = this.Point2D
+	bbox.Min = this.Point2D
+	info.Init(bbox, 0)
+
+	binary.Write(&buf, binary.LittleEndian, info.To())
+	binary.Write(&buf, binary.LittleEndian, int32(1)) // type
+	binary.Write(&buf, binary.LittleEndian, this.Point2D)
+	binary.Write(&buf, binary.LittleEndian, byte(0XFE))
 	return buf.Bytes()
 }
 

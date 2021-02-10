@@ -12,11 +12,69 @@ import (
 	// "github.com/stretchr/testify/require"
 )
 
-func sqlmain() {
+func sqlitemain() {
 	// test2()
-	testSpatialite2()
+	// testSpatialite2()
 	// testUDBX()
 	// testCreate()
+	// testSelect()
+	test()
+}
+
+func test() {
+	db, err := sql.Open("sqlite3", "c:/temp/Point2.udbx")
+	base.PrintError("", err)
+	var count int64
+	row := db.QueryRow("select count(*) from point where g_index_code in(0,1,2,14663)")
+	err = row.Scan(&count)
+	base.PrintError("", err)
+	fmt.Println("count:", count)
+}
+
+func testSelect() {
+	db0, err := sql.Open("sqlite3", "c:/temp/Point2-2.udbx")
+	base.PrintError("sql.Open", err)
+
+	rs, err := db0.Query("select smid from point ")
+	base.PrintError("db0.Query", err)
+	defer rs.Close()
+
+	db, err := sql.Open("sqlite3", "c:/temp/Point2.udbx")
+	tr := base.NewTimeRecorder()
+
+	tx, err := db.Begin()
+	base.PrintError("db.Begin", err)
+	stmt, err := tx.Prepare("UPDATE Point  SET g_index_code =? where SmID=?")
+
+	for rs.Next() {
+		var id int64
+		rs.Scan(&id)
+		_, err := stmt.Exec(id*2, id)
+		base.PrintError("stmt.Exec", err)
+		if id%1000000 == 0 {
+			tr.Output(strconv.Itoa(int(id)))
+		}
+
+		// if id%1000 == 0 {
+		// 	err := tx.Commit()
+		// 	base.PrintError("tx.Commit", err)
+		// 	err = stmt.Close()
+		// 	base.PrintError("stmt.Close", err)
+		// 	// db.Close()
+
+		// 	tr.Output(strconv.Itoa(int(id)))
+
+		// 	// db, _ = sql.Open("sqlite3", "c:/temp/Point2.udbx")
+		// 	tx, err := db.Begin()
+		// 	base.PrintError("db.Begin", err)
+		// 	stmt, err = tx.Prepare("UPDATE Point  SET g_index_code =? where SmID=?")
+		// 	base.PrintError("tx.Prepare", err)
+		// }
+	}
+	tx.Commit()
+	stmt.Close()
+	db.Close()
+	tr.Output("update")
 }
 
 func testSpatialite2() {

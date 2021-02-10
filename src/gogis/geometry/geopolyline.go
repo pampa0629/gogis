@@ -156,6 +156,8 @@ func (this *GeoPolyline) From(data []byte, mode GeoMode) bool {
 	switch mode {
 	case WKB:
 		return this.fromWkb(buf)
+	case GAIA:
+		return this.fromGAIA(buf)
 	// case WKT: // todo
 	case Shape:
 		return this.fromShp(buf)
@@ -186,6 +188,33 @@ func (this *GeoPolyline) fromWkb(r io.Reader) bool {
 	}
 	this.ComputeBounds()
 	return true
+}
+
+func (this *GeoPolyline) fromGAIA(r io.Reader) bool {
+	var begin byte
+	binary.Read(r, binary.LittleEndian, &begin)
+	if begin == byte(0X00) {
+		var info GAIAInfo
+		byteOrder := info.From(r)
+		this.BBox = info.bbox
+
+		var geoType int32
+		binary.Read(r, byteOrder, &geoType)
+		if geoType == 5 {
+			var subCount int32
+			binary.Read(r, byteOrder, &subCount)
+			this.Points = make([][]base.Point2D, subCount)
+			for i := int32(0); i < subCount; i++ {
+				// PolygonEntity {
+				// 	static byte gaiaEntityMark = 0x69; //子对象标识
+				// 	PolygonData data; //子对象数据
+				// 	}
+				this.Points[i] = gaia2LineString(r, byteOrder)
+			}
+			return true
+		}
+	}
+	return false
 }
 
 // type shpPolyline struct {
@@ -219,6 +248,8 @@ func (this *GeoPolyline) To(mode GeoMode) []byte {
 		return this.toWkb()
 	case WKT:
 		// todo
+	case GAIA:
+		return this.toGAIA()
 	}
 	return nil
 }
@@ -235,6 +266,24 @@ func (this *GeoPolyline) toWkb() []byte {
 			WkbLineString2Bytes(v, &buf)
 		}
 	}
+	return buf.Bytes()
+}
+
+func (this *GeoPolyline) toGAIA() []byte {
+	var buf bytes.Buffer
+	binary.Write(&buf, binary.LittleEndian, byte(0))
+	var info GAIAInfo
+	info.Init(this.BBox, 0)
+	binary.Write(&buf, binary.LittleEndian, info.To())
+	binary.Write(&buf, binary.LittleEndian, int32(5)) // type
+	binary.Write(&buf, binary.LittleEndian, int32(len(this.Points)))
+	for _, v := range this.Points {
+		binary.Write(&buf, binary.LittleEndian, byte(0x69))
+		binary.Write(&buf, binary.LittleEndian, int32(2))
+		binary.Write(&buf, binary.LittleEndian, int32(len(v)))
+		binary.Write(&buf, binary.LittleEndian, v)
+	}
+	binary.Write(&buf, binary.LittleEndian, byte(0xFE))
 	return buf.Bytes()
 }
 

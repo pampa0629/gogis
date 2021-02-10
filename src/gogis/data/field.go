@@ -35,26 +35,26 @@ type FieldComp struct {
 	Type  FieldType
 }
 
-func (this *FieldComp) Match(fea Feature) bool {
+func (this *FieldComp) Match(atts Atts) bool {
 	switch this.Type {
 	case TypeBool:
-		if !base.IsMatchBool(fea.Atts[this.Name].(bool), this.Op, this.Value.(bool)) {
+		if !base.IsMatchBool(atts[this.Name].(bool), this.Op, this.Value.(bool)) {
 			return false
 		}
 	case TypeInt:
-		if !base.IsMatchInt(fea.Atts[this.Name].(int), this.Op, this.Value.(int)) {
+		if !base.IsMatchInt(atts[this.Name].(int), this.Op, this.Value.(int)) {
 			return false
 		}
 	case TypeFloat:
-		if !base.IsMatchFloat(fea.Atts[this.Name].(float64), this.Op, this.Value.(float64)) {
+		if !base.IsMatchFloat(atts[this.Name].(float64), this.Op, this.Value.(float64)) {
 			return false
 		}
 	case TypeString:
-		if !base.IsMatchString(fea.Atts[this.Name].(string), this.Op, this.Value.(string)) {
+		if !base.IsMatchString(atts[this.Name].(string), this.Op, this.Value.(string)) {
 			return false
 		}
 	case TypeTime:
-		if !base.IsMatchTime(fea.Atts[this.Name].(time.Time), this.Op, this.Value.(time.Time)) {
+		if !base.IsMatchTime(atts[this.Name].(time.Time), this.Op, this.Value.(time.Time)) {
 			return false
 		}
 	case TypeBlob:
@@ -102,15 +102,15 @@ type FieldComps struct {
 }
 
 // 看这个fea是否满足要求
-func (this *FieldComps) Match(fea Feature) (res bool) {
+func (this *FieldComps) Match(atts Atts) (res bool) {
 	res = true
 	// log := this.Log
 	for _, v := range this.Comps {
 		if comp, ok := v.(FieldComp); ok {
-			match := comp.Match(fea)
+			match := comp.Match(atts)
 			res = LogicalJudge(res, comp.Log, match)
 		} else if comps, ok := v.(FieldComps); ok {
-			match := comps.Match(fea)
+			match := comps.Match(atts)
 			res = LogicalJudge(res, comps.Log, match)
 		}
 	}
@@ -245,6 +245,8 @@ func GetFieldTypeByName(finfos []FieldInfo, name string) FieldType {
 	}
 	return TypeUnknown
 }
+
+const TIME_LAYOUT = "2006-01-02 15:04:05"
 
 // 把字符串性质的值，根据字段类型，转化为特定数据类型
 func String2value(str string, ftype FieldType) interface{} {

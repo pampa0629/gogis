@@ -5,6 +5,10 @@ package base
 import (
 	"fmt"
 	"math"
+	"math/rand"
+	"reflect"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -206,6 +210,49 @@ func Angle(pnt1, pnt0, pnt2 Point2D) float64 {
 	y := x1*y2 - x2*y1
 	radian := math.Acos(x / math.Sqrt(x*x+y*y))
 	return radian * 180.0 / math.Pi
+}
+
+// ================================================================ //
+
+// 得到不在names内的名字，不区分大小写
+func GetUniqueName(name string, names []string) (out string) {
+	out = name
+	for i := 0; i < len(names); i++ {
+		if strings.ToLower(out) == strings.ToLower(names[i]) {
+			add := strconv.FormatInt(time.Now().Unix()+int64(rand.Intn(999)), 10)
+			out = name + add[len(add)-3:] // 只要最后三位
+			i = -1                        // 重新来一遍
+		}
+	}
+	return name
+}
+
+// 判断字符串是否在数组中，不区分大小写
+func InStrings(str string, strs []string) bool {
+	for _, v := range strs {
+		if strings.ToLower(str) == strings.ToLower(v) {
+			return true
+		}
+	}
+	return false
+}
+
+// 判断元素是否在集合中
+func InArray(obj interface{}, target interface{}) bool {
+	targetValue := reflect.ValueOf(target)
+	switch reflect.TypeOf(target).Kind() {
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < targetValue.Len(); i++ {
+			if targetValue.Index(i).Interface() == obj {
+				return true
+			}
+		}
+	case reflect.Map:
+		if targetValue.MapIndex(reflect.ValueOf(obj)).IsValid() {
+			return true
+		}
+	}
+	return false
 }
 
 // ================================================================ //
