@@ -22,6 +22,17 @@ type RTreeIndex struct {
 	idCount   int64 // 索引所管辖的id数量
 }
 
+// 获取一共有多少层，包括root层
+func (this *RTreeNode) Level() (level int) {
+	level = base.IntMax(level, int(this.level+1))
+	if !this.isLeaf {
+		for _, node := range this.nodes {
+			level = base.IntMax(level, node.Level())
+		}
+	}
+	return
+}
+
 func (this *RTreeIndex) Type() SpatialIndexType {
 	return TypeRTreeIndex
 }
@@ -77,19 +88,6 @@ func (this *RTreeIndex) Save(w io.Writer) {
 	this.RTreeNode.save(w)
 }
 
-// 保存索引头
-// func (this *RTreeIndex) saveHeader(w io.Writer) {
-// 	headerLength := int32(100)                           // 记录头100字节
-// 	binary.Write(w, binary.LittleEndian, headerLength)   // 4
-// 	binary.Write(w, binary.LittleEndian, TypeRTreeIndex) // 4
-// 	version := int32(1)
-// 	binary.Write(w, binary.LittleEndian, version) // 4
-// 	// binary.Write(w, binary.LittleEndian, this.objCount) // 4
-// 	binary.Write(w, binary.LittleEndian, this.idCount) // 8
-
-// 	binary.Write(w, binary.LittleEndian, [80]byte{}) //
-// }
-
 // 自我检查，发现构建好的索引是否符合基本规则
 // 可能的问题包括：
 // level 没有按照0-1-2递增
@@ -135,6 +133,10 @@ type RTreeNode struct {
 
 	ids    []int64       // 对象id
 	bboxes []base.Rect2D // 对象bounds
+}
+
+func (this *RTreeNode) GetData() (int, bool, base.Rect2D, []*RTreeNode, []int64) {
+	return int(this.level), this.isLeaf, this.bbox, this.nodes, this.ids
 }
 
 // 保存节点
@@ -226,9 +228,6 @@ func (this *RTreeNode) checkManager() bool {
 		if len(this.nodes) > 0 {
 			return false
 		}
-		// if len(this.ids) > objCount {
-		// 	return false
-		// }
 	}
 
 	if !this.isLeaf {
@@ -237,9 +236,6 @@ func (this *RTreeNode) checkManager() bool {
 		if bboxCount > 0 || idCount > 0 || bboxCount != idCount {
 			return false
 		}
-		// if len(this.nodes) > objCount {
-		// 	return false
-		// }
 		for _, v := range this.nodes {
 			if !v.checkManager() {
 				return false
@@ -359,9 +355,6 @@ func (this *RTreeNode) AddOne(bbox base.Rect2D, id int64) {
 // 找到最合适的子节点，以便往该子节点中增加对象
 // 标准为：对象加入后，使得节点范围的面积增加值最小
 func (this *RTreeNode) findBestChild(bbox base.Rect2D) *RTreeNode {
-	// fmt.Println("RTreeNode.findBestChild()", bbox)
-	// this.String()
-
 	minMoreArea := math.MaxFloat64 // 新增加的面积，一开始设置为最大值
 	minNode := (*RTreeNode)(nil)
 	for _, node := range this.nodes {

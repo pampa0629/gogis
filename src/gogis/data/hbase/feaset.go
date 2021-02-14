@@ -49,7 +49,8 @@ func (this *HbaseFeaset) updateFeaTable() {
 			"count":       base.Int64ToBytes(this.count),
 		},
 	}
-	putRequest, _ := hrpc.NewPutStr(context.Background(), HBASE_SYS_TABLE, this.Name, value)
+	putRequest, err := hrpc.NewPutStr(context.Background(), HBASE_SYS_TABLE, this.Name, value)
+	base.PrintError("hrpc.NewPutStr", err)
 	client.Put(putRequest)
 	this.store.closeClient(client)
 }

@@ -46,6 +46,7 @@ func NewMapTile(amap *Map, espg EPSG) *MapTile {
 func (this *MapTile) Cache(path string, mapname string, maptype draw.MapType) {
 	// 第一步，计算缓存的层级范围， 先假设都是经纬度数据
 	minLevel, maxLevel := this.calcCacheLevels()
+	// minLevel, maxLevel = 2, 12 // todo
 	fmt.Println("min & max Level:", minLevel, maxLevel)
 
 	this.tilestore = new(data.FileTileStore)    // data.FileTileStore LeveldbTileStore
@@ -93,7 +94,6 @@ func (this *MapTile) CacheOneLevel(level int, path string, maptype draw.MapType,
 	for j := minCol; j <= maxCol; j++ {
 		for i := minRow; i <= maxRow; i++ {
 			gm.Add()
-			// bar.Add(1)
 			// 具体生成瓦片文件
 			go this.CacheOneTile(level, j, i, maptype, gm, bar)
 		}

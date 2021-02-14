@@ -16,8 +16,8 @@ import (
 type Map struct {
 	Name      string         `json:"MapName"`
 	filename  string         // 保存为map文件的文件名
-	Layers    []*Layer       // 0:最底层，先绘制
-	RasLayers []*RasterLayer // todo 与layers合并
+	Layers    []*Layer       `json:"FeatureLayers"` // 0:最底层，先绘制
+	RasLayers []*RasterLayer `json:"RasterLayers"`  // todo 与layers合并
 	canvas    *draw.Canvas   // 画布
 	BBox      base.Rect2D    // 所有数据的边框
 
@@ -31,6 +31,7 @@ type Map struct {
 func (this *Map) Copy() (nmap *Map) {
 	nmap = new(Map)
 	nmap.Layers = this.Layers
+	nmap.RasLayers = this.RasLayers
 	nmap.BBox = this.BBox
 	nmap.Name = this.Name
 	nmap.canvas = new(draw.Canvas)
@@ -76,6 +77,9 @@ func (this *Map) AddRasterLayer(raset data.MosaicRaset) {
 	layer := newRasterLayer(raset)
 	this.RasLayers = append(this.RasLayers, layer)
 	this.BBox = this.BBox.Union(raset.GetBounds())
+	if len(this.Name) == 0 {
+		this.Name = layer.Name
+	}
 }
 
 func (this *Map) AddLayer(feaset data.Featureset, theme Theme) {
@@ -182,6 +186,9 @@ func (this *Map) Save(filename string) {
 	for _, layer := range this.Layers {
 		layer.WhenSaving(filename)
 	}
+	for _, layer := range this.RasLayers {
+		layer.WhenSaving(filename)
+	}
 
 	data, err := json.MarshalIndent(*this, "", "   ")
 	if err != nil {
@@ -201,10 +208,13 @@ func (this *Map) Open(filename string) {
 	mapdata, _ := ioutil.ReadFile(filename)
 	json.Unmarshal(mapdata, this)
 	// fmt.Println("opened map:", this)
-	fmt.Println("open map file:"+this.filename+", layers'count:", len(this.Layers))
+	fmt.Println("open map file:"+this.filename+", layers'count:", len(this.Layers)+len(this.RasLayers))
 
 	// 通过保存的参数恢复数据集
 	for _, layer := range this.Layers {
+		layer.WhenOpenning(filename)
+	}
+	for _, layer := range this.RasLayers {
 		layer.WhenOpenning(filename)
 	}
 }

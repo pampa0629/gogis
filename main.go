@@ -31,6 +31,22 @@ func testRest() {
 	server.StartServer(datapath+"/gogis.gms", cachepath)
 }
 
+func testRasterRest() {
+	// rootpath := "C:/zengzm/GitHub/gogis/" // os.Args[0]
+	// datapath := "./data/"
+	// cachepath := "./cache/"
+	// // if len(os.Args) >= 3 {
+	// // 	datapath = os.Args[1]
+	// // 	cachepath = os.Args[2]
+	// // }
+	// datapath = base.GetAbsolutePath(rootpath, datapath)
+	// cachepath = base.GetAbsolutePath(rootpath, cachepath)
+	// fmt.Println("app path:", rootpath, ", data path:", datapath, ", cache path:", cachepath)
+	// path := "C:/BigData/10_Data/testimage/image2/"
+	path := "C:/BigData/10_Data/images/imagebig2/"
+	server.StartServer(path+"gogis.gms", path+"cache")
+}
+
 var gPath = "C:/temp/"
 
 // var gTitle = "chinapnt_84" // insurance chinapnt_84
@@ -44,6 +60,7 @@ var gExt = ".shp"
 var filename = gPath + gTitle + gExt
 
 func main() {
+	testRasterRest()
 	// testRest()
 
 	// testDrawMap()
@@ -59,7 +76,8 @@ func main() {
 
 	// testLine2Point()
 
-	testDrawTiff()
+	// testDrawTiff()
+	// buildMosaic()
 	fmt.Println("DONE!")
 	return
 }
@@ -269,14 +287,15 @@ func testMapTile() {
 	tr := base.NewTimeRecorder()
 
 	gmap := mapping.NewMap()
-	gmap.Open("c:/temp/JBNTBHTB-hbase.gmp") //sqlite hbase
+	path := "C:/BigData/10_Data/testimage/image2/"
+	gmap.Open(path + "image2.gmp") //sqlite hbase "c:/temp/JBNTBHTB-hbase.gmp"
 	maptile := mapping.NewMapTile(gmap, mapping.Epsg4326)
 	// this.tilestore = new(data.LeveldbTileStore) // data.FileTileStore LeveldbTileStore
 	// this.tilestore.Open(path, mapname)
 
-	tilename := gPath + gTitle + ".jpg"
+	tilename := path + "image2.png"
 	fmt.Println(tilename)
-	data, _ := maptile.CacheOneTile2Bytes(6, 101, 23, draw.TypeJpg)
+	data, _ := maptile.CacheOneTile2Bytes(11, 3308, 764, draw.TypePng)
 	w, _ := os.Create(tilename)
 	w.Write(data)
 	w.Close()
@@ -391,16 +410,19 @@ func testDrawTiff() {
 
 	// title := "raster" // JBNTBHTB chinapnt_84
 	// filename := "C:/BigData/10_Data/testimage/image/filelist.txt"
-	filename := "C:/temp/filelist.txt"
+	// filename := "C:/temp/filelist.gmr"
 	// filename := "C:/temp/raster.txt"
+	path := "C:/BigData/10_Data/images/imagebig2/"
+	// path := "C:/BigData/10_Data/testimage/image2/"
+	filename := path + "image2."
 
 	var raset data.MosaicRaset
-	raset.Open(filename)
+	raset.Open(filename + "gmr")
+	// raset.Save(filename + "gmr")
 	tr.Output("open data")
 
 	gmap := mapping.NewMap()
 	gmap.AddRasterLayer(raset)
-
 	gmap.Prepare(1024, 768)
 	gmap.Draw()
 
@@ -409,4 +431,35 @@ func testDrawTiff() {
 	gmap.Output2File(gPath+"image.jpg", "jpg")
 	tr.Output("save picture file")
 
+	gmap.Save(path + "image2.gmp")
+
+	amap := mapping.NewMap()
+	amap.Open(path + "image2.gmp")
+	amap.Prepare(1024, 768)
+	amap.Draw()
+	amap.Output2File(gPath+"image2.jpg", "jpg")
+
+}
+
+func buildMosaic() {
+	tr := base.NewTimeRecorder()
+
+	path := "C:/BigData/10_Data/images/imagebig2/"
+	// path := "C:/BigData/10_Data/testimage/image2/"
+	var raset data.MosaicRaset
+	raset.Build(path, path+"image2.gmr")
+	tr.Output("build")
+
+	// raset.Open(path + "image2.gmr")
+	gmap := mapping.NewMap()
+	gmap.AddRasterLayer(raset)
+	gmap.Prepare(1024, 768)
+	gmap.Draw()
+
+	// 输出图片文件
+	tr.Output("draw map")
+	gmap.Output2File(gPath+"image.jpg", "jpg")
+	gmap.Save(path + "image2.gmp")
+
+	tr.Output("save picture file")
 }

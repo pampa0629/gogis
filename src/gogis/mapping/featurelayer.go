@@ -63,8 +63,6 @@ func (this *Layer) Setting(feaset data.Featureset) bool {
 
 // 地图 Save时，内部存储调整为相对路径
 func (this *Layer) WhenSaving(mappath string) {
-	// 拷贝后使用，避免 map save之后，filename变为相对路径，再打开数据就不好使了
-	// newParams := base.DeepCopy(this.Params).(data.ConnParams)
 	filename, ok := this.Params["filename"]
 	if ok {
 		storename := filename.(string)
@@ -93,7 +91,8 @@ func (this *Layer) WhenOpenning(mappath string) {
 			this.feaset, _ = store.GetFeasetByName(this.Params["name"].(string))
 			this.feaset.Open()
 			// 缓存到内存中
-			if this.Params["cache"].(bool) {
+			cache := this.Params["cache"]
+			if cache != nil && cache.(bool) {
 				this.feaset = data.Cache(this.feaset, []string{})
 			}
 		}

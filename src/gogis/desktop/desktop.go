@@ -167,7 +167,8 @@ func drawTiff(img *image.RGBA) {
 	tr := base.NewTimeRecorder()
 
 	// title := "raster" // JBNTBHTB chinapnt_84
-	filename := "C:/temp/filelist.txt"
+	// filename := "C:/temp/filelist.gmr"
+	filename := "C:/BigData/10_Data/testimage/image2/filelist.gmr"
 
 	var raset data.MosaicRaset
 	raset.Open(filename)
@@ -179,11 +180,15 @@ func drawTiff(img *image.RGBA) {
 
 	// gmap.Prepare(1024, 768)
 	gmap.PrepareImage(img)
-	gmap.Zoom(2)
+	// gmap.Zoom(2)
 	gmap.Draw()
 
 	// 输出图片文件
 	tr.Output("draw map")
+
+	gmap.Draw()
+
+	tr.Output("draw2 map")
 	// gmap.Output2File(gPath+"image.jpg", "jpg")
 	// tr.Output("save picture file")
 

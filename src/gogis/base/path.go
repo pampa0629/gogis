@@ -38,6 +38,11 @@ func GetTitle(fullname string) string {
 	return titlename
 }
 
+// 改变扩展名；输入 c:/temp/a.bcd和efg, 输出 c:/temp/a.efg
+func ChangeExt(filename, ext string) string {
+	return strings.TrimSuffix(filename, path.Ext(filename)) + "." + ext
+}
+
 // 判断文件或文件夹是否存在
 func IsExist(filepath string) bool {
 	_, err := os.Stat(filepath) //os.Stat获取文件信息
@@ -56,8 +61,9 @@ func DirIsExist(pathname string) bool {
 	return (err == nil || os.IsExist(err)) && fi.IsDir()
 }
 
-// 两个绝对路径，得到path2相对于path1的路径
-// 即基于path1，通过result可以得到path2
+// 两个绝对路径，得到targetpath相对于bathpath的路径;
+// 即基于bathpath，通过result可以得到targetpath；
+// 如：GetRelativePath("c:/temp/", "c:/abc.def") == "../abc.def"
 func GetRelativePath(bathpath, targetpath string) string {
 	bathpath = filepath.Dir(bathpath) // 先得到路径
 	relpath, err := filepath.Rel(bathpath, targetpath)
@@ -67,35 +73,6 @@ func GetRelativePath(bathpath, targetpath string) string {
 	return relpath
 }
 
-// func GetRelativePath2(path1, path2 string) string {
-// 	// if path1 == "" || path2 == "" {
-// 	// 	return "", errors.New("path cannot be empty")
-// 	// }
-// 	arr1 := strings.Split(path1[1:], "/")
-// 	arr2 := strings.Split(path2[1:], "/")
-// 	depth := 0
-// 	for i := 0; i < len(arr1) && i < len(arr2); i++ {
-// 		if arr1[i] == arr2[i] {
-// 			depth++
-// 		} else {
-// 			break
-// 		}
-// 	}
-// 	prefix := ""
-// 	if len(arr1)-depth-1 <= 0 {
-// 		prefix = "./"
-// 	} else {
-// 		for i := len(arr1) - depth - 1; i > 0; i-- {
-// 			prefix += "../"
-// 		}
-// 	}
-// 	fmt.Println(depth)
-// 	if len(arr2)-depth > 0 {
-// 		prefix += strings.Join(arr2[depth:], "/")
-// 	}
-// 	return prefix
-// }
-
 // 通过绝对路径+相对路径，得到绝对路径
 // 例如：c:/temp/a.b + ./c.d --> c:/temp/c.d
 func GetAbsolutePath(basepath, relpath string) string {
@@ -104,41 +81,3 @@ func GetAbsolutePath(basepath, relpath string) string {
 	abspath = filepath.ToSlash(abspath)
 	return abspath
 }
-
-// func GetAbsolutePath2(p, r string) string {
-// 	p = toLinux(p)
-// 	if "" == r || "." == r {
-// 		return toLinux(p)
-// 	}
-// 	var linuxPath = toLinux(r)
-// 	var paths = strings.Split(linuxPath, "/")
-
-// 	var rp string
-// 	if 0 < len(paths) {
-// 		switch paths[0] {
-// 		case ".": // . 需要去掉 p 中最后多余的部分
-// 			// fallthrough
-// 			p := path.Dir(p)
-// 			rp = toLinux(p)
-// 		case "":
-// 			fallthrough
-// 		case "..": // .. 直接保留即可
-// 			rp = toLinux(p)
-// 		}
-// 	}
-// 	var realPaths []string
-// 	if "" != rp {
-// 		realPaths = strings.Split(rp, "/")
-// 	}
-// 	if 0 < len(paths) {
-// 		realPaths = append(realPaths, paths...)
-// 	}
-
-// 	result := path.Join(realPaths...)
-// 	// 防止 最前面的 / 丢失
-// 	if len(realPaths) > 0 && realPaths[0] == "" {
-// 		result = "/" + result
-// 	}
-
-// 	return result
-// }

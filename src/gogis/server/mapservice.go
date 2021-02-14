@@ -165,18 +165,18 @@ func (this *MapService) OpenShp(shpfile string, cachepath string) {
 
 func (this *MapService) OpenCache(cachepath string) {
 	this.tilestore = new(data.FileTileStore)                    //  LeveldbTileStore FileTileStore
-	this.tilestore.Open(cachepath, this.maptitle, draw.TypeMvt) // TypePng
+	this.tilestore.Open(cachepath, this.maptitle, draw.TypePng) // TypePng TypeMvt
 }
 
-func (this *MapService) GetTile(level int, col int, row int, epsg mapping.EPSG) (data []byte) {
+func (this *MapService) GetTile(level int, col int, row int, epsg mapping.EPSG) []byte {
 	bbox := mapping.CalcBBox(level, col, row, epsg)
 	fmt.Println("map:", this.maptitle, "level=", level, "col=", col, "row=", row, "BBox:", bbox)
 
 	if !this.gmap.BBox.IsIntersects(bbox) {
-		return
+		return nil
 	}
 
-	data = this.tilestore.Get(level, col, row)
+	data := this.tilestore.Get(level, col, row)
 	// 没有缓存，就必须先生成缓存
 	if data == nil || len(data) == 0 {
 		// 这里根据地图名字，输出并返回图片
@@ -185,6 +185,7 @@ func (this *MapService) GetTile(level int, col int, row int, epsg mapping.EPSG) 
 		data, err := mapTile.CacheOneTile2Bytes(level, col, row, this.tilestore.MapType())
 		if data != nil && err == nil {
 			this.tilestore.Put(level, col, row, data)
+			return data
 		}
 	}
 	return data

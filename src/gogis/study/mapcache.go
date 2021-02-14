@@ -7,8 +7,20 @@ import (
 	"gogis/mapping"
 )
 
-func mcmain() {
-	testCache()
+func main() {
+	// testCache()
+	testCacheRaster()
+}
+
+func testCacheRaster() {
+	tr := base.NewTimeRecorder()
+	path := "C:/BigData/10_Data/testimage/image2/"
+	gmap := mapping.NewMap()
+	gmap.Open(path + "image2.gmp")
+	mapTile := mapping.NewMapTile(gmap, mapping.Epsg4326)
+	mapTile.Cache("c:/temp/cache/", gmap.Name, draw.TypePng)
+
+	tr.Output("cache map:" + gmap.Name)
 }
 
 func testCache() {

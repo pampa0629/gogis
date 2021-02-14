@@ -94,6 +94,7 @@ func drawTiff(i int, gm *base.GoMax) {
 	// err := dt.BuildOverviews("nearest", ovCount, ovList, bc, []int{1, 2, 3}, fun, nil)
 	// base.PrintError("BuildOverviews", err)
 	// fmt.Println(dt.Metadata)
+
 	band1 := dt.RasterBand(1) // band 从1 起
 	band2 := dt.RasterBand(2)
 	band3 := dt.RasterBand(3)

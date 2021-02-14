@@ -82,7 +82,7 @@ func TestConvertShp2Es(t *testing.T) {
 func TestConvertShp2Hbase(t *testing.T) {
 	tr := base.NewTimeRecorder()
 
-	title := "JBNTBHTB" // JBNTBHTB chinapnt_84
+	title := "chinapnt_84" // JBNTBHTB chinapnt_84
 
 	fromParams := NewConnParams()
 	fromParams["filename"] = "c:/temp/" + title + ".shp"
@@ -141,4 +141,13 @@ func TestOpenShape(t *testing.T) {
 	if shp.GetCount() != 2391 {
 		t.Errorf("对象数量不对")
 	}
+}
+
+func TestMosaic(t *testing.T) {
+	filename := "C:/temp/filelist.txt"
+	gmrname := "C:/temp/filelist.gmr"
+	var raset, raset2 MosaicRaset
+	raset.Open(filename)
+	raset.Save(filename)
+	raset2.Open(gmrname)
 }
