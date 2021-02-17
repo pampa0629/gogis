@@ -14,24 +14,26 @@ import (
 )
 
 type Map struct {
-	Name      string         `json:"MapName"`
-	filename  string         // 保存为map文件的文件名
-	Layers    []*Layer       `json:"FeatureLayers"` // 0:最底层，先绘制
-	RasLayers []*RasterLayer `json:"RasterLayers"`  // todo 与layers合并
-	canvas    *draw.Canvas   // 画布
-	BBox      base.Rect2D    // 所有数据的边框
+	Name     string `json:"MapName"`
+	filename string // 保存为map文件的文件名
 
+	// 屏幕图层，todo
 	trackLayer TrackLayer // 跟踪图层，用来绘制被选中的临时对象，不做保存
+	Layers     Layers     // 0:最底层，先绘制
+	// FeaLayers []*FeatureLayer `json:"FeatureLayers"` // 0:最底层，先绘制
+	// RasLayers []*RasterLayer  `json:"RasterLayers"`  // todo 与layers合并
 
+	BBox          base.Rect2D    // 所有数据的边框
 	IsDynamicProj bool           `json:"Dynamic Projection"` // 是否支持动态投影
 	Proj          *base.ProjInfo `json:"Coordinate System"`
+
+	canvas *draw.Canvas // 画布
 }
 
 // 复制一个map对象，用来同一个地图的并发出图
 func (this *Map) Copy() (nmap *Map) {
 	nmap = new(Map)
 	nmap.Layers = this.Layers
-	nmap.RasLayers = this.RasLayers
 	nmap.BBox = this.BBox
 	nmap.Name = this.Name
 	nmap.canvas = new(draw.Canvas)
@@ -61,9 +63,9 @@ func NewMap() *Map {
 func (this *Map) RebuildBBox() {
 	this.BBox.Init()
 	for _, layer := range this.Layers {
-		bbox := layer.feaset.GetBounds()
+		bbox := layer.GetBounds()
 		if this.IsDynamicProj {
-			prjc := base.NewPrjConvert(layer.feaset.GetProjection(), this.Proj)
+			prjc := base.NewPrjConvert(layer.GetProjection(), this.Proj)
 			if prjc != nil {
 				bbox.Min = prjc.DoPnt(bbox.Min)
 				bbox.Max = prjc.DoPnt(bbox.Max)
@@ -73,30 +75,27 @@ func (this *Map) RebuildBBox() {
 	}
 }
 
-func (this *Map) AddRasterLayer(raset data.MosaicRaset) {
-	layer := newRasterLayer(raset)
-	this.RasLayers = append(this.RasLayers, layer)
-	this.BBox = this.BBox.Union(raset.GetBounds())
+func (this *Map) addLayer(layer Layer) {
+	this.Layers = append(this.Layers, layer)
+	// todo 设置和开启动态投影时，map的bbos应该发生变化
+	this.BBox = this.BBox.Union(layer.GetBounds())
 	if len(this.Name) == 0 {
-		this.Name = layer.Name
-	}
-}
-
-func (this *Map) AddLayer(feaset data.Featureset, theme Theme) {
-	if len(this.Name) == 0 {
-		this.Name = feaset.GetName()
+		this.Name = layer.GetName()
 	}
 	if this.Proj == nil {
 		// 自己若没有设置投影系统，则取图层的
-		this.Proj = feaset.GetProjection()
+		this.Proj = layer.GetProjection()
 	}
-	layer := newLayer(feaset, theme)
-	if theme != nil {
-		theme.MakeDefault(feaset)
-	}
-	this.Layers = append(this.Layers, layer)
-	// todo 设置和开启动态投影时，map的bbos应该发生变化
-	this.BBox = this.BBox.Union(feaset.GetBounds())
+}
+
+func (this *Map) AddRasterLayer(raset *data.MosaicRaset) {
+	layer := newRasterLayer(raset)
+	this.addLayer(layer)
+}
+
+func (this *Map) AddFeatureLayer(feaset data.Featureset, theme Theme) {
+	layer := newFeatureLayer(feaset, theme)
+	this.addLayer(layer)
 }
 
 // 为绘制做好准备，第一次绘制前必须调用
@@ -116,20 +115,21 @@ func (this *Map) PrepareImage(img *image.RGBA) {
 func (this *Map) Select(obj interface{}) {
 	// 先清空之前的
 	this.trackLayer.geos = this.trackLayer.geos[:0]
+
 	for _, layer := range this.Layers {
-		// todo 这里要判断图层是否可被选择
-		this.trackLayer.geos = append(this.trackLayer.geos, layer.Select(obj)...)
+		if layer.GetType() == LayerFeature {
+			feaLayer := layer.(*FeatureLayer)
+			// todo 这里要判断图层是否可被选择
+			this.trackLayer.geos = append(this.trackLayer.geos, feaLayer.Select(obj)...)
+		}
 	}
-	// var geo geometry.GeoPolygon
-	// geo.Make(obj.(base.Rect2D))
-	// this.trackLayer.geos = append(this.trackLayer.geos, &geo)
 }
 
 // 设置是否动态投影
 func (this *Map) SetDynamicProj(isDynamicProj bool) {
 	if this.IsDynamicProj != isDynamicProj {
 		this.IsDynamicProj = isDynamicProj
-		// 重新计算和 设置bbox
+		// 重新计算和设置bbox
 		this.RebuildBBox()
 		width, height := this.canvas.GetSize()
 		this.canvas.Params.Init(this.BBox, width, height)
@@ -143,9 +143,6 @@ func (this *Map) Draw() (drawCount int64) {
 	if !this.IsDynamicProj {
 		destPrj = nil
 	}
-	for _, layer := range this.RasLayers {
-		drawCount += layer.Draw(this.canvas, destPrj)
-	}
 	for _, layer := range this.Layers {
 		drawCount += layer.Draw(this.canvas, destPrj)
 	}
@@ -158,8 +155,11 @@ func (this *Map) OutputMvt() ([]byte, int64) {
 	var count int64
 	var tile mvt.Tile
 	for _, layer := range this.Layers {
-		l := tile.AddLayer(layer.Name)
-		count += layer.OutputMvt(l, this.canvas)
+		if layer.GetType() == LayerFeature {
+			feaLayer := layer.(*FeatureLayer)
+			l := tile.AddLayer(layer.GetName())
+			count += feaLayer.OutputMvt(l, this.canvas)
+		}
 	}
 	return tile.Render(), count
 }
@@ -186,15 +186,9 @@ func (this *Map) Save(filename string) {
 	for _, layer := range this.Layers {
 		layer.WhenSaving(filename)
 	}
-	for _, layer := range this.RasLayers {
-		layer.WhenSaving(filename)
-	}
 
 	data, err := json.MarshalIndent(*this, "", "   ")
-	if err != nil {
-		fmt.Println("map save, error:", err)
-		fmt.Println("json:", string(data))
-	}
+	base.PrintError("Map Save", err)
 
 	f, _ := os.Create(filename)
 	f.Write(data)
@@ -208,24 +202,19 @@ func (this *Map) Open(filename string) {
 	mapdata, _ := ioutil.ReadFile(filename)
 	json.Unmarshal(mapdata, this)
 	// fmt.Println("opened map:", this)
-	fmt.Println("open map file:"+this.filename+", layers'count:", len(this.Layers)+len(this.RasLayers))
+	fmt.Println("open map file:"+this.filename+", layers'count:", len(this.Layers))
 
 	// 通过保存的参数恢复数据集
 	for _, layer := range this.Layers {
-		layer.WhenOpenning(filename)
-	}
-	for _, layer := range this.RasLayers {
-		layer.WhenOpenning(filename)
+		layer.WhenOpening(filename)
 	}
 }
 
 func (this *Map) Close() {
 	for _, layer := range this.Layers {
-		layer.feaset.Close()
-		layer.feaset.GetStore().Close() // 数据库先关闭
+		layer.Close()
 	}
 	this.Layers = this.Layers[:0]
-	// this.canvas.ClearDC() todo 清空image才行
 }
 
 // 缩放，ratio为缩放比率，大于1为放大；小于1为缩小

@@ -2,9 +2,8 @@
 package index
 
 import (
+	"bytes"
 	"gogis/base"
-	"gogis/geometry"
-	"io"
 	"math"
 	"sort"
 )
@@ -12,36 +11,172 @@ import (
 // 控制每个最小的cell中，平均对象个数
 const ONE_CELL_COUNT_X = 1000
 
-type codeids struct {
-	code int64
-	ids  []int64
-}
-
-// todo 尚未做好，请勿使用
+// todo 当前仅支持for数据库的索引接口
+// 性能和ZOrder基本相当，但显示效果好（不会首先出现很远处与格子边界相交的对象）
 // 详情请参考相关论文
-// 这里实现时，采用了自行设计的编码，主要是发挥计算机位运算的便利性
 type XzorderIndex struct {
-	bbox     base.Rect2D
-	w, h     float64           // 最小的cell，宽和高
-	level    int               // 划分的层级，0为整体，+1则一分为四
-	code2ids map[int64][]int64 // code -->ids map格式，构建时使用
-	// isOrder bool // 是否已经排序，当输入 geo个数等于 num时调用
-	num, addedNum int64 // 判断是否需要对codes进行排序，以便后续的查询使用
-
-	code2ids2 []codeids // code --> ids，查询时用这个
+	ZOrderIndex
 }
 
-// 初始化
-func (this *XzorderIndex) Init(bbox base.Rect2D, num int64) {
-	this.bbox = bbox
-	this.level = int(math.Log(float64(num)/ONE_CELL_COUNT_X)/2) + 1
-	// 最多31层，int64最多存储32层，还要留一个bit做前置
-	this.level = base.IntMin(this.level, 31)
-	// 计算 一个轴方向的cell count
-	oneAxisCount := math.Pow(2.0, float64(this.level))
-	this.w = bbox.Dx() / oneAxisCount
-	this.h = bbox.Dy() / oneAxisCount
-	this.code2ids = make(map[int64][]int64, calcCellCount(int32(this.level)))
+func (this *XzorderIndex) InitDB(bbox base.Rect2D, level int32) {
+	this.ZOrderIndex.InitDB(bbox, level)
+}
+
+func (this *XzorderIndex) GetCode(bbox base.Rect2D) int32 {
+	bits := this.calcBboxBits(bbox)
+	return Bits2code(bits)
+}
+
+// 本函数和ZOrder索引不同，由于XZ-Order的扩展能力，故而编码倾向于往min点
+func (this *XzorderIndex) calcBboxBits(bbox base.Rect2D) (bits []byte) {
+	// 思路：先分别计算 min和max两个点的code
+	for level := this.level; level >= 0; level-- {
+		minxBits := calcOneBits(this.bbox.Min.X, this.bbox.Dx()/2, bbox.Min.X, level, true)
+		minyBits := calcOneBits(this.bbox.Min.Y, this.bbox.Dy()/2, bbox.Min.Y, level, true)
+
+		maxxBits := calcOneBits(this.bbox.Min.X, this.bbox.Dx()/2, bbox.Max.X, level, false)
+		maxyBits := calcOneBits(this.bbox.Min.Y, this.bbox.Dy()/2, bbox.Max.Y, level, false)
+
+		// 再看max和min是否在一个格子内，或者max-1后，是否和min在一起
+		x, y := false, false // 默认不相等
+		maxxBits_1, _ := bitsReduce(maxxBits)
+		if bytes.Equal(minxBits, maxxBits) || bytes.Equal(minxBits, maxxBits_1) {
+			x = true
+		}
+		maxyBits_1, _ := bitsReduce(maxyBits)
+		if bytes.Equal(minyBits, maxyBits) || bytes.Equal(minyBits, maxyBits_1) {
+			y = true
+		}
+		if x && y { // x和y两个方向都ok，说明这个bbox可以用本层的格子编码
+			bits = combineBits(minxBits, minyBits)
+			break
+		}
+	}
+	return
+}
+
+// 二进制数组的值减一，成功ok返回true；
+// 若都是0，则无法减一，则ok返回false
+func bitsReduce(bits []byte) (res []byte, ok bool) {
+	last := len(bits) - 1
+	if last >= 0 {
+		res = make([]byte, len(bits))
+		copy(res, bits)
+		if res[last] == 1 {
+			res[last] = 0
+			ok = true
+		} else {
+			bits_1, ok_1 := bitsReduce(bits[0:last])
+			if ok_1 {
+				ok = true
+				res[last] = 1
+				copy(res[0:last], bits_1)
+			}
+		}
+	}
+	return
+}
+
+// 查询得到 bbox 所涉及的code，返回code数组（已排序）
+func (this *XzorderIndex) QueryDB(bbox base.Rect2D) (codes []int32) {
+	// 查询时，考虑XZ索引的扩展性，必须查询：
+	// 1）bbox所在cell（原始编码）；2）上级cell；3）1和2的左、下、左下三个cell；4）下级cell
+
+	// 思路：
+	// 先找高层的level的code
+	// 再迭代处理本层和低层
+	//   得到bbox的code，
+	//   低层的level，则先判断是否bbox相交，再迭代查询，直到最底层的level为止
+
+	bits := this.ZOrderIndex.calcBboxBits(bbox)
+
+	// 更高层的level
+	upbits := make([]byte, len(bits))
+	copy(upbits, bits)
+	for len(upbits) > 0 {
+		upbits = upbits[0 : len(upbits)-2] // 去掉最后两个bit，即提升一个level
+		codes = append(codes, bits2Codes(upbits)...)
+	}
+
+	// 这里查询本层和下层的
+	codes = append(codes, this.queryThisDownDB(bbox, bits, false)...)
+
+	// 还要去掉重复的code
+	codes = base.RemoveRepeatInt32(codes)
+
+	// 最后排序
+	sort.Sort(base.Int32s(codes))
+	return
+}
+
+// 得到相关的几个编码
+func bits2Codes(bits []byte) (codes []int32) {
+	bitss := exBits(bits) // 考虑XZ-Order的扩展性，左、下、左下的几个格子也都要
+	for _, v := range bitss {
+		code := Bits2code(v)
+		codes = append(codes, code)
+	}
+	return
+}
+
+// 查询本层以及下层的，需要迭代执行，直到最底层
+// cover: 是否必须Cover；false：intersece即可
+func (this *XzorderIndex) queryThisDownDB(bbox base.Rect2D, bits []byte, cover bool) (codes []int32) {
+	// 得到本层的 codes
+	codes = append(codes, bits2Codes(bits)...)
+
+	// 若存在更低层的level，则构造下层的bits，判断bbox是否相交，再做查询
+	if len(bits)/2 < int(this.level) { // 不是最底层
+		downBitss := buildDownBitss(bits)
+		for _, downBits := range downBitss {
+			downBbox := this.calcBbox(downBits)
+			if (cover && bbox.IsCovers(downBbox)) || bbox.IsIntersects(downBbox) {
+				downCode := this.queryThisDownDB(bbox, downBits, cover)
+				codes = append(codes, downCode...)
+			}
+		}
+	}
+
+	return
+}
+
+// 在ZOrder基础上，扩展一倍即可
+func (this *XzorderIndex) calcBbox(bits []byte) base.Rect2D {
+	bbox := this.ZOrderIndex.calcBbox(bits)
+	bbox.Max.X += bbox.Dx()
+	bbox.Max.Y += bbox.Dy()
+	return bbox
+}
+
+// 考虑XZ-Order的扩展性，左、下、左下的几个格子也都要
+func exBits(bits []byte) (bitss [][]byte) {
+	// 自己先要了
+	bitss = append(bitss, bits)
+
+	// 再分解bits为xbits和ybits
+	xbits, ybits := splitBits(bits)
+	// 两个方向都 - 1
+	xbits_1, okX := bitsReduce(xbits)
+	ybits_1, okY := bitsReduce(ybits)
+	if okX {
+		bitss = append(bitss, combineBits(xbits_1, ybits))
+	}
+	if okY {
+		bitss = append(bitss, combineBits(xbits, ybits_1))
+	}
+	if okX && okY {
+		bitss = append(bitss, combineBits(xbits_1, ybits_1))
+	}
+	return
+}
+
+// 分解bits为xbits和ybits
+func splitBits(bits []byte) (xbits, ybits []byte) {
+	for i := 0; i < len(bits); i += 2 {
+		xbits = append(xbits, bits[i+0])
+		ybits = append(ybits, bits[i+1])
+	}
+	return
 }
 
 // 根据层级计算所有的cell个数
@@ -53,144 +188,14 @@ func calcCellCount(level int32) (count int32) {
 	return
 }
 
-// 输入几何对象，构建索引；下列三种方式等效，同一个对象请勿重复调用Add方法
-func (this *XzorderIndex) AddGeos(geometrys []geometry.Geometry) {
-	for _, v := range geometrys {
-		this.AddOne(v.GetBounds(), v.GetID())
-	}
-}
-
-func (this *XzorderIndex) AddGeo(geo geometry.Geometry) {
-	this.AddOne(geo.GetBounds(), geo.GetID())
-}
-
-func (this *XzorderIndex) AddOne(bbox base.Rect2D, id int64) {
-	// 先根据bbox的大小和位置，确定层次
-	level := this.ensureLevel(bbox)
-
-	// 再计算bbox的code
-	code := this.calcCode(bbox, level)
-
-	_, ok := this.code2ids[code]
-	if !ok {
-		this.code2ids[code] = make([]int64, 0)
-	}
-	this.code2ids[code] = append(this.code2ids[code], id)
-
-	this.addedNum++
-	if this.addedNum >= this.num {
-		this.adjustCode2ids()
-	}
-}
-
-// 把map结构换做数组结构，以便后续查询使用
-func (this *XzorderIndex) adjustCode2ids() {
-	this.code2ids2 = make([]codeids, 0, len(this.code2ids))
-	codes := make([]int64, 0, len(this.code2ids))
-	for k, _ := range this.code2ids {
-		codes = append(codes, k)
-	}
-	sort.Sort(base.Int64s(codes))
-
-	for _, v := range codes {
-		var one codeids
-		one.code = v
-		one.ids = this.code2ids[v]
-		this.code2ids2 = append(this.code2ids2, one)
-	}
-}
-
-// 确定最小合适的cell所在层级
-func (this *XzorderIndex) ensureLevel(bbox base.Rect2D) (level int) {
-	// 两个方向都试试看，哪个小用哪个
-	xlevel := calcLevel(this.bbox.Min.X, this.w, bbox.Min.X, bbox.Dx(), this.level)
-	ylevel := calcLevel(this.bbox.Min.Y, this.h, bbox.Min.Y, bbox.Dy(), this.level)
-	return base.IntMin(xlevel, ylevel)
-}
-
-// 单个方向上计算层级
-func calcLevel(anchor, cellLength, pos, length float64, level int) int {
-	// 先看长度，大于cell的两倍长度，那当前的level肯定hold不住
-	for length > cellLength*2 {
-		cellLength *= 2
-		level--
-	}
-
-	// 再看是否穿越了两个 cell，若是，层级要 -1
-	pos -= anchor
-	if pos+length > 2*cellLength {
-		level--
-	}
-
-	return level
-}
-
-// 两个数组交叉合并
-func combineBits(bits1 []byte, bits2 []byte) (bits []byte) {
-	bits = make([]byte, 0, len(bits1)*2)
-	for i, v := range bits {
-		bits = append(bits, v)
-		bits = append(bits, bits2[i])
-	}
-	return
-}
-
-// 已知层级，计算z编码
-func (this *XzorderIndex) calcCode(bbox base.Rect2D, level int) (code int64) {
-	xbits := calcBits(this.bbox.Min.X, this.w/2, bbox.Min.X, level)
-	ybits := calcBits(this.bbox.Min.Y, this.h/2, bbox.Min.Y, level)
-	bits := combineBits(xbits, ybits)
-
-	code = 1 // 1 作为前置
-	code = code << len(bits)
-	for i := 0; i < len(bits); i++ {
-		code &= (int64(bits[i]) << i)
-	}
-	return
-}
-
-// 计算一个方向的编码
-func calcBits(anchor, halfLength, pos float64, level int) (bits []byte) {
-	for level > 0 {
-		// 小为0，大为1
-		if pos < anchor+halfLength {
-			bits = append(bits, 0)
-		} else {
-			bits = append(bits, 1)
-			anchor += halfLength
-		}
-		level--
-		halfLength /= 2
-	}
-	return
-}
-
 // 构建后，检查是否有问题；没问题返回true
 func (this *XzorderIndex) Check() bool {
 	return true
 }
 
-// 保存和加载，避免每次都要重复构建
-func (this *XzorderIndex) Save(w io.Writer) {
-
-}
-
-func (this *XzorderIndex) Load(r io.Reader) {
-
-}
-
-// todo
-// 范围查询，返回id数组
-func (this *XzorderIndex) Query(bbox base.Rect2D) []int64 {
-	// level := this.ensureLevel(bbox)
-	// code := this.calcCode(bbox, level)
-
-	return nil
-}
-
 // todo
 // 查询不被bbox所覆盖的id数组
-func (this *XzorderIndex) QueryNoCovered(bbox base.Rect2D) []int64 {
+func (this *XzorderIndex) QueryNoCoveredDB(bbox base.Rect2D) []int32 {
 	return nil
 }
 

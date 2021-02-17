@@ -65,8 +65,8 @@ func NewSpatialIndex(indexType SpatialIndexType) SpatialIndex {
 		index = new(RTreeIndex)
 	case TypeZOrderIndex:
 		index = new(ZOrderIndex)
-	case TypeXzorderIndex:
-		index = new(XzorderIndex)
+	// case TypeXzorderIndex:
+	// 	index = new(XzorderIndex)
 	default:
 	}
 	return index
@@ -128,4 +128,22 @@ type SpatialIndexDB interface {
 
 	// 返回自己的类型
 	Type() SpatialIndexType
+}
+
+func NewSpatialIndexDB(indexType SpatialIndexType) SpatialIndexDB {
+	var index SpatialIndexDB
+	switch indexType {
+	// case TypeGridIndex:
+	// 	index = new(GridIndex)
+	// case TypeQTreeIndex:
+	// 	index = new(QTreeIndex)
+	// case TypeRTreeIndex:
+	// 	index = new(RTreeIndex)
+	case TypeZOrderIndex:
+		index = new(ZOrderIndex)
+	case TypeXzorderIndex:
+		index = new(XzorderIndex)
+	default:
+	}
+	return index
 }

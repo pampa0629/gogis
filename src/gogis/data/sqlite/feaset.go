@@ -19,11 +19,11 @@ import (
 // 矢量数据集合
 type SqliteFeaset struct {
 	data.FeasetInfo
-	id         string            // id用的字段，默认为pk，udbx中的是SmID
-	geom       string            // geometry用的字段，默认为"geom"
-	count      int64             // 对象个数
-	indexLevel int32             // 索引层级
-	idx        index.ZOrderIndex // 暂时只支持 zorder索引
+	id         string             // id用的字段，默认为pk，udbx中的是SmID
+	geom       string             // geometry用的字段，默认为"geom"
+	count      int64              // 对象个数
+	indexLevel int32              // 索引层级
+	idx        index.XzorderIndex // 暂时只支持 zorder索引 ZOrderIndex XzorderIndex
 	store      *SqliteStore
 	lock       sync.Mutex
 }

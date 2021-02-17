@@ -106,7 +106,7 @@ func CalcZOderLevel(num int64) (level int32) {
 func (this *ZOrderIndex) Init(bbox base.Rect2D, num int64) {
 	this.bbox = bbox
 	this.level = CalcZOderLevel(num)
-	this.level = 5 // todo
+	// this.level = 5 // todo
 
 	// 直接用code作为下标，计算所有cell的个数
 	cellCount := calcCellCount(this.level)
@@ -229,17 +229,17 @@ func Code2bits(code int) (bits []byte) {
 
 // 计算一个点在最小cell（最大level）中的bits
 func (this *ZOrderIndex) calcPointBits(pnt base.Point2D, isMin bool) (bits []byte) {
-	xbits := this.calcOneBits(this.bbox.Min.X, this.bbox.Dx()/2, pnt.X, this.level, isMin)
-	ybits := this.calcOneBits(this.bbox.Min.Y, this.bbox.Dy()/2, pnt.Y, this.level, isMin)
-	bits = this.combineBits(xbits, ybits)
+	xbits := calcOneBits(this.bbox.Min.X, this.bbox.Dx()/2, pnt.X, this.level, isMin)
+	ybits := calcOneBits(this.bbox.Min.Y, this.bbox.Dy()/2, pnt.Y, this.level, isMin)
+	bits = combineBits(xbits, ybits)
 	return
 }
 
 // 两个数组交叉合并
-func (this *ZOrderIndex) combineBits(xbits []byte, ybits []byte) (bits []byte) {
+func combineBits(xbits []byte, ybits []byte) (bits []byte) {
 	bits = make([]byte, 0, len(xbits)*2)
 	for i, _ := range xbits {
-		// 约定：0 1 是y方向；1 0是x方向
+		// 约定：[0 1] 是y方向；[1 0] 是x方向
 		bits = append(bits, xbits[i]) // x 放高位
 		bits = append(bits, ybits[i]) // y 放低位
 	}
@@ -247,7 +247,7 @@ func (this *ZOrderIndex) combineBits(xbits []byte, ybits []byte) (bits []byte) {
 }
 
 // 计算一个方向的编码
-func (this *ZOrderIndex) calcOneBits(zero, halfLength, pos float64, level int32, isMin bool) (bits []byte) {
+func calcOneBits(zero, halfLength, pos float64, level int32, isMin bool) (bits []byte) {
 	// 小为0，大为1
 	for level > 0 {
 		// isMin 为true，意味着输入的是 bbox的min，大于等于 就能 为1
@@ -268,7 +268,7 @@ func (this *ZOrderIndex) calcOneBits(zero, halfLength, pos float64, level int32,
 // 查询得到 bbox 所涉及的code，返回code数组（已排序）
 func (this *ZOrderIndex) QueryDB(bbox base.Rect2D) (codes []int32) {
 	// 思路：
-	// 先找高层的level的code，注意需要做box判断
+	// 先找高层的level的code
 	// 再迭代处理本层和低层
 	//   得到bbox的code，
 	//   低层的level，则先判断是否bbox相交，再迭代查询，直到最底层的level为止

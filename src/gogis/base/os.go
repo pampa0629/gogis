@@ -9,7 +9,6 @@ type GoMax struct {
 	max int
 	ch  chan struct{}
 	wg  sync.WaitGroup
-	// lock sync.Mutex // 并发写的时候，用来上锁
 }
 
 func (this *GoMax) Init(max int) {
@@ -19,16 +18,12 @@ func (this *GoMax) Init(max int) {
 
 func (this *GoMax) Add() {
 	this.wg.Add(1)
-	// this.lock.Lock()
 	this.ch <- struct{}{}
-	// this.lock.Unlock()
 }
 
 func (this *GoMax) Done() {
 	this.wg.Done()
-	// this.lock.Lock()
 	<-this.ch
-	// this.lock.Unlock()
 }
 
 func (this *GoMax) Wait() {

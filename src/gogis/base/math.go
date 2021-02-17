@@ -35,6 +35,13 @@ func IntMax(x, y int) int {
 	return y
 }
 
+func Int32Max(x, y int32) int32 {
+	if x > y {
+		return x
+	}
+	return y
+}
+
 // 返回最大值对应的序号
 func Max(values []float64) (no int) {
 	maxValue := values[0]

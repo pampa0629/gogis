@@ -1,4 +1,4 @@
-package base
+package main
 
 // #include "Windows.h"
 import "C"

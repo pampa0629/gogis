@@ -11,18 +11,20 @@ import (
 	"github.com/tidwall/mvt"
 )
 
-// 图层类
-type Layer struct {
-	Name   string          `json:"LayerName"` // 图层名
-	feaset data.Featureset // 数据来源
-	Params data.ConnParams `json:"ConnParams"` // 存储和打开地图文档时用的数据连接信息
-	Type   ThemeType       `json:"ThemeType"`
-	theme  Theme           // 专题风格
-	Object interface{}     `json:"Theme"` // 好一招狸猫换太子
+// 要素图层类
+type FeatureLayer struct {
+	LayerType LayerType
+	Name      string          `json:"LayerName"` // 图层名
+	feaset    data.Featureset // 数据来源
+	Params    data.ConnParams `json:"ConnParams"` // 存储和打开地图文档时用的数据连接信息
+	Type      ThemeType       `json:"ThemeType"`
+	theme     Theme           // 专题风格
+	Object    interface{}     `json:"Theme"` // 好一招狸猫换太子
 }
 
-func newLayer(feaset data.Featureset, theme Theme) *Layer {
-	layer := new(Layer)
+func newFeatureLayer(feaset data.Featureset, theme Theme) *FeatureLayer {
+	layer := new(FeatureLayer)
+	layer.LayerType = LayerFeature
 	layer.Setting(feaset)
 	// 默认图层名 等于 数据集名
 	layer.Name = layer.Params["name"].(string)
@@ -33,13 +35,14 @@ func newLayer(feaset data.Featureset, theme Theme) *Layer {
 		layer.theme = theme
 		layer.Name += "_" + string(theme.GetType())
 	}
+	layer.theme.MakeDefault(feaset)
 	layer.Type = layer.theme.GetType()
 
 	return layer
 }
 
-func (this *Layer) UnmarshalJSON(data []byte) error {
-	type cloneType Layer
+func (this *FeatureLayer) UnmarshalJSON(data []byte) error {
+	type cloneType FeatureLayer
 	rawMsg := json.RawMessage{}
 	this.Object = &rawMsg
 	json.Unmarshal(data, (*cloneType)(this))
@@ -50,7 +53,7 @@ func (this *Layer) UnmarshalJSON(data []byte) error {
 }
 
 // new出来的时候，做统一设置
-func (this *Layer) Setting(feaset data.Featureset) bool {
+func (this *FeatureLayer) Setting(feaset data.Featureset) bool {
 	this.feaset = feaset
 	store := feaset.GetStore()
 	if store != nil {
@@ -61,8 +64,32 @@ func (this *Layer) Setting(feaset data.Featureset) bool {
 	return false
 }
 
+func (this *FeatureLayer) GetBounds() base.Rect2D { // base.Bounds
+	return this.feaset.GetBounds()
+}
+
+func (this *FeatureLayer) GetProjection() *base.ProjInfo { // 得到投影坐标系，没有返回nil
+	return this.feaset.GetProjection()
+}
+
+func (this *FeatureLayer) GetName() string {
+	return this.Name
+}
+
+func (this *FeatureLayer) GetType() LayerType {
+	return LayerFeature
+}
+
+func (this *FeatureLayer) GetConnParams() data.ConnParams {
+	return this.Params
+}
+
+func (this *FeatureLayer) Close() {
+	this.feaset.Close()
+}
+
 // 地图 Save时，内部存储调整为相对路径
-func (this *Layer) WhenSaving(mappath string) {
+func (this *FeatureLayer) WhenSaving(mappath string) {
 	filename, ok := this.Params["filename"]
 	if ok {
 		storename := filename.(string)
@@ -75,7 +102,7 @@ func (this *Layer) WhenSaving(mappath string) {
 }
 
 // 地图Open时调用，加载实际数据，准备绘制
-func (this *Layer) WhenOpenning(mappath string) {
+func (this *FeatureLayer) WhenOpening(mappath string) {
 	store := data.NewDatastore(data.StoreType(this.Params["type"].(string)))
 	if store != nil {
 		// 如果有文件路径，则需要恢复为绝对路径
@@ -102,7 +129,7 @@ func (this *Layer) WhenOpenning(mappath string) {
 	}
 }
 
-func (this *Layer) Select(obj interface{}) (geos []geometry.Geometry) {
+func (this *FeatureLayer) Select(obj interface{}) (geos []geometry.Geometry) {
 	// todo 暂时只支持拉框选择
 	bbox, ok := obj.(base.Rect2D)
 	if ok {
@@ -155,7 +182,7 @@ func (this *Layer) Select(obj interface{}) (geos []geometry.Geometry) {
 	return
 }
 
-func (this *Layer) Draw(canvas *draw.Canvas, proj *base.ProjInfo) (objCount int64) {
+func (this *FeatureLayer) Draw(canvas *draw.Canvas, proj *base.ProjInfo) (objCount int64) {
 	feaPrj := this.feaset.GetProjection()
 	prjc := base.NewPrjConvert(proj, feaPrj)
 	bbox := canvas.Params.GetBounds()
@@ -180,7 +207,7 @@ func (this *Layer) Draw(canvas *draw.Canvas, proj *base.ProjInfo) (objCount int6
 	return
 }
 
-func (this *Layer) OutputMvt(mvtLayer *mvt.Layer, canvas *draw.Canvas) (count int64) {
+func (this *FeatureLayer) OutputMvt(mvtLayer *mvt.Layer, canvas *draw.Canvas) (count int64) {
 	// feait := this.feaset.QueryByBounds(canvas.Params.GetBounds())
 	bbox := canvas.Params.GetBounds()
 	var def data.QueryDef

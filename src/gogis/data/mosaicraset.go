@@ -23,6 +23,7 @@ import (
 
 // Mosaic Raster Set
 type MosaicRaset struct {
+	// lock     sync.Mutex
 	filename string // 配置文件
 	Bbox     base.Rect2D
 	// 0 是原始层，之后是缩略图
@@ -192,6 +193,8 @@ func (this *MosaicRaset) WalkDS(filepath string, f os.FileInfo, err error) error
 	return nil
 }
 
+// =============================================== //
+
 func (this *MosaicRaset) Close() {
 	for _, dts := range this.dtss {
 		for _, dt := range dts {
@@ -262,6 +265,7 @@ func (this *MosaicRaset) openGmr(filename string) {
 	for i, names := range this.Namess {
 		for j, name := range names {
 			this.Namess[i][j] = base.GetAbsolutePath(filename, name)
+			// this.addDataset(this.Namess[i][j], i, j)
 		}
 	}
 }
@@ -307,9 +311,12 @@ func (this *MosaicRaset) openThumbnail(upPath string) {
 }
 
 func (this *MosaicRaset) addDataset(filename string, level, no int) {
+	// this.lock.Lock()
 	for len(this.dtss) <= level {
 		dts := make([]*gdal.Dataset, 0)
 		this.dtss = append(this.dtss, dts)
+	}
+	for len(this.Namess) <= level {
 		names := make([]string, 0)
 		this.Namess = append(this.Namess, names)
 		bboxes := make([]base.Rect2D, 0)
@@ -324,6 +331,8 @@ func (this *MosaicRaset) addDataset(filename string, level, no int) {
 	// 长度自动扩展到no
 	for len(this.dtss[level]) <= no {
 		this.dtss[level] = append(this.dtss[level], nil)
+	}
+	for len(this.Namess[level]) <= no {
 		this.Namess[level] = append(this.Namess[level], "")
 		var bbox base.Rect2D
 		bbox.Init()
@@ -344,6 +353,7 @@ func (this *MosaicRaset) addDataset(filename string, level, no int) {
 		resY := bbox.Dy() / float64(dt.RasterYSize())
 		this.Ress[level] = math.Max(resX, resY) // 存下比较粗糙的分辨率方向
 	}
+	// this.lock.Unlock()
 }
 
 // Ovr_L1_0x0.tif -- > 1
@@ -376,9 +386,18 @@ func (this *MosaicRaset) GetBounds() base.Rect2D {
 	return this.Bbox
 }
 
-// func (this *MosaicRaset) GetTitle() string {
-// 	return base.GetTitle(this.filename)
-// }
+// 分辨率,值越小越精细
+func (this *MosaicRaset) GetResolution() (res float64) {
+	dt := this.getDataset(0, 0)
+	if dt != nil {
+		resX := this.Bboxess[0][0].Dx() / float64(dt.RasterXSize())
+		resY := this.Bboxess[0][0].Dy() / float64(dt.RasterYSize())
+		res = math.Min(resX, resY)
+	}
+	return
+}
+
+// =============================================== //
 
 // 返回有哪些 dt 需要
 func (this *MosaicRaset) Perpare(bbox base.Rect2D, width, height int) (level int, nos []int) {
@@ -424,9 +443,11 @@ func (this *MosaicRaset) GetImage(level, no int, bbox base.Rect2D, width, height
 // alpha：是否需要带有alpha值
 // 返回值：x/y 是data在外部的位置，dx/dy是数据的size
 func (this *MosaicRaset) GetData(level, no int, bbox base.Rect2D, width, height int, alpha bool) (data []uint8, x, y, dx, dy int) {
-	dt := this.getDataset(level, no)
-	interBbox := this.Bboxess[level][no].Intersects(bbox)
+	// gdal不支持并发读取，为了支持协程并发，不得已重新Open
+	// dt := this.getDataset(level, no)
+	dt, _ := gdal.Open(this.Namess[level][no], gdal.ReadOnly)
 
+	interBbox := this.Bboxess[level][no].Intersects(bbox)
 	if interBbox.IsValid() {
 		// 先计算要输出的数据的尺寸
 		dx = base.Round(interBbox.Dx() / bbox.Dx() * float64(width))
@@ -436,9 +457,10 @@ func (this *MosaicRaset) GetData(level, no int, bbox base.Rect2D, width, height 
 		y = base.Round((bbox.Max.Y - interBbox.Max.Y) / bbox.Dy() * float64(height))
 		// 最后从dt中取数据
 		if dx > 0 && dy > 0 {
-			data = this.getData(dt, interBbox, this.Bboxess[level][no], dx, dy, alpha)
+			data = this.getData(&dt, interBbox, this.Bboxess[level][no], dx, dy, alpha)
 		}
 	}
+	dt.Close()
 	return
 }
 
@@ -476,6 +498,8 @@ func (this *MosaicRaset) getData(dt *gdal.Dataset, interBbox, bbox base.Rect2D, 
 	第一行与下一行之间隔了原来的两行数据，因此nLineSpace为sizeof(DataType)*width*3；
 	第一波段与下一波段之间的距离即为一个像素，即为sizeof(DataType)。
 	当数据类型DataType为unsigned char 时，sizeof(unsigned char)为1，sizeof(unsigned short)为2*/
+	// fmt.Println(start.X, start.Y, sizeX, sizeY,
+	// 	outSizeX, outSizeY, bands, outSizeX*bands, 1)
 	dt.IO(gdal.Read, start.X, start.Y, sizeX, sizeY,
 		data, outSizeX, outSizeY, 3, []int{1, 2, 3}, bands, outSizeX*bands, 1)
 

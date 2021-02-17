@@ -1,7 +1,3 @@
-// Copyright (c) 2018, The GoKi Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
 package main
 
 import (
@@ -120,8 +116,8 @@ func mainrunbasic() {
 	win.MainMenuUpdated()
 	vp.UpdateEndNoSig(updt)
 
-	// go drawMap(win.Viewport.Pixels)
-	go drawTiff(win.Viewport.Pixels)
+	go drawMap(win.Viewport.Pixels)
+	// go drawTiff(win.Viewport.Pixels)
 
 	// Ticker保管一个通道，并每隔一段时间向其传递"tick"。
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -139,13 +135,13 @@ func mainrunbasic() {
 	// fmt.Scanln(&input)
 }
 
-var gTitle = "JBNTBHTB" // chinapnt_84 point2 JBNTBHTB
+var gTitle = "JBNTBHTB-x" // chinapnt_84 point2 JBNTBHTB
 
 func drawMap(img *image.RGBA) {
 	tr := base.NewTimeRecorder()
-	store := data.NewDatastore(data.StoreShape)
+	store := data.NewDatastore(data.StoreSqlite)
 	params := data.NewConnParams()
-	params["filename"] = "C:/temp/" + gTitle + ".shp" // sqlite udbx shp
+	params["filename"] = "C:/temp/" + gTitle + ".udbx" // sqlite udbx shp
 	params["cache"] = true
 	params["fields"] = []string{}
 	store.Open(params)
@@ -156,7 +152,7 @@ func drawMap(img *image.RGBA) {
 	gmap := mapping.NewMap()
 	// var theme mapping.RangeTheme // UniqueTheme
 	// gmap.AddLayer(feaset, &theme)
-	gmap.AddLayer(feaset, nil)
+	gmap.AddFeatureLayer(feaset, nil)
 	gmap.PrepareImage(img)
 	// gmap.Zoom(10)
 	gmap.Draw()

@@ -39,7 +39,7 @@ func testMapTile() {
 	gmap := mapping.NewMap()
 	// var theme mapping.RangeTheme // UniqueTheme
 	// gmap.AddLayer(feaset, &theme)
-	gmap.AddLayer(feaset, nil)
+	gmap.AddFeatureLayer(feaset, nil)
 	gmap.Prepare(256, 256)
 	// gmap.Zoom(5)
 	gmap.Draw()

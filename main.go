@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
@@ -49,18 +50,18 @@ func testRasterRest() {
 
 var gPath = "C:/temp/"
 
-// var gTitle = "chinapnt_84" // insurance chinapnt_84
+// var gTitle = "railway" // insurance chinapnt_84 railway-x
 
 // var gTitle = "DLTB" // Export_Output DLTB New_Region point2 railway
 
-var gTitle = "JBNTBHTB"
+var gTitle = "JBNTBHTB-x"
 
 var gExt = ".shp"
 
 var filename = gPath + gTitle + gExt
 
 func main() {
-	testRasterRest()
+	// testRasterRest()
 	// testRest()
 
 	// testDrawMap()
@@ -78,6 +79,9 @@ func main() {
 
 	// testDrawTiff()
 	// buildMosaic()
+
+	testFlag()
+
 	fmt.Println("DONE!")
 	return
 }
@@ -121,7 +125,7 @@ func testEsMap() {
 
 	gmap := mapping.NewMap()
 	var theme mapping.GridTheme
-	gmap.AddLayer(feaset, &theme)
+	gmap.AddFeatureLayer(feaset, &theme)
 	// gmap.AddGridTheme(feaset)
 	gmap.Prepare(1024, 768)
 	// gmap.Zoom(0.2)
@@ -148,7 +152,7 @@ func testHbaseMap() {
 	tr.Output("open hbase db")
 
 	gmap := mapping.NewMap()
-	gmap.AddLayer(feaset, nil)
+	gmap.AddFeatureLayer(feaset, nil)
 	gmap.Prepare(1024, 768)
 	// gmap.Zoom(2)
 	// gmap.PanMap(gmap.BBox.Dx()/20, gmap.BBox.Dy()/20)
@@ -163,7 +167,7 @@ func testSqliteMap() {
 	tr := base.NewTimeRecorder()
 	var sqlDB sqlite.SqliteStore
 	params := data.NewConnParams()
-	params["filename"] = "C:/temp/" + gTitle + ".sqlite" // sqlite udbx
+	params["filename"] = "C:/temp/" + gTitle + ".udbx" // sqlite udbx
 	sqlDB.Open(params)
 	feaset := sqlDB.GetFeasetByNum(0)
 	// feaset, _ := sqlDB.GetFeasetByName(gTitle)
@@ -174,7 +178,7 @@ func testSqliteMap() {
 	gmap := mapping.NewMap()
 	// var theme mapping.RangeTheme // UniqueTheme
 	// gmap.AddLayer(feaset, &theme)
-	gmap.AddLayer(feaset, nil)
+	gmap.AddFeatureLayer(feaset, nil)
 	// gmap.Add
 	gmap.Prepare(1024, 768)
 	// gmap.Zoom(10)
@@ -259,7 +263,14 @@ func testShpMap() {
 
 	// var theme mapping.RangeTheme // UniqueTheme
 	// gmap.AddLayer(feaset, &theme)
-	gmap.AddLayer(feaset, nil)
+
+	path := "C:/BigData/10_Data/images/imagebig2/"
+	// path := "C:/BigData/10_Data/testimage/image2/"
+	var raset data.MosaicRaset
+	raset.Open(path + "image2.gmr")
+
+	gmap.AddRasterLayer(&raset)
+	gmap.AddFeatureLayer(feaset, nil)
 	gmap.Prepare(1600, 1200)
 
 	// gmap.Proj = base.PrjFromEpsg(3857)
@@ -274,45 +285,46 @@ func testShpMap() {
 	mapfile := gPath + gTitle + "." + base.EXT_MAP_FILE
 	gmap.Save(mapfile)
 
-	// nmap := mapping.NewMap()
-	// nmap.Open(mapfile)
-	// nmap.Prepare(1200, 900)
-	// nmap.Draw()
-	// nmap.Output2File("C:/temp/"+gTitle+"2.jpg", "jpg")
+	nmap := mapping.NewMap()
+	nmap.Open(mapfile)
+	nmap.Prepare(1200, 900)
+	nmap.Draw()
+	nmap.Output2File("C:/temp/"+gTitle+"-2.jpg", "jpg")
 
-	// tr.Output("draw map")
+	tr.Output("draw map")
 }
 
 func testMapTile() {
 	tr := base.NewTimeRecorder()
 
-	gmap := mapping.NewMap()
-	path := "C:/BigData/10_Data/testimage/image2/"
-	gmap.Open(path + "image2.gmp") //sqlite hbase "c:/temp/JBNTBHTB-hbase.gmp"
-	maptile := mapping.NewMapTile(gmap, mapping.Epsg4326)
-	// this.tilestore = new(data.LeveldbTileStore) // data.FileTileStore LeveldbTileStore
-	// this.tilestore.Open(path, mapname)
+	var gm base.GoMax
+	gm.Init(500)
+	for i := 0; i < 1000; i++ {
+		gm.Add()
+		go testMapTile2(nil, &gm)
+	}
+	gm.Wait()
 
-	tilename := path + "image2.png"
-	fmt.Println(tilename)
-	data, _ := maptile.CacheOneTile2Bytes(11, 3308, 764, draw.TypePng)
+	tr.Output("map tile")
+}
+
+func testMapTile2(gmap *mapping.Map, gm *base.GoMax) {
+
+	gmap = mapping.NewMap()
+	path := "C:/BigData/10_Data/testimage/image2/"
+	// path := "C:/BigData/10_Data/images/imagebig2/"
+	gmap.Open(path + "image2.gmp") //sqlite hbase "c:/temp/JBNTBHTB-hbase.gmp"
+
+	maptile := mapping.NewMapTile(gmap, mapping.Epsg4326)
+	tilename := gPath + "image2.png"
+	// fmt.Println(tilename)
+	data, _ := maptile.CacheOneTile2Bytes(4, 24, 5, draw.TypePng)
 	w, _ := os.Create(tilename)
 	w.Write(data)
 	w.Close()
 
-	tr.Output("map tile")
-	return
-}
-
-func id2code(id int64, idboxs [][]index.Idbbox) (code int, bbox base.Rect2D) {
-	for i, v := range idboxs {
-		for _, vv := range v {
-			if vv.Id == id {
-				code = i
-				bbox = vv.Bbox
-				return
-			}
-		}
+	if gm != nil {
+		defer gm.Done()
 	}
 	return
 }
@@ -322,7 +334,7 @@ func startMap() *mapping.Map {
 	feaset := shape.OpenShape(filename, true, []string{})
 	// // 创建地图
 	gmap := mapping.NewMap()
-	gmap.AddLayer(feaset, nil)
+	gmap.AddFeatureLayer(feaset, nil)
 	return gmap
 }
 
@@ -422,7 +434,7 @@ func testDrawTiff() {
 	tr.Output("open data")
 
 	gmap := mapping.NewMap()
-	gmap.AddRasterLayer(raset)
+	gmap.AddRasterLayer(&raset)
 	gmap.Prepare(1024, 768)
 	gmap.Draw()
 
@@ -452,7 +464,7 @@ func buildMosaic() {
 
 	// raset.Open(path + "image2.gmr")
 	gmap := mapping.NewMap()
-	gmap.AddRasterLayer(raset)
+	gmap.AddRasterLayer(&raset)
 	gmap.Prepare(1024, 768)
 	gmap.Draw()
 
@@ -462,4 +474,26 @@ func buildMosaic() {
 	gmap.Save(path + "image2.gmp")
 
 	tr.Output("save picture file")
+}
+
+func testFlag() {
+	fmt.Println("所有参数:", os.Args)
+
+	married := flag.Bool("married", false, "Are you married?")
+	age := flag.Int("age", 22, "How old are you?")
+	name := flag.String("name", "", "What your name?")
+	version := flag.String("version", "", "command")
+	fmt.Println("version:", *version)
+
+	var address string
+	//flag.StringVar这样的函数第一个参数换成了变量地址，后面的参数和flag.String是一样的。
+	flag.StringVar(&address, "address", "GuangZhou", "Where is your address?")
+
+	flag.Parse() //解析输入的参数
+
+	fmt.Println("输出的参数married的值是:", *married) //不加*号的话,输出的是内存地址
+	fmt.Println("输出的参数age的值是:", *age)
+	fmt.Println("输出的参数name的值是:", *name)
+	fmt.Println("输出的参数address的值是:", address)
+
 }

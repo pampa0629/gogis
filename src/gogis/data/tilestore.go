@@ -44,10 +44,7 @@ func (this *FileTileStore) Open(path string, name string, mapType draw.MapType) 
 	this.cachepath = path + "/" + name + "/"
 	//  创建文件夹
 	err := os.MkdirAll(this.cachepath, os.ModePerm)
-	if err != nil {
-		return false, err
-	}
-	return true, nil
+	return err == nil, err
 }
 
 // 根据层级等信息存储瓦片

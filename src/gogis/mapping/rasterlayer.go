@@ -9,23 +9,47 @@ import (
 
 // 栅格图层类
 type RasterLayer struct {
-	Name     string `json:"LayerName"` // 图层名
-	Filename string // 对应的数据源链接
-	// feaset data.Featureset // 数据来源
-	// Params data.ConnParams `json:"ConnParams"` // 存储和打开地图文档时用的数据连接信息
-	dt data.MosaicRaset
-	// Type   ThemeType       `json:"ThemeType"`
-	// theme  Theme           // 专题风格
-	// Object interface{}     `json:"Theme"` // 好一招狸猫换太子
+	LayerType LayerType
+	Name      string `json:"LayerName"` // 图层名
+	Filename  string // 对应的数据源链接
+	dt        *data.MosaicRaset
 }
 
-func newRasterLayer(raset data.MosaicRaset) *RasterLayer {
+func newRasterLayer(raset *data.MosaicRaset) *RasterLayer {
 	layer := new(RasterLayer)
+	layer.LayerType = LayerRaster
 	// 默认图层名 等于 数据集名
 	layer.Filename = raset.Filename()
 	layer.Name = base.GetTitle(layer.Filename)
 	layer.dt = raset
 	return layer
+}
+
+func (this *RasterLayer) GetBounds() base.Rect2D { // base.Bounds
+	return this.dt.Bbox
+}
+
+// todo
+func (this *RasterLayer) GetProjection() *base.ProjInfo { // 得到投影坐标系，没有返回nil
+	return nil
+}
+
+func (this *RasterLayer) GetName() string {
+	return this.Name
+}
+
+func (this *RasterLayer) GetType() LayerType {
+	return LayerRaster
+}
+
+func (this *RasterLayer) GetConnParams() data.ConnParams {
+	params := data.NewConnParams()
+	params["filename"] = this.Filename
+	return params
+}
+
+func (this *RasterLayer) Close() {
+	this.dt.Close()
 }
 
 func (this *RasterLayer) Draw(canvas *draw.Canvas, proj *base.ProjInfo) int64 {
@@ -43,7 +67,7 @@ func (this *RasterLayer) Draw(canvas *draw.Canvas, proj *base.ProjInfo) int64 {
 	return int64(len(nos))
 }
 
-func goDraw(canvas *draw.Canvas, dt data.MosaicRaset, level, no int, gm *base.GoMax) {
+func goDraw(canvas *draw.Canvas, dt *data.MosaicRaset, level, no int, gm *base.GoMax) {
 	defer gm.Done()
 	w, h := canvas.GetSize()
 	img, x, y := dt.GetImage(level, no, canvas.Params.GetBounds(), w, h)
@@ -55,7 +79,8 @@ func (this *RasterLayer) WhenSaving(mappath string) {
 	this.Filename = base.GetRelativePath(mappath, this.Filename)
 }
 
-func (this *RasterLayer) WhenOpenning(mappath string) {
+func (this *RasterLayer) WhenOpening(mappath string) {
 	this.Filename = base.GetAbsolutePath(mappath, this.Filename)
+	this.dt = new(data.MosaicRaset)
 	this.dt.Open(this.Filename)
 }

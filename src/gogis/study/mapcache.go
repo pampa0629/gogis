@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"gogis/base"
 	"gogis/data/shape"
 	"gogis/draw"
@@ -10,17 +11,20 @@ import (
 func main() {
 	// testCache()
 	testCacheRaster()
+	fmt.Println("DONE!")
 }
 
 func testCacheRaster() {
 	tr := base.NewTimeRecorder()
 	path := "C:/BigData/10_Data/testimage/image2/"
+	// path := "C:/BigData/10_Data/images/imagebig2/"
 	gmap := mapping.NewMap()
 	gmap.Open(path + "image2.gmp")
+	tr.Output("open map")
 	mapTile := mapping.NewMapTile(gmap, mapping.Epsg4326)
-	mapTile.Cache("c:/temp/cache/", gmap.Name, draw.TypePng)
 
-	tr.Output("cache map:" + gmap.Name)
+	mapTile.Cache("c:/temp/cache/", gmap.Name, draw.TypePng, PbCache)
+	tr.Output("map cache:" + gmap.Name)
 }
 
 func testCache() {
@@ -28,9 +32,23 @@ func testCache() {
 
 	gmap := startMap()
 	mapTile := mapping.NewMapTile(gmap, mapping.Epsg4326)
-	mapTile.Cache("c:/temp/cache/", gmap.Name, draw.TypePng)
+	mapTile.Cache("c:/temp/cache/", gmap.Name, draw.TypePng, PbCache)
 
 	tr.Output("cache map:" + gmap.Name)
+}
+
+var cancel = false
+
+func PbCache(title, sub string, no, count int, step, total int64, cost, estimate int) bool {
+	if (total > 100 && step%(total/100) == 0) || total <= 100 {
+		fmt.Println(title, sub, no, count, step, total, cost, estimate)
+		// if !cancel {
+		// 	fmt.Println("PbCache cancel")
+		// 	cancel = true
+		// 	return true
+		// }
+	}
+	return false
 }
 
 func startMap() *mapping.Map {
@@ -50,6 +68,6 @@ func startMap() *mapping.Map {
 	feaset := shape.OpenShape(filename, true, []string{})
 	// // 创建地图
 	gmap := mapping.NewMap()
-	gmap.AddLayer(feaset, nil)
+	gmap.AddFeatureLayer(feaset, nil)
 	return gmap
 }
