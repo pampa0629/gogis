@@ -9,8 +9,8 @@ import (
 )
 
 func main() {
-	// testCache()
-	testCacheRaster()
+	testCache()
+	// testCacheRaster()
 	fmt.Println("DONE!")
 }
 
@@ -40,14 +40,16 @@ func testCache() {
 var cancel = false
 
 func PbCache(title, sub string, no, count int, step, total int64, cost, estimate int) bool {
-	if (total > 100 && step%(total/100) == 0) || total <= 100 {
-		fmt.Println(title, sub, no, count, step, total, cost, estimate)
-		// if !cancel {
-		// 	fmt.Println("PbCache cancel")
-		// 	cancel = true
-		// 	return true
-		// }
-	}
+	// if (total > 100 && step%(total/100) == 0) || total <= 100 {
+	str := fmt.Sprintf("%s,%s;\t%d/%d;\t%d/%d;\tcost:%d,remain:%d", title, sub, no, count, step, total, cost, estimate)
+	fmt.Println(str)
+	// fmt.Println(title, sub, no, count, step, total, cost, estimate)
+	// if !cancel {
+	// 	fmt.Println("PbCache cancel")
+	// 	cancel = true
+	// 	return true
+	// }
+	// }
 	return false
 }
 

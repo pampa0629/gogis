@@ -19,11 +19,11 @@ import (
 // 矢量数据集合
 type SqliteFeaset struct {
 	data.FeasetInfo
-	id         string             // id用的字段，默认为pk，udbx中的是SmID
-	geom       string             // geometry用的字段，默认为"geom"
-	count      int64              // 对象个数
-	indexLevel int32              // 索引层级
-	idx        index.XzorderIndex // 暂时只支持 zorder索引 ZOrderIndex XzorderIndex
+	id         string               // id用的字段，默认为pk，udbx中的是SmID
+	geom       string               // geometry用的字段，默认为"geom"
+	count      int64                // 对象个数
+	indexLevel int32                // 索引层级
+	idx        index.SpatialIndexDB // 暂时只支持 zorder索引 ZOrderIndex XzorderIndex
 	store      *SqliteStore
 	lock       sync.Mutex
 }
@@ -35,7 +35,7 @@ func (this *SqliteFeaset) Open() (bool, error) {
 	// 读取字段信息
 	this.loadGeoColsFields()
 	// 再判断 空间索引是否存在，不存在 则要创建之
-	this.loadSpatailIndex()
+	this.initSpatailIndex()
 	return true, nil
 }
 
@@ -67,7 +67,6 @@ func (this *SqliteFeaset) loadGeoColsSta() {
 		from geometry_columns_statistics where f_table_name ="`
 	sql += this.Name + "\""
 	var vs [5]interface{}
-	// err := this.store.db.QueryRow(sql).Scan(&this.count, &this.Bbox.Min.X, &this.Bbox.Min.Y, &this.Bbox.Max.X, &this.Bbox.Max.Y)
 	err := this.store.db.QueryRow(sql).Scan(&vs[0], &vs[1], &vs[2], &vs[3], &vs[4])
 	base.PrintError("loadGeoColsSta,"+sql, err)
 	needUpdate := false
@@ -124,12 +123,12 @@ func (this *SqliteFeaset) updateGeoColsSta() {
 	defer stmt.Close()
 }
 
-// 加载空间索引
-func (this *SqliteFeaset) loadSpatailIndex() {
+// 初始化空间索引
+func (this *SqliteFeaset) initSpatailIndex() {
 	if this.indexLevel >= 0 {
 		this.idx.InitDB(this.Bbox, this.indexLevel)
 	} else {
-		// 前面读取索引出问题，就重新构建索引
+		// 前面读取到的索引层级为负数，说明需要重新构建索引
 		this.createSpatailIndex()
 	}
 }
@@ -139,25 +138,26 @@ func (this *SqliteFeaset) createSpatailIndex() {
 	// 得到index level
 	this.indexLevel = index.CalcZOderLevel(this.count)
 	this.idx.InitDB(this.Bbox, this.indexLevel)
-	// 创建index_level 字段
-	CreateField(this.store.db, "geometry_columns", "g_index_level", data.TypeInt)
-	this.updateIndexLevel()
+	// 创建index_level 字段 store 已经搞定了
+	// CreateField(this.store.db, "geometry_columns", "g_index_level", data.TypeInt)
+	// CreateField(this.store.db, "geometry_columns", "g_index_type", data.TypeString)
+	this.updateIndexFields()
 
 	// 创建 index_code 字段
 	CreateField(this.store.db, this.Name, "g_index_code", data.TypeInt)
 	// 每条记录，都写入 index_code
 	this.updateIndex()
-	// 创建 数据库索引
-	CreateDbIndex(this.store.db, this.Name, "g_index_code", "g_index_code")
+	// 创建数据库索引
+	// todo 索引是否会被重复创建？重复了又会如何？
+	CreateDbIndex(this.store.db, this.Name, "g_index_code", "g_index_code_"+this.Name)
 }
 
-// 更新系统表中的 g_index_level 信息
-func (this *SqliteFeaset) updateIndexLevel() {
-	// 写入 index_level
-	sql := "UPDATE geometry_columns SET g_index_level = ?  WHERE  f_table_name = ?"
+// 更新系统表中的 g_index_level和g_index_type 信息
+func (this *SqliteFeaset) updateIndexFields() {
+	sql := "UPDATE geometry_columns SET g_index_level=?, g_index_type=? WHERE f_table_name = ?"
 	stmt, err := this.store.db.Prepare(sql)
 	base.PrintError("update index_level", err)
-	stmt.Exec(this.indexLevel, this.Name)
+	stmt.Exec(this.indexLevel, this.idx.Type(), this.Name)
 	defer stmt.Close()
 }
 
@@ -167,8 +167,12 @@ func CreateDbIndex(db *sql.DB, table, fieldName, indexName string) {
 	sql := "create index " + indexName + " on " + table + " (" + fieldName + ")"
 	stmt, err := db.Prepare(sql)
 	base.PrintError("create db index", err)
-	stmt.Exec()
-	defer stmt.Close()
+	if err == nil {
+		stmt.Exec()
+	}
+	if stmt != nil {
+		stmt.Close()
+	}
 }
 
 // 获取当前rows对应的geometry
@@ -370,7 +374,7 @@ func (this *SqliteFeaset) GetCount() int64 {
 func (this *SqliteFeaset) BeforeWrite(count int64) {
 	this.indexLevel = index.CalcZOderLevel(count)
 	this.idx.InitDB(this.Bbox, this.indexLevel)
-	this.updateIndexLevel()
+	this.updateIndexFields()
 }
 
 // 批量写入数据
@@ -446,7 +450,7 @@ func (this *SqliteFeaset) Query(def *data.QueryDef) data.FeatureIterator {
 
 	// 根据空间查询条件做筛选
 	feaitr.squery.Init(def.SpatialObj, def.SpatialMode)
-	feaitr.codes = feaitr.squery.QueryCodes(&this.idx)
+	feaitr.codes = feaitr.squery.QueryCodes(this.idx)
 	codes := feaitr.codes
 	if float64(len(feaitr.codes)*1.0/index.CalcCodeCount(int(this.indexLevel))) > 0.8 {
 		codes = nil // 八成都要，就不做codes过滤了

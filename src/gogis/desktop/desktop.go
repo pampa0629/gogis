@@ -1,9 +1,8 @@
-package main
+package desktop
 
 import (
 	"fmt"
 	"gogis/base"
-	"gogis/data"
 	_ "gogis/data/memory"
 	_ "gogis/data/shape"
 	_ "gogis/data/sqlite"
@@ -19,13 +18,14 @@ import (
 	"github.com/goki/gi/units"
 )
 
-func main() {
+func Show(mapfile string) {
+	// gimain.
 	gimain.Main(func() {
-		mainrunbasic()
+		mainrunbasic(mapfile)
 	})
 }
 
-func mainrunbasic() {
+func mainrunbasic(mapfile string) {
 	width := 1024
 	height := 768
 
@@ -76,39 +76,6 @@ func mainrunbasic() {
 		}
 	})
 
-	// lbl := gi.AddNewLabel(rlay, "label1", "This is test text")
-	// lbl.SetProp("text-align", "center")
-	// lbl.SetProp("border-width", 1)
-	// lbl.SetStretchMaxWidth()
-
-	// edit1 := gi.AddNewTextField(rlay, "edit1")
-	// button1 := gi.AddNewButton(rlay, "button1")
-	// button2 := gi.AddNewButton(rlay, "button2")
-	// slider1 := gi.AddNewSlider(rlay, "slider1")
-	// spin1 := gi.AddNewSpinBox(rlay, "spin1")
-
-	// edit1.SetText("Edit this text")
-	// edit1.SetProp("min-width", "20em")
-	// button1.Text = "Button 1"
-	// button2.Text = "Button 2"
-	// slider1.Dim = gi.X
-	// slider1.SetProp("width", "20em")
-	// slider1.SetValue(0.5)
-	// spin1.SetValue(0.0)
-
-	// main menu
-	appnm := gi.AppName()
-	mmen := win.MainMenu
-	mmen.ConfigMenus([]string{appnm, "Edit", "Window"})
-
-	amen := win.MainMenu.ChildByName(appnm, 0).(*gi.Action)
-	amen.Menu = make(gi.Menu, 0, 10)
-	amen.Menu.AddAppMenu(win)
-
-	emen := win.MainMenu.ChildByName("Edit", 1).(*gi.Action)
-	emen.Menu = make(gi.Menu, 0, 10)
-	emen.Menu.AddCopyCutPaste(win)
-
 	win.SetCloseCleanFunc(func(w *gi.Window) {
 		go gi.Quit() // once main window is closed, quit
 	})
@@ -116,8 +83,7 @@ func mainrunbasic() {
 	win.MainMenuUpdated()
 	vp.UpdateEndNoSig(updt)
 
-	go drawMap(win.Viewport.Pixels)
-	// go drawTiff(win.Viewport.Pixels)
+	go drawMap(win.Viewport.Pixels, mapfile)
 
 	// Ticker保管一个通道，并每隔一段时间向其传递"tick"。
 	ticker := time.NewTicker(500 * time.Millisecond)
@@ -125,67 +91,16 @@ func mainrunbasic() {
 	for {
 		select {
 		case <-ticker.C:
-			fmt.Println("Ticker...")
 			vp.ReRender2DTree()
 		}
 	}
-	// win.StartEventLoop()
-
-	// var input string
-	// fmt.Scanln(&input)
 }
 
-var gTitle = "JBNTBHTB-x" // chinapnt_84 point2 JBNTBHTB
-
-func drawMap(img *image.RGBA) {
+func drawMap(img *image.RGBA, mapfile string) {
 	tr := base.NewTimeRecorder()
-	store := data.NewDatastore(data.StoreSqlite)
-	params := data.NewConnParams()
-	params["filename"] = "C:/temp/" + gTitle + ".udbx" // sqlite udbx shp
-	params["cache"] = true
-	params["fields"] = []string{}
-	store.Open(params)
-	feaset := store.GetFeasetByNum(0)
-	feaset.Open()
-	tr.Output("open data")
-
 	gmap := mapping.NewMap()
-	// var theme mapping.RangeTheme // UniqueTheme
-	// gmap.AddLayer(feaset, &theme)
-	gmap.AddFeatureLayer(feaset, nil)
+	gmap.Open(mapfile)
 	gmap.PrepareImage(img)
-	// gmap.Zoom(10)
 	gmap.Draw()
 	tr.Output("draw map")
-}
-
-func drawTiff(img *image.RGBA) {
-	tr := base.NewTimeRecorder()
-
-	// title := "raster" // JBNTBHTB chinapnt_84
-	// filename := "C:/temp/filelist.gmr"
-	filename := "C:/BigData/10_Data/testimage/image2/filelist.gmr"
-
-	var raset data.MosaicRaset
-	raset.Open(filename)
-
-	tr.Output("open")
-
-	gmap := mapping.NewMap()
-	gmap.AddRasterLayer(raset)
-
-	// gmap.Prepare(1024, 768)
-	gmap.PrepareImage(img)
-	// gmap.Zoom(2)
-	gmap.Draw()
-
-	// 输出图片文件
-	tr.Output("draw map")
-
-	gmap.Draw()
-
-	tr.Output("draw2 map")
-	// gmap.Output2File(gPath+"image.jpg", "jpg")
-	// tr.Output("save picture file")
-
 }

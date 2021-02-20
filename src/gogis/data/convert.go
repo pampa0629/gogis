@@ -28,7 +28,7 @@ func getGoodBatch(itr FeatureIterator, count int) (goCount int) {
 	return goCount
 }
 
-func (this *Converter) Convert(fromParams ConnParams, feasetName string, toParams ConnParams) {
+func (this *Converter) Convert(fromParams ConnParams, fromName string, toParams ConnParams, toName string) {
 	fromType := fromParams["type"].(string)
 	toType := toParams["type"].(string)
 	fromStore := NewDatastore(StoreType(fromType))
@@ -36,32 +36,32 @@ func (this *Converter) Convert(fromParams ConnParams, feasetName string, toParam
 
 	fromStore.Open(fromParams)
 	toStore.Open(toParams)
-	fromFeaset, _ := fromStore.GetFeasetByName(feasetName)
+	fromFeaset, _ := fromStore.GetFeasetByName(fromName)
+	if fromFeaset == nil {
+		fromFeaset = fromStore.GetFeasetByNum(0)
+	}
 	fromFeaset.Open()
 
 	var info FeasetInfo
-	info.Name = feasetName
+	info.Name = toName
 	info.Bbox = fromFeaset.GetBounds()
 	info.GeoType = fromFeaset.GetGeoType()
 	info.Proj = fromFeaset.GetProjection()
 	info.FieldInfos = fromFeaset.GetFieldInfos()
 	toFeaset := toStore.CreateFeaset(info)
+
 	fromItr := fromFeaset.Query(nil)
 	toFeaset.BeforeWrite(fromItr.Count())
-	// forCount := fromItr.PrepareBatch(CONVERT_GEO_COUNT_PERCOUNT)
 	forCount := getGoodBatch(fromItr, CONVERT_GEO_COUNT_PERCOUNT)
 
 	outs := make([]int, forCount)
-
 	if forCount == 1 {
 		this.batchConvert(fromItr, 0, toFeaset, outs, nil)
 	} else if forCount > 1 {
-		// var wg *sync.WaitGroup = new(sync.WaitGroup)
 		var gm *base.GoMax = new(base.GoMax)
 		params := toStore.GetConnParams()
 		gm.Init(params["gowrite"].(int))
 		for i := 0; i < int(forCount); i++ {
-			// wg.Add(1)
 			gm.Add()
 			go this.batchConvert(fromItr, i, toFeaset, outs, gm)
 		}

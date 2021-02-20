@@ -7,6 +7,7 @@ import (
 	"gogis/geometry"
 	"io"
 	"os"
+	"strings"
 )
 
 // Add 协程不安全，请顺序调用
@@ -41,16 +42,32 @@ type SpatialIndex interface {
 }
 
 // 几何对象外部存储方式定义
-type SpatialIndexType int32
+type SpatialIndexType string
 
+// 最长不得超过12个字节
 const (
-	TypeNoIndex      SpatialIndexType = 0
-	TypeGridIndex    SpatialIndexType = 1 // 格网索引；构建快，查询慢，结果不精确
-	TypeQTreeIndex   SpatialIndexType = 2 // 四叉树索引；构建速度中等，查询速度快，结果精确
-	TypeRTreeIndex   SpatialIndexType = 3 // R树索引；构建速度慢，查询速度快，结果精确
-	TypeZOrderIndex  SpatialIndexType = 4 // Z-Order索引，通过生成空间key来查找对象，适合数据库的并发/分布式查询与读写
-	TypeXzorderIndex SpatialIndexType = 5 // todo XZ-Order索引，通过生成空间key来查找对象，适合数据库的并发/分布式查询与读写
+	TypeNoIndex      SpatialIndexType = "noindex"
+	TypeGridIndex    SpatialIndexType = "grid"    // 格网索引；构建快，查询慢，结果不精确
+	TypeQTreeIndex   SpatialIndexType = "qtree"   // 四叉树索引；构建速度中等，查询速度快，结果精确
+	TypeRTreeIndex   SpatialIndexType = "rtree"   // R树索引；构建速度慢，查询速度快，结果精确
+	TypeZOrderIndex  SpatialIndexType = "zorder"  // Z-Order索引，通过生成空间key来查找对象，适合数据库的并发/分布式查询与读写
+	TypeXzorderIndex SpatialIndexType = "xzorder" // XZ-Order索引，通过生成空间key来查找对象，适合数据库的并发/分布式查询与读写
+	TypeGeohashIndex SpatialIndexType = "geohash" // todo
 )
+
+func (indextype *SpatialIndexType) Load(r io.Reader) {
+	data := make([]byte, 12) // 最长12个字节
+	r.Read(data)
+	str := string(data)
+	str = strings.ReplaceAll(str, string([]byte{0}), "")
+	*indextype = SpatialIndexType(str)
+}
+
+func (indextype SpatialIndexType) Save(w io.Writer) {
+	data := make([]byte, 12) // 最长12个字节
+	copy(data, []byte(indextype))
+	w.Write(data)
+}
 
 // 根据类型，创建空间索引对象
 // 注意，这里并未构建好索引，需要调用者输入bbox和几何对象，完成构建过程
@@ -83,8 +100,10 @@ func LoadGix(gixfile string) (index SpatialIndex) {
 	gixMark := make([]byte, 4)
 	binary.Read(gix, binary.LittleEndian, gixMark)
 	if string(gixMark[:3]) == base.EXT_SPATIAL_INDEX_FILE {
-		var indexType int32
-		binary.Read(gix, binary.LittleEndian, &indexType)
+		// var indexType int32
+		// binary.Read(gix, binary.LittleEndian, &indexType)
+		var indexType SpatialIndexType
+		indexType.Load(gix)
 		index = NewSpatialIndex(SpatialIndexType(indexType))
 		index.Load(gix)
 		if !index.Check() {
@@ -100,7 +119,8 @@ func SaveGix(gixfile string, index SpatialIndex) {
 	defer gix.Close()
 
 	gix.WriteString(base.EXT_SPATIAL_INDEX_FILE + " ") // 加一个空格，凑四个字符
-	binary.Write(gix, binary.LittleEndian, index.Type())
+	// binary.Write(gix, binary.LittleEndian, index.Type())
+	index.Type().Save(gix)
 	index.Save(gix)
 }
 

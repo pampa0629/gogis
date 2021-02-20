@@ -238,7 +238,7 @@ func GetUniqueName(name string, names []string) (out string) {
 			i = -1                        // 重新来一遍
 		}
 	}
-	return name
+	return
 }
 
 // 判断字符串是否在数组中，不区分大小写

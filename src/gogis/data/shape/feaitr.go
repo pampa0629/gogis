@@ -81,29 +81,30 @@ func (this *ShapeFeaItr) getFieldInfos() ([]string, []int, []godbf.DbaseDataType
 }
 
 func (this *ShapeFeaItr) getGeosFromFile(ids []int64) []geometry.Geometry {
-	// features := make([]data.Feature, count)
 	count := len(ids)
 	geos := make([]geometry.Geometry, count)
 
-	f, _ := os.Open(this.feaset.filename)
-	defer f.Close()
+	if count > 0 {
+		f, _ := os.Open(this.feaset.filename)
+		defer f.Close()
 
-	curPos := 0 // 当前位置
-	for {
-		// 这里要注意：为了保证至少读取一个对象，故而起始值为1；后续的判断要以此为基础开展计算
-		batchCount := 1 // 连续的id的数量
-		for curPos+batchCount+1 <= count {
-			// 只有id连续，才能调用shape的Batch
-			if ids[curPos+batchCount-1]+1 == ids[curPos+batchCount] {
-				batchCount++
-			} else {
+		curPos := 0 // 当前位置
+		for {
+			// 这里要注意：为了保证至少读取一个对象，故而起始值为1；后续的判断要以此为基础开展计算
+			batchCount := 1 // 连续的id的数量
+			for curPos+batchCount+1 <= count {
+				// 只有id连续，才能调用shape的Batch
+				if ids[curPos+batchCount-1]+1 == ids[curPos+batchCount] {
+					batchCount++
+				} else {
+					break
+				}
+			}
+			this.feaset.shape.BatchLoad(f, int(ids[curPos]), batchCount, geos[curPos:], nil)
+			curPos += batchCount
+			if curPos >= count {
 				break
 			}
-		}
-		this.feaset.shape.BatchLoad(f, int(ids[curPos]), batchCount, geos[curPos:], nil)
-		curPos += batchCount
-		if curPos >= count {
-			break
 		}
 	}
 	return geos

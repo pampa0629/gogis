@@ -37,6 +37,6 @@ func TestShp2Sqlite(t *testing.T) {
 	toParams["type"] = string(data.StoreSqlite)
 
 	var cvt data.Converter
-	cvt.Convert(fromParams, title, toParams)
+	cvt.Convert(fromParams, title, toParams, title)
 	tr.Output("convert")
 }

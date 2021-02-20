@@ -38,6 +38,12 @@ func GetTitle(fullname string) string {
 	return titlename
 }
 
+// 得到文件名中的 ext部分；输入：C:/temp/JBNTBHTB.shp ，返回 shp；
+// 注意：没有点号"."
+func GetExt(fullname string) string {
+	return strings.TrimLeft(path.Ext(fullname), ".")
+}
+
 // 改变扩展名；输入 c:/temp/a.bcd和efg, 输出 c:/temp/a.efg
 func ChangeExt(filename, ext string) string {
 	return strings.TrimSuffix(filename, path.Ext(filename)) + "." + ext

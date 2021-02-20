@@ -3,7 +3,7 @@
     // Hover to view descriptions of existing attributes.
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
-    "configurations": [
+    "configurations": [        
         {
             "name": "Launch",
             "type": "go",
@@ -13,7 +13,16 @@
             // "program": "${fileDirname}/${fileBasenameNoExtension}.exe", 
             // "program": "C:/zengzm/GitHub/gogis", 
             "env": {},
-            "args": []
+            // "args": ["server","-gmsfile","c:/temp/gogis.gms"]
+            // "args": ["desktop","-mapfile","c:/temp/chinapnt_84.gmp"]
+            // "args": ["cache","-mapfile","c:/temp/JBNTBHTB.gmp", "-maptype","png","-cachepath","c:/temp/cache/"]
+            // "args": ["drawmap","-mapfile","c:/temp/JBNTBHTB.gmp","-picfile","c:/temp/JBNTBHTB.png"]
+            // "args": ["convert","-input","c:/temp/chinapnt_84.shp","-output","c:/temp/chinapnt_84.sqlite"]            
+            // "args": ["createmap","-mapfile","c:/temp/chinapnt_84.gmp","-datafile","c:/temp/chinapnt_84.sqlite"]            
+            // "args": ["createindex","-datafile","c:/temp/chinapnt_84.shp","-indextype","zorder"]
+            // "args": ["updatesqlite","-datafile","c:/temp/chinapnt_84.sqlite"]
+            // "args": ["inputmosaic","-txtfile","C:/BigData/10_Data/testimage/image/filelist.txt", "-gmrfile", "C:/BigData/10_Data/testimage/image/image.gmr"]
+            "args": ["buildmosaic","-path","C:/BigData/10_Data/testimage/image2/", "-gmrfile", "C:/BigData/10_Data/testimage/image2/image2.gmr"]
         }
     ]
 }

@@ -97,7 +97,7 @@ func (this *MapTile) CacheOneLevel(level int, path string, maptype draw.MapType,
 			// 具体生成瓦片文件
 			go this.CacheOneTile(level, j, i, maptype, gm, bar)
 			if this.cancel {
-				fmt.Println("CacheOneLevel cancel")
+				fmt.Println("Level:" + strconv.Itoa(level) + " cancel")
 				return
 			}
 		}

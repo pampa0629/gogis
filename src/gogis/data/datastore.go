@@ -22,6 +22,16 @@ func NewConnParams() ConnParams {
 	return make(map[string]interface{})
 }
 
+func (this *ConnParams) GetString(key string) string {
+	iv := (*this)[key]
+	if iv != nil {
+		if value, ok := iv.(string); ok {
+			return value
+		}
+	}
+	return ""
+}
+
 // 数据存储类型定义
 type StoreType string
 

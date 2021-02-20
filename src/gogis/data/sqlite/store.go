@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"gogis/base"
 	"gogis/data"
+	"gogis/index"
 
 	// "database/sql"
 	_ "github.com/mattn/go-sqlite3"
@@ -23,12 +24,14 @@ type SqliteStore struct {
 	db               *sql.DB
 	filename         string
 	data.Featuresets // 匿名组合
+	params           data.ConnParams
 }
 
 // 打开sqlite文件
 // 通过 ConnParams["filename"] 输入文件名，不存在时自动创建
 func (this *SqliteStore) Open(params data.ConnParams) (res bool, err error) {
 	this.filename = params["filename"].(string)
+	this.params = params
 	// 首先得看文件在不在，来确定是打开，还是创建
 	exist := base.IsExist(this.filename)
 	if exist {
@@ -46,11 +49,16 @@ func (this *SqliteStore) open() {
 }
 
 // 确保有 index_level 字段
-func (this *SqliteStore) ensureIndexLevel() {
-	sql := "select g_index_level from geometry_columns"
+func (this *SqliteStore) ensureIndexFields() {
+	this.ensureSysField("g_index_level", data.TypeInt)
+	this.ensureSysField("g_index_type", data.TypeString)
+}
+
+func (this *SqliteStore) ensureSysField(field string, ftype data.FieldType) {
+	sql := "select " + field + " from geometry_columns"
 	rows, err := this.db.Query(sql)
 	if err != nil {
-		CreateField(this.db, "geometry_columns", "g_index_level", data.TypeInt)
+		CreateField(this.db, "geometry_columns", field, ftype)
 	} else if rows != nil {
 		defer rows.Close()
 	}
@@ -58,17 +66,18 @@ func (this *SqliteStore) ensureIndexLevel() {
 
 // 加载系统表
 func (this *SqliteStore) loadGeoColumns() {
-	this.ensureIndexLevel()
+	this.ensureIndexFields()
 
 	// 再读取 名字、geom字段、类型和投影系统
-	sql := "select f_table_name,f_geometry_column,geometry_type,srid,g_index_level from geometry_columns"
+	sql := `select f_table_name,f_geometry_column,geometry_type,srid, 
+			g_index_level, g_index_type from geometry_columns`
 	rows, err := this.db.Query(sql)
 	base.PrintError("loadGeoColumns", err)
 	for i := 0; rows.Next(); i++ {
 		var name, geom string
 		var geotype, srid int
-		var indexLevel interface{}
-		err := rows.Scan(&name, &geom, &geotype, &srid, &indexLevel)
+		var indexLevel, indextype interface{}
+		err := rows.Scan(&name, &geom, &geotype, &srid, &indexLevel, &indextype)
 		base.PrintError("load feasets", err)
 		if err == nil {
 			feaset := new(SqliteFeaset)
@@ -83,10 +92,25 @@ func (this *SqliteStore) loadGeoColumns() {
 			} else {
 				feaset.indexLevel = -1
 			}
+			feaset.idx = index.NewSpatialIndexDB(this.getIndexType(indextype))
+
 			this.Feasets = append(this.Feasets, feaset)
 		}
 	}
 	defer rows.Close() // 记得关闭
+}
+
+// 确定空间索引类型
+func (this *SqliteStore) getIndexType(db interface{}) (indextype index.SpatialIndexType) {
+	indextype = index.TypeZOrderIndex // 默认用xz-order
+	if itypeInParams := this.params.GetString("index"); len(itypeInParams) > 0 {
+		// 用户指定了，先用指定的
+		indextype = index.SpatialIndexType(itypeInParams)
+	} else if itypeInDB, ok := db.(string); ok && len(itypeInDB) > 0 {
+		// 没有指定，而数据库中存储了，就用存储的
+		indextype = index.SpatialIndexType(itypeInDB)
+	}
+	return
 }
 
 // 创建存储库
@@ -225,7 +249,8 @@ func (this *SqliteStore) CreateFeaset(info data.FeasetInfo) data.Featureset {
 	// 在geometry_columns表中插入一条记录
 	{
 		insertSql := `insert into geometry_columns
-		(f_table_name,f_geometry_column,geometry_type,coord_dimension,srid,spatial_index_enabled,g_index_level)
+		(f_table_name,f_geometry_column,geometry_type,coord_dimension,srid, 
+		spatial_index_enabled,g_index_level,g_index_type) 
 		values (?,?,?,?,?,?,?)`
 		stmt, err := tx.Prepare(insertSql)
 		base.PrintError("insert geometry_columns", err)
@@ -233,22 +258,27 @@ func (this *SqliteStore) CreateFeaset(info data.FeasetInfo) data.Featureset {
 		if info.Proj != nil {
 			epsg = info.Proj.Epsg
 		}
-		_, err = stmt.Exec(info.Name, "geom", GeoType2SPL(info.GeoType), 2, epsg, 0, -1)
+		indextype := this.params.GetString("index")
+		if len(indextype) == 0 {
+			indextype = "xzorder"
+		}
+		feaset.idx = index.NewSpatialIndexDB(index.SpatialIndexType(indextype))
+		_, err = stmt.Exec(info.Name, "geom", GeoType2SPL(info.GeoType), 2, epsg, 0, -1, indextype)
 		base.PrintError("stmt.Exec", err)
 		defer stmt.Close()
 	}
 
 	// geometry_columns_auth
-	{
-		insertSql := `insert into geometry_columns_auth
-		(f_table_name,f_geometry_column,read_only,hidden)
-		values (?,?,?,?)`
-		stmt, err := tx.Prepare(insertSql)
-		base.PrintError("insert geometry_columns_auth", err)
-		_, err = stmt.Exec(info.Name, "geom", 0, 0)
-		base.PrintError("stmt.Exec", err)
-		defer stmt.Close()
-	}
+	// {
+	// 	insertSql := `insert into geometry_columns_auth
+	// 	(f_table_name,f_geometry_column,read_only,hidden)
+	// 	values (?,?,?,?)`
+	// 	stmt, err := tx.Prepare(insertSql)
+	// 	base.PrintError("insert geometry_columns_auth", err)
+	// 	_, err = stmt.Exec(info.Name, "geom", 0, 0)
+	// 	base.PrintError("stmt.Exec", err)
+	// 	defer stmt.Close()
+	// }
 
 	// 在 geometry_columns_field_infos中插入记录
 	{ // (f_table_name,f_geometry_column,ordinal,column_name)
@@ -294,11 +324,16 @@ func (this *SqliteStore) CreateFeaset(info data.FeasetInfo) data.Featureset {
 	}
 
 	{ // 创建空间索引字段的数据库索引 CREATE INDEX index_name ON table_name (column_name);
-		sql := "CREATE INDEX g_index_code ON " + feaset.Name + " (g_index_code)"
+		indexName := "g_index_code_" + feaset.Name
+		sql := "CREATE INDEX " + indexName + " ON " + feaset.Name + " (g_index_code)"
 		stmt, err := tx.Prepare(sql)
 		base.PrintError("CREATE INDEX", err)
-		stmt.Exec()
-		defer stmt.Close()
+		if err == nil {
+			stmt.Exec()
+		}
+		if stmt != nil {
+			stmt.Close()
+		}
 	}
 
 	tx.Commit() // 提交事务

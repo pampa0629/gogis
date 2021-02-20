@@ -110,7 +110,11 @@ func (this *ShapeFeaset) loadSpatialIndex() {
 	if base.FileIsExist(indexName) {
 		this.index = index.LoadGix(indexName)
 	} else {
-		indexType := index.TypeGridIndex // 这里确定索引类型 TypeQTreeIndex TypeRTreeIndex TypeGridIndex
+		indexType := index.SpatialIndexType(this.store.params.GetString("index"))
+		if len(indexType) == 0 {
+			indexType = index.TypeQTreeIndex // 这里确定索引类型 TypeQTreeIndex TypeRTreeIndex TypeGridIndex
+		}
+
 		spatialIndex := this.BuildSpatialIndex(indexType)
 		index.SaveGix(indexName, spatialIndex)
 	}

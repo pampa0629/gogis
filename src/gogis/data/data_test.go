@@ -74,7 +74,7 @@ func TestConvertShp2Es(t *testing.T) {
 	toParams["type"] = string(StoreES)
 
 	var cvt Converter
-	cvt.Convert(fromParams, title, toParams)
+	cvt.Convert(fromParams, title, toParams, title)
 
 	tr.Output("convert")
 }
@@ -93,7 +93,7 @@ func TestConvertShp2Hbase(t *testing.T) {
 	toParams["type"] = string(StoreHbase)
 
 	var cvt Converter
-	cvt.Convert(fromParams, title, toParams)
+	cvt.Convert(fromParams, title, toParams, title)
 
 	tr.Output("convert")
 }

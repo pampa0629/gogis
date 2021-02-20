@@ -55,8 +55,6 @@ func (this *ShapeStore) Open(params data.ConnParams) (bool, error) {
 }
 
 func (this *ShapeStore) GetConnParams() data.ConnParams {
-	// params := data.NewConnParams()
-	// this.params["filename"] = this.filename
 	this.params["type"] = string(this.GetType())
 	return this.params
 }
