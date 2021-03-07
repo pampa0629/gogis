@@ -6,6 +6,7 @@ import (
 	"gogis/data"
 	_ "gogis/data/memory"
 	_ "gogis/data/shape"
+	"gogis/draw"
 	"gogis/mapping"
 	"os"
 
@@ -36,7 +37,7 @@ func testMapTile() {
 	// feaset = data.Cache(feaset)
 	tr.Output("open shp by memery")
 
-	gmap := mapping.NewMap()
+	gmap := mapping.NewMap(draw.Default)
 	// var theme mapping.RangeTheme // UniqueTheme
 	// gmap.AddLayer(feaset, &theme)
 	gmap.AddFeatureLayer(feaset, nil)

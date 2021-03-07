@@ -22,7 +22,7 @@ func GeoType2Mvt(geotype GeoType) mvt.GeometryType {
 	return mvt.Unknown
 }
 
-func Geo2Mvt(geo Geometry, mvtFea *mvt.Feature, canvas *draw.Canvas) {
+func Geo2Mvt(geo Geometry, mvtFea *mvt.Feature, canvas draw.Canvas) {
 	switch geo.Type() {
 	case TGeoPoint:
 		geoPoint2Mvt(geo.(*GeoPoint), mvtFea, canvas)
@@ -33,23 +33,23 @@ func Geo2Mvt(geo Geometry, mvtFea *mvt.Feature, canvas *draw.Canvas) {
 	}
 }
 
-func geoPoint2Mvt(geo *GeoPoint, mvtFea *mvt.Feature, canvas *draw.Canvas) {
-	pnt := canvas.Params.Forward(geo.Point2D)
+func geoPoint2Mvt(geo *GeoPoint, mvtFea *mvt.Feature, canvas draw.Canvas) {
+	pnt := canvas.Forward(geo.Point2D)
 	mvtFea.MoveTo(float64(pnt.X), float64(pnt.Y))
 }
 
-func geoPolyline2Mvt(geo *GeoPolyline, mvtFea *mvt.Feature, canvas *draw.Canvas) {
+func geoPolyline2Mvt(geo *GeoPolyline, mvtFea *mvt.Feature, canvas draw.Canvas) {
 	for _, v := range geo.Points {
-		pnts := canvas.Params.Forwards(v)
+		pnts := canvas.Forwards(v)
 		geoline2Mvt(pnts, mvtFea)
 	}
 }
 
 // todo 节点顺序问题；mvt如何支持多个岛洞的问题
-func geoPolygon2Mvt(geo *GeoPolygon, mvtFea *mvt.Feature, canvas *draw.Canvas) {
+func geoPolygon2Mvt(geo *GeoPolygon, mvtFea *mvt.Feature, canvas draw.Canvas) {
 	for _, v := range geo.Points {
 		for _, vv := range v {
-			pnts := canvas.Params.Forwards(vv)
+			pnts := canvas.Forwards(vv)
 			geoline2Mvt(pnts, mvtFea)
 			mvtFea.ClosePath()
 		}

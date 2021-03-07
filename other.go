@@ -12,7 +12,6 @@ import (
 	"gogis/data/shape"
 	"gogis/data/sqlite"
 	"gogis/draw"
-	"gogis/index"
 	"gogis/mapping"
 	"gogis/server"
 )
@@ -65,7 +64,6 @@ func other() {
 
 	// testDrawMap()
 	// testMapTile()
-	// testIndex()
 
 	// testShpQuery()
 
@@ -83,33 +81,6 @@ func other() {
 	return
 }
 
-func testIndex() {
-	// codes := []int{0, 3, 16, 65, 66, 264, 267, 1058, 1060, 1069, 1070, 1071, 1072}
-	// codes := []int{0, 4, 17, 69, 277, 278, 1112, 1115}
-	temp := index.LoadGix(gPath + gTitle + ".gix")
-	idx, _ := temp.(*index.ZOrderIndex)
-
-	code2ids := idx.Data()
-	// println("ids:", co)
-	// ids := ""
-	for _, v := range code2ids {
-		for _, vv := range v {
-			if vv.Id == 559055 {
-				fmt.Println("bbox:", vv.Bbox)
-				code := idx.GetCode(vv.Bbox)
-				fmt.Println("code:", code)
-			}
-		}
-	}
-
-	// count := 0
-	// for _, v := range codes {
-	// 	println("code:", v, "id count:", len(code2ids[v]))
-	// 	count += len(code2ids[v])
-	// }
-	// println("tatol count:", count)
-}
-
 func testEsMap() {
 	tr := base.NewTimeRecorder()
 	var store es.EsStore
@@ -120,7 +91,7 @@ func testEsMap() {
 	feaset.Open()
 	tr.Output("open es db")
 
-	gmap := mapping.NewMap()
+	gmap := mapping.NewMap(draw.Default)
 	var theme mapping.GridTheme
 	gmap.AddFeatureLayer(feaset, &theme)
 	// gmap.AddGridTheme(feaset)
@@ -148,7 +119,7 @@ func testHbaseMap() {
 	feaset.Open()
 	tr.Output("open hbase db")
 
-	gmap := mapping.NewMap()
+	gmap := mapping.NewMap(draw.Default)
 	gmap.AddFeatureLayer(feaset, nil)
 	gmap.Prepare(1024, 768)
 	// gmap.Zoom(2)
@@ -172,7 +143,7 @@ func testSqliteMap() {
 	// feaset = data.Cache(feaset, []string{})
 	tr.Output("open sqlite db")
 
-	gmap := mapping.NewMap()
+	gmap := mapping.NewMap(draw.Default)
 	// var theme mapping.RangeTheme // UniqueTheme
 	// gmap.AddLayer(feaset, &theme)
 	gmap.AddFeatureLayer(feaset, nil)
@@ -256,7 +227,7 @@ func testShpMap() {
 	// feaset = data.Cache(feaset, []string{})
 	tr.Output("open shp ")
 
-	gmap := mapping.NewMap()
+	gmap := mapping.NewMap(draw.Default)
 
 	// var theme mapping.RangeTheme // UniqueTheme
 	// gmap.AddLayer(feaset, &theme)
@@ -282,7 +253,7 @@ func testShpMap() {
 	mapfile := gPath + gTitle + "." + base.EXT_MAP_FILE
 	gmap.Save(mapfile)
 
-	nmap := mapping.NewMap()
+	nmap := mapping.NewMap(draw.Default)
 	nmap.Open(mapfile)
 	nmap.Prepare(1200, 900)
 	nmap.Draw()
@@ -307,7 +278,7 @@ func testMapTile() {
 
 func testMapTile2(gmap *mapping.Map, gm *base.GoMax) {
 
-	gmap = mapping.NewMap()
+	gmap = mapping.NewMap(draw.Default)
 	path := "C:/BigData/10_Data/testimage/image2/"
 	// path := "C:/BigData/10_Data/images/imagebig2/"
 	gmap.Open(path + "image2.gmp") //sqlite hbase "c:/temp/JBNTBHTB-hbase.gmp"
@@ -330,13 +301,13 @@ func startMap() *mapping.Map {
 	// 打开shape文件
 	feaset := shape.OpenShape(filename, true, []string{})
 	// // 创建地图
-	gmap := mapping.NewMap()
+	gmap := mapping.NewMap(draw.Default)
 	gmap.AddFeatureLayer(feaset, nil)
 	return gmap
 }
 
 func testDrawMap() {
-	gmap := mapping.NewMap()
+	gmap := mapping.NewMap(draw.Default)
 	mapname := gPath + gTitle + "." + base.EXT_MAP_FILE
 
 	gmap.Open(mapname) // chinapnt_84 JBNTBHTB
@@ -379,7 +350,7 @@ func testMapFile() {
 
 	gmap.Save(mapfile)
 
-	nmap := mapping.NewMap()
+	nmap := mapping.NewMap(draw.Default)
 	nmap.Open(mapfile)
 	nmap.Prepare(1024, 768)
 	nmap.Draw()
@@ -430,7 +401,7 @@ func testDrawTiff() {
 	// raset.Save(filename + "gmr")
 	tr.Output("open data")
 
-	gmap := mapping.NewMap()
+	gmap := mapping.NewMap(draw.Default)
 	gmap.AddRasterLayer(&raset)
 	gmap.Prepare(1024, 768)
 	gmap.Draw()
@@ -442,7 +413,7 @@ func testDrawTiff() {
 
 	gmap.Save(path + "image2.gmp")
 
-	amap := mapping.NewMap()
+	amap := mapping.NewMap(draw.Default)
 	amap.Open(path + "image2.gmp")
 	amap.Prepare(1024, 768)
 	amap.Draw()
@@ -460,7 +431,7 @@ func buildMosaic() {
 	tr.Output("build")
 
 	// raset.Open(path + "image2.gmr")
-	gmap := mapping.NewMap()
+	gmap := mapping.NewMap(draw.Default)
 	gmap.AddRasterLayer(&raset)
 	gmap.Prepare(1024, 768)
 	gmap.Draw()

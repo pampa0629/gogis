@@ -4,11 +4,11 @@ import (
 	"gogis/base"
 	"image"
 	"image/color"
-
-	"github.com/fogleman/gg"
 )
 
-type Point image.Point
+type Point struct {
+	X, Y float32
+}
 
 type Polyline struct {
 	Points [][]Point
@@ -19,161 +19,57 @@ type Polygon struct {
 	Points [][]Point
 }
 
-// 画布
-type Canvas struct {
-	dc     *gg.Context
-	Params CoordParams
-	style  Style
-}
+// 画布类型定义
+type CanvasType string
 
-func (this *Canvas) Clone() *Canvas {
-	var canvas = new(Canvas)
-	canvas.Params = this.Params
-	canvas.dc = gg.NewContext(canvas.Params.dx, canvas.Params.dy)
-	canvas.SetStyle(this.style)
-	return canvas
-}
+const (
+	Default CanvasType = "Default" //  默认用gg
+	GG      CanvasType = "gg"
+	GL      CanvasType = "gl"   // opengl
+	GLSL    CanvasType = "glsl" // opengl shader language
+)
 
-// 初始化: 计算坐标转化参数，构造dc
-func (this *Canvas) Init(bbox base.Rect2D, width, height int) {
-	this.Params.Init(bbox, width, height)
-	this.dc = gg.NewContext(width, height)
-	// fmt.Println("dc:", this.dc)
-}
+// 抽象画布，具体可实现为：gg、gdi、opengl等不同类型
+type Canvas interface {
+	// 初始化，给出全幅的地理范围，以及画布的物理（屏幕）宽高;
+	// data是附加参数，可根据不同具体画布来指定
+	Init(bbox base.Rect2D, width, height int, data interface{})
+	Clone() Canvas
+	// 清空已经绘制的内容，清空后可继续绘制
+	Clear()
+	// 彻底删除画布，之后不可绘制
+	Destroy()
 
-func (this *Canvas) InitFromImage(bbox base.Rect2D, img *image.RGBA) {
-	this.Params.Init(bbox, img.Rect.Size().X, img.Rect.Size().Y)
-	// this.dc = gg.NewContext(width, height)
-	this.dc = gg.NewContextForRGBA(img)
-	// fmt.Println("dc:", this.dc)
-}
+	// 得到当前地图的范围
+	GetBounds() base.Rect2D
+	// 返回物理屏幕的尺寸
+	GetSize() (int, int)
 
-// 清空DC，为下次绘制做好准备
-func (this *Canvas) ClearDC() {
-	this.dc.Clear()
-}
+	// 正向转化一个点坐标：从地图坐标变为画布坐标
+	Forward(pnt base.Point2D) Point
+	Forwards(pnts []base.Point2D) []Point
+	// 缩放画布中的物体; ratio为缩放比率，大于1为放大；小于1为缩小
+	Zoom(ratio float64)
+	Zoom2(ratio float64, x, y int)
+	// 平移
+	Pan(dx, dy int)
+	// PanMap(dx, dy float32)
 
-func (this *Canvas) Image() image.Image {
-	return this.dc.Image()
-}
+	// 得到go image对象，用来保存图片等操作
+	GetImage() image.Image
+	// 设置要绘制的风格 todo
+	SetStyle(style Style)
+	SetTextColor(textColor color.RGBA)
 
-func (this *Canvas) GetSize() (width, height int) {
-	return this.dc.Width(), this.dc.Height()
-}
-
-// 检查是否真正在image中绘制了
-func (this *Canvas) CheckDrawn() bool {
-	img := this.dc.Image()
-	pix := img.(*image.RGBA).Pix
-	if pix != nil {
-		for _, v := range pix {
-			if v != 0 {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func (this *Canvas) SetStyle(style Style) {
-	this.style = style
-	// this.dc.SetFillStyle(gg.NewSolidPattern(style.FillColor))
-	this.dc.SetFillColor(color.RGBA(style.FillColor))
-	this.dc.SetStrokeColor(color.RGBA(style.LineColor))
-
-	// this.dc.SetColor(style.LineColor)
-	this.dc.SetLineWidth(style.LineWidth)
-	this.dc.SetDash(style.LineDash...)
-}
-
-func (this *Canvas) SetTextColor(textColor color.RGBA) {
-	pat := gg.NewSolidPattern(textColor)
-	this.dc.SetFillStyle(pat)
-}
-
-func (this *Canvas) Stroke() {
-	this.dc.Stroke()
-}
-
-func (this *Canvas) DrawImage(img image.Image, x, y int) {
-	this.dc.DrawImage(img, x, y)
-}
-
-func (this *Canvas) DrawPoint(pnt Point) {
-	this.dc.DrawPoint(float64(pnt.X), float64(pnt.Y), 1)
-	this.dc.Stroke()
-	// 先画个小方框代表点
-	// var pnts [5]Point
-	// pnts[0].X = pnt.X - 1
-	// pnts[0].Y = pnt.Y - 1
-	// pnts[1].X = pnt.X + 1
-	// pnts[1].Y = pnt.Y - 1
-	// pnts[2].X = pnt.X + 1
-	// pnts[2].Y = pnt.Y + 1
-	// pnts[3].X = pnt.X - 1
-	// pnts[3].Y = pnt.Y + 1
-	// pnts[4].X = pnt.X - 1
-	// pnts[4].Y = pnt.Y - 1
-	// this.DrawPolyline(pnts[:])
-}
-
-func (this *Canvas) DrawPolyline(pnts []Point) {
-	count := len(pnts)
-	if count >= 2 {
-		this.dc.MoveTo(float64(pnts[0].X), float64(pnts[0].Y))
-		for i := 1; i < len(pnts)-1; i++ {
-			this.dc.LineTo(float64(pnts[i].X), float64(pnts[i].Y))
-		}
-	}
-	this.dc.Stroke()
-}
-
-// 绘制复杂线
-func (this *Canvas) DrawPolyPolyline(polyline *Polyline) {
-	for _, v := range polyline.Points {
-		this.DrawPolyline(v)
-	}
-}
-
-// 绘制复杂面（带洞）
-// len必须大于1；[0] 是面，后面的都是洞；点的绕圈方向不论
-func (this *Canvas) DrawPolyPolygon(polygon *Polygon) {
-	polyCount := len(polygon.Points)
-	if polyCount == 1 {
-		// 简单多边形
-		this.DrawPolygon(polygon.Points[0])
-	} else if polyCount > 1 {
-		// 先绘制后面的洞，再clip、mask一下，最后绘制面
-		for i := 1; i < polyCount; i++ {
-			this.DrawPolygon(polygon.Points[i])
-		}
-		this.dc.Clip()
-		this.dc.InvertMask() // 反转mask是关键
-		this.DrawPolygon(polygon.Points[0])
-		this.dc.ResetClip() // 最后还要消除clip区域
-	}
-}
-
-// 绘制简单多边形
-func (this *Canvas) DrawPolygon(pnts []Point) {
-	count := len(pnts)
-	if count >= 3 {
-		this.dc.MoveTo(float64(pnts[0].X), float64(pnts[0].Y))
-		for i := 1; i < len(pnts)-1; i++ {
-			this.dc.LineTo(float64(pnts[i].X), float64(pnts[i].Y))
-		}
-		this.dc.FillPreserve()
-		this.dc.Stroke()
-	}
-}
-
-// 绘制文字
-func (this *Canvas) DrawString(text string, x, y int) {
-	// this.dc.DrawString(text, float64(x), float64(y))
-	this.dc.DrawStringAnchored(text, float64(x), float64(y), 0.5, 0.5)
+	DrawPoint(pnt Point)
+	DrawLine(pnts []Point)
+	DrawPolygon(pnts []Point)
+	DrawPolyPolygon(polygon *Polygon)
+	DrawString(text string, x, y float32)
+	DrawImage(img image.Image, x, y float32)
 }
 
 // 是否支持在画布上绘制
 type DrawCanvas interface {
-	Draw(canvas *Canvas)
+	Draw(canvas Canvas)
 }

@@ -20,14 +20,12 @@ type Map struct {
 	// 屏幕图层，todo
 	trackLayer TrackLayer // 跟踪图层，用来绘制被选中的临时对象，不做保存
 	Layers     Layers     // 0:最底层，先绘制
-	// FeaLayers []*FeatureLayer `json:"FeatureLayers"` // 0:最底层，先绘制
-	// RasLayers []*RasterLayer  `json:"RasterLayers"`  // todo 与layers合并
 
 	BBox          base.Rect2D    // 所有数据的边框
 	IsDynamicProj bool           `json:"Dynamic Projection"` // 是否支持动态投影
 	Proj          *base.ProjInfo `json:"Coordinate System"`
 
-	canvas *draw.Canvas // 画布
+	canvas draw.Canvas // 画布
 }
 
 // 复制一个map对象，用来同一个地图的并发出图
@@ -36,21 +34,32 @@ func (this *Map) Copy() (nmap *Map) {
 	nmap.Layers = this.Layers
 	nmap.BBox = this.BBox
 	nmap.Name = this.Name
-	nmap.canvas = new(draw.Canvas)
-	nmap.canvas.Params = this.canvas.Params
+	nmap.canvas = nmap.canvas.Clone()
 	return
 }
 
 // 创建一个新地图，设置地图大小
-func NewMap() *Map {
+func NewMap(ctype draw.CanvasType) *Map {
 	gmap := new(Map)
 	// gmap.Name = "未命名地图" + strconv.FormatInt(time.Now().Unix(), 10)
-	gmap.canvas = new(draw.Canvas)
+	gmap.canvas = newCanvas(ctype)
 	// 新建一个 指定大小的 RGBA位图
 	// gmap.canvas.img = image.NewNRGBA(image.Rect(0, 0, dx, dy))
 	gmap.BBox.Init() // 初始化bbox
 	gmap.trackLayer.style = draw.HilightStyle()
 	return gmap
+}
+
+func newCanvas(ctype draw.CanvasType) draw.Canvas {
+	switch ctype {
+	case draw.GG, draw.Default:
+		return new(draw.Canvasgg)
+	case draw.GL:
+		return new(draw.Canvasgl)
+	case draw.GLSL:
+		return new(draw.Canvassl)
+	}
+	return new(draw.Canvasgg)
 }
 
 // 更改画布尺寸
@@ -99,14 +108,12 @@ func (this *Map) AddFeatureLayer(feaset data.Featureset, theme Theme) {
 }
 
 // 为绘制做好准备，第一次绘制前必须调用
-func (this *Map) Prepare(dx, dy int) {
-	// this.canvas.ClearDC()
-	this.canvas.Init(this.BBox, dx, dy)
+func (this *Map) Prepare(width, height int) {
+	this.canvas.Init(this.BBox, width, height, nil)
 }
 
 func (this *Map) PrepareImage(img *image.RGBA) {
-	// this.canvas.ClearDC()
-	this.canvas.InitFromImage(this.BBox, img)
+	this.canvas.Init(this.BBox, img.Rect.Dx(), img.Rect.Dy(), img)
 }
 
 // 选择，如点击、拉框、多边形等；操作后，被选中的对象放入track layer中
@@ -132,13 +139,14 @@ func (this *Map) SetDynamicProj(isDynamicProj bool) {
 		// 重新计算和设置bbox
 		this.RebuildBBox()
 		width, height := this.canvas.GetSize()
-		this.canvas.Params.Init(this.BBox, width, height)
+		// todo 这样会导致设置的img失效
+		this.canvas.Init(this.BBox, width, height, nil)
 	}
 }
 
 // 返回绘制对象的个数
 func (this *Map) Draw() (drawCount int64) {
-	this.canvas.ClearDC()
+	this.canvas.Clear()
 	destPrj := this.Proj
 	if !this.IsDynamicProj {
 		destPrj = nil
@@ -165,18 +173,18 @@ func (this *Map) OutputMvt() ([]byte, int64) {
 }
 
 func (this *Map) OutputImage() image.Image {
-	return this.canvas.Image()
+	return this.canvas.GetImage()
 }
 
 func (this *Map) Output2Bytes(mapType draw.MapType) []byte {
-	return mapType.OutputImg2Bytes(this.canvas.Image())
+	return mapType.OutputImg2Bytes(this.canvas.GetImage())
 }
 
 // 输出到文件
 func (this *Map) Output2File(filename string, mapType draw.MapType) {
 	imgfile, _ := os.Create(filename)
 	defer imgfile.Close()
-	mapType.OutputImg(imgfile, this.canvas.Image())
+	mapType.OutputImg(imgfile, this.canvas.GetImage())
 }
 
 // 工作空间文件的保存
@@ -219,11 +227,21 @@ func (this *Map) Close() {
 
 // 缩放，ratio为缩放比率，大于1为放大；小于1为缩小
 func (this *Map) Zoom(ratio float64) {
-	this.canvas.Params.Scale *= ratio
+	this.canvas.Zoom(ratio)
+}
+
+// 在屏幕指定位置进行缩放
+func (this *Map) Zoom2(ratio float64, x, y int) {
+	this.canvas.Zoom2(ratio, x, y)
+}
+
+// 平移
+func (this *Map) Pan(dx, dy int) {
+	this.canvas.Pan(dx, dy)
 }
 
 //  todo
 func (this *Map) PanMap(dx, dy float64) {
-	this.canvas.Params.MapCenter.X -= dx
-	this.canvas.Params.MapCenter.Y -= dy
+	// this.canvas.Params.MapCenter.X -= dx
+	// this.canvas.Params.MapCenter.Y -= dy
 }

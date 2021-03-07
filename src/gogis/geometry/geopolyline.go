@@ -21,6 +21,7 @@ type GeoPolyline struct {
 	Points [][]base.Point2D
 	BBox   base.Rect2D
 	GeoID
+	// vao uint32
 }
 
 func (this *GeoPolyline) Type() GeoType {
@@ -34,6 +35,7 @@ func (this *GeoPolyline) Type() GeoType {
 
 func (this *GeoPolyline) Clone() Geometry {
 	res := new(GeoPolyline)
+	// res.vao = this.vao
 	res.id = this.id
 	res.BBox = this.BBox
 	res.Points = make([][]base.Point2D, len(this.Points))
@@ -97,14 +99,30 @@ func (this *GeoPolyline) ComputeBounds() base.Rect2D {
 	return this.BBox
 }
 
-func (this *GeoPolyline) Draw(canvas *draw.Canvas) {
-	var line = new(draw.Polyline)
-	line.Points = make([][]draw.Point, len(this.Points))
-	for i, v := range this.Points {
-		line.Points[i] = canvas.Params.Forwards(v)
+func (this *GeoPolyline) Draw(canvas draw.Canvas) {
+	// var line = new(draw.Polyline)
+	// line.Points = make([][]draw.Point, len(this.Points))
+	for _, v := range this.Points {
+		canvas.DrawLine(canvas.Forwards(v))
 	}
-	canvas.DrawPolyPolyline(line)
+	// canvas.DrawPolyPolyline(line)
 }
+
+// func (this *GeoPolyline) Draw(canvas *draw.Canvas) {
+// 	if this.vao == 0 {
+// 		points := make([]float32, 0)
+// 		for _, v := range this.Points {
+// 			points = append(points, canvas.Params.Forward32s(v)...)
+// 		}
+// 		// canvas.DrawPolyPolyline(line)
+// 		this.vao = draw.MakeVao(points)
+// 	}
+// 	count := 0
+// 	for _, v := range this.Points {
+// 		count += len(v)
+// 	}
+// 	canvas.DrawLineVao(this.vao, int32(count))
+// }
 
 func (this *GeoPolyline) ConvertPrj(prjc *base.PrjConvert) {
 	if prjc != nil {

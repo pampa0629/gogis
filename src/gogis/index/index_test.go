@@ -113,3 +113,16 @@ func TestXzorderQuery(t *testing.T) {
 		}
 	}
 }
+
+func TestGeoHash(t *testing.T) {
+	{
+		center, width, height := GeoHash{}.GetCell("3nz")
+		if center.X != -124.453125 || center.Y != -6.328125 || width != 1.40625 || height != 1.40625 {
+			t.Error("geohash get cell 1")
+		}
+		code := GeoHash{}.GetCode(center, 3)
+		if code != "3nz" {
+			t.Error("geohash get code 1")
+		}
+	}
+}

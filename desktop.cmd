@@ -1,0 +1,1 @@
+gogis desktop -datafile c:/temp/dltb.shp

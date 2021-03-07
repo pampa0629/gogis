@@ -312,8 +312,7 @@ func (this *ShapeFile) loadOneBboxId(r io.Reader, shptype geometry.ShpType) (bbo
 		binary.Read(r, binary.LittleEndian, &geopoint.Point2D)
 		bbox.Min = geopoint.Point2D
 		bbox.Max = geopoint.Point2D
-	case ShpPolyLine:
-	case ShpPolygon:
+	case ShpPolyLine, ShpPolygon:
 		bbox = loadShpOnePolyBbox(r)
 	}
 

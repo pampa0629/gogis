@@ -19,6 +19,11 @@ func Round(x float64) int {
 	return int(math.Floor(x + 0.5))
 }
 
+// 求a的n次方
+func Power(a, n int) int {
+	return int(math.Pow(float64(a), float64(n)))
+}
+
 // 求最小值
 func IntMin(x, y int) int {
 	if x < y {

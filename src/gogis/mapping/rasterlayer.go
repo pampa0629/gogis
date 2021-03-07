@@ -52,9 +52,9 @@ func (this *RasterLayer) Close() {
 	this.dt.Close()
 }
 
-func (this *RasterLayer) Draw(canvas *draw.Canvas, proj *base.ProjInfo) int64 {
+func (this *RasterLayer) Draw(canvas draw.Canvas, proj *base.ProjInfo) int64 {
 	// todo 动态投影
-	bbox := canvas.Params.GetBounds()
+	bbox := canvas.GetBounds()
 	width, height := canvas.GetSize()
 	level, nos := this.dt.Perpare(bbox, width, height)
 	var gm base.GoMax
@@ -67,11 +67,11 @@ func (this *RasterLayer) Draw(canvas *draw.Canvas, proj *base.ProjInfo) int64 {
 	return int64(len(nos))
 }
 
-func goDraw(canvas *draw.Canvas, dt *data.MosaicRaset, level, no int, gm *base.GoMax) {
+func goDraw(canvas draw.Canvas, dt *data.MosaicRaset, level, no int, gm *base.GoMax) {
 	defer gm.Done()
 	w, h := canvas.GetSize()
-	img, x, y := dt.GetImage(level, no, canvas.Params.GetBounds(), w, h)
-	canvas.DrawImage(img, x, y)
+	img, x, y := dt.GetImage(level, no, canvas.GetBounds(), w, h)
+	canvas.DrawImage(img, float32(x), float32(y))
 }
 
 // 地图 Save时，内部存储调整为相对路径

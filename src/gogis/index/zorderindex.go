@@ -247,15 +247,15 @@ func combineBits(xbits []byte, ybits []byte) (bits []byte) {
 }
 
 // 计算一个方向的编码
-func calcOneBits(zero, halfLength, pos float64, level int32, isMin bool) (bits []byte) {
+func calcOneBits(leftbottom, halfLength, pos float64, level int32, isMin bool) (bits []byte) {
 	// 小为0，大为1
 	for level > 0 {
 		// isMin 为true，意味着输入的是 bbox的min，大于等于 就能 为1
 		// isMin 为false，意味着输入的是 bbox的max，必须 大于 才能 为1
 		// 即：bbox的min，要放松要求，或者等于给ta加一个极小值；而对于max，则必须严格要求
-		if (isMin && base.IsBigEqual(pos, zero+halfLength)) || (!isMin && (pos > zero+halfLength)) {
+		if (isMin && base.IsBigEqual(pos, leftbottom+halfLength)) || (!isMin && (pos > leftbottom+halfLength)) {
 			bits = append(bits, 1)
-			zero += halfLength
+			leftbottom += halfLength
 		} else {
 			bits = append(bits, 0)
 		}

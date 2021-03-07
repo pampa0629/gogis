@@ -164,6 +164,15 @@ func (rect Rect2D) Union(other Rect2D) Rect2D {
 	return rect
 }
 
+// 偏移
+func (rect Rect2D) Offset(dx, dy float64) Rect2D {
+	rect.Min.X += dx
+	rect.Min.Y += dy
+	rect.Max.X += dx
+	rect.Max.X += dy
+	return rect
+}
+
 // 边界进行扩展; d>0时扩大;  d<0时缩小
 func (rect Rect2D) Extend(d float64) Rect2D {
 	rect.Min.X -= d

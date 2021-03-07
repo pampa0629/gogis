@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gogis/base"
 	"gogis/data/shape"
+	"gogis/draw"
 	"gogis/mapping"
 	"image/color"
 	"time"
@@ -44,7 +45,7 @@ func stestMapFile() {
 	var filename = gPath + gTitle + gExt
 
 	feaset := shape.OpenShape(filename, true, []string{})
-	gmap := mapping.NewMap()
+	gmap := mapping.NewMap(draw.Default)
 	gmap.AddFeatureLayer(feaset, nil)
 	fmt.Println("map:", gmap)
 
@@ -62,7 +63,7 @@ func stestMapFile() {
 	// ============================
 
 	startTime := time.Now().UnixNano()
-	nmap := mapping.NewMap()
+	nmap := mapping.NewMap(draw.Default)
 	nmap.Open(mapfile)
 	nmap.Prepare(1024, 768)
 	nmap.Draw()

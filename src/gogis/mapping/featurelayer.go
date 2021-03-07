@@ -182,10 +182,10 @@ func (this *FeatureLayer) Select(obj interface{}) (geos []geometry.Geometry) {
 	return
 }
 
-func (this *FeatureLayer) Draw(canvas *draw.Canvas, proj *base.ProjInfo) (objCount int64) {
+func (this *FeatureLayer) Draw(canvas draw.Canvas, proj *base.ProjInfo) (objCount int64) {
 	feaPrj := this.feaset.GetProjection()
 	prjc := base.NewPrjConvert(proj, feaPrj)
-	bbox := canvas.Params.GetBounds()
+	bbox := canvas.GetBounds()
 	// 查询数据的bbox，要反过来先做投影转化；这样才能查出实际数据来
 	if prjc != nil {
 		bbox.Min = prjc.DoPnt(bbox.Min)
@@ -207,9 +207,9 @@ func (this *FeatureLayer) Draw(canvas *draw.Canvas, proj *base.ProjInfo) (objCou
 	return
 }
 
-func (this *FeatureLayer) OutputMvt(mvtLayer *mvt.Layer, canvas *draw.Canvas) (count int64) {
+func (this *FeatureLayer) OutputMvt(mvtLayer *mvt.Layer, canvas draw.Canvas) (count int64) {
 	// feait := this.feaset.QueryByBounds(canvas.Params.GetBounds())
-	bbox := canvas.Params.GetBounds()
+	bbox := canvas.GetBounds()
 	var def data.QueryDef
 	def.SpatialObj = &bbox
 	feait := this.feaset.Query(&def)

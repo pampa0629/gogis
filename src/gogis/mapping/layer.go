@@ -24,7 +24,7 @@ type Layer interface {
 	GetConnParams() data.ConnParams
 	GetType() LayerType
 
-	Draw(canvas *draw.Canvas, proj *base.ProjInfo) int64
+	Draw(canvas draw.Canvas, proj *base.ProjInfo) int64
 
 	Close()
 	WhenSaving(mappath string)

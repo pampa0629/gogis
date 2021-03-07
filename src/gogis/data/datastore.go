@@ -36,11 +36,12 @@ func (this *ConnParams) GetString(key string) string {
 type StoreType string
 
 const (
-	StoreMemory StoreType = "Memory" // 纯内存模式
-	StoreShape  StoreType = "Shape"
-	StoreSqlite StoreType = "Sqlite"
-	StoreHbase  StoreType = "Hbase" // hbase
-	StoreES     StoreType = "ES"    // elasticsearch
+	StoreUnknown StoreType = "Unknown" //
+	StoreMemory  StoreType = "Memory"  // 纯内存模式
+	StoreShape   StoreType = "Shape"
+	StoreSqlite  StoreType = "Sqlite"
+	StoreHbase   StoreType = "Hbase" // hbase
+	StoreES      StoreType = "ES"    // elasticsearch
 )
 
 type NewDatastoreFunc func() Datastore

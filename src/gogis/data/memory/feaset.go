@@ -43,7 +43,7 @@ func (this *MemFeaset) GetCount() int64 {
 
 // 综合查询
 func (this *MemFeaset) Query(def *data.QueryDef) data.FeatureIterator {
-	if def != nil {
+	if def == nil {
 		def = new(data.QueryDef)
 		def.SpatialObj = this.Bbox
 	}

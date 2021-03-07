@@ -25,6 +25,20 @@ type Style struct {
 // 定义一个color的目的是为了能输出 #RRGGBBAA 格式的json
 type Color color.RGBA
 
+// 颜色是否为空
+func (this *Color) IsEmpty() bool {
+	return this.A == 0
+}
+
+// 转化为浮点数，范围[0,1]
+func (this *Color) ToFloat() (r, g, b, a float32) {
+	r = float32(this.R) / 255.0
+	g = float32(this.G) / 255.0
+	b = float32(this.B) / 255.0
+	a = float32(this.A) / 255.0
+	return
+}
+
 func (this *Color) MarshalJSON() ([]byte, error) {
 	str := fmt.Sprintf(`"#%02X%02X%02X%02X"`, this.R, this.G, this.B, this.A)
 	return []byte(str), nil

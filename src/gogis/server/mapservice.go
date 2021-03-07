@@ -142,7 +142,7 @@ type MapService struct {
 func (this *MapService) OpenGmp(mapfile string, cachepath string) {
 	this.mapfile = mapfile
 	this.maptitle = base.GetTitle(mapfile)
-	this.gmap = mapping.NewMap()
+	this.gmap = mapping.NewMap(draw.Default)
 	this.gmap.Open(mapfile)
 
 	this.OpenCache(cachepath)
@@ -153,7 +153,7 @@ func (this *MapService) OpenGmp(mapfile string, cachepath string) {
 func (this *MapService) OpenShp(shpfile string, cachepath string) {
 	feaset := shape.OpenShape(shpfile, true, []string{})
 	// 创建地图
-	this.gmap = mapping.NewMap()
+	this.gmap = mapping.NewMap(draw.Default)
 	this.gmap.AddFeatureLayer(feaset, nil)
 	// 保存地图文件
 	this.mapfile = strings.TrimSuffix(shpfile, ".shp") + "." + base.EXT_MAP_FILE

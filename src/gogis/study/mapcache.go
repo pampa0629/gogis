@@ -8,7 +8,7 @@ import (
 	"gogis/mapping"
 )
 
-func main() {
+func mcmain() {
 	testCache()
 	// testCacheRaster()
 	fmt.Println("DONE!")
@@ -18,7 +18,7 @@ func testCacheRaster() {
 	tr := base.NewTimeRecorder()
 	path := "C:/BigData/10_Data/testimage/image2/"
 	// path := "C:/BigData/10_Data/images/imagebig2/"
-	gmap := mapping.NewMap()
+	gmap := mapping.NewMap(draw.Default)
 	gmap.Open(path + "image2.gmp")
 	tr.Output("open map")
 	mapTile := mapping.NewMapTile(gmap, mapping.Epsg4326)
@@ -69,7 +69,7 @@ func startMap() *mapping.Map {
 	// 打开shape文件
 	feaset := shape.OpenShape(filename, true, []string{})
 	// // 创建地图
-	gmap := mapping.NewMap()
+	gmap := mapping.NewMap(draw.Default)
 	gmap.AddFeatureLayer(feaset, nil)
 	return gmap
 }

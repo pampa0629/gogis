@@ -61,7 +61,9 @@ func (this *MemFeaItr) getOneFeature(id int64) (fea data.Feature, res bool) {
 	if this.geoPyramid != nil {
 		fea.Geo = (*this.geoPyramid)[id].Clone()
 	} else {
-		fea.Geo = this.feaset.Features[id].Geo.Clone()
+		// todo
+		// fea.Geo = this.feaset.Features[id].Geo.Clone()
+		fea.Geo = this.feaset.Features[id].Geo
 	}
 	if this.squery.Match(fea.Geo) {
 		this.setFeaAtts(fea, this.feaset.Features[id])

@@ -14,15 +14,15 @@
             // "program": "C:/zengzm/GitHub/gogis", 
             "env": {},
             // "args": ["server","-gmsfile","c:/temp/gogis.gms"]
-            // "args": ["desktop","-mapfile","c:/temp/chinapnt_84.gmp"]
+            "args": ["desktop","-mapfile", "c:/temp/dltb_line.gmp", "-opengl"]
             // "args": ["cache","-mapfile","c:/temp/JBNTBHTB.gmp", "-maptype","png","-cachepath","c:/temp/cache/"]
-            // "args": ["drawmap","-mapfile","c:/temp/JBNTBHTB.gmp","-picfile","c:/temp/JBNTBHTB.png"]
+            // "args": ["drawmap","-mapfile","c:/temp/Provinces.gmp","-picfile","c:/temp/Provinces.png"]
             // "args": ["convert","-input","c:/temp/chinapnt_84.shp","-output","c:/temp/chinapnt_84.sqlite"]            
-            // "args": ["createmap","-mapfile","c:/temp/chinapnt_84.gmp","-datafile","c:/temp/chinapnt_84.sqlite"]            
+            // "args": ["createmap","-mapfile","c:/temp/DLTB.gmp","-datafile","c:/temp/DLTB.shp"]            
             // "args": ["createindex","-datafile","c:/temp/chinapnt_84.shp","-indextype","zorder"]
             // "args": ["updatesqlite","-datafile","c:/temp/chinapnt_84.sqlite"]
             // "args": ["inputmosaic","-txtfile","C:/BigData/10_Data/testimage/image/filelist.txt", "-gmrfile", "C:/BigData/10_Data/testimage/image/image.gmr"]
-            "args": ["buildmosaic","-path","C:/BigData/10_Data/testimage/image2/", "-gmrfile", "C:/BigData/10_Data/testimage/image2/image2.gmr"]
+            // "args": ["buildmosaic","-path","C:/BigData/10_Data/testimage/image2/", "-gmrfile", "C:/BigData/10_Data/testimage/image2/image2.gmr"]
         }
     ]
 }

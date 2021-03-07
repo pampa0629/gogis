@@ -13,7 +13,7 @@ type TrackLayer struct {
 }
 
 // todo 动态投影
-func (this *TrackLayer) Draw(canvas *draw.Canvas, proj *base.ProjInfo) {
+func (this *TrackLayer) Draw(canvas draw.Canvas, proj *base.ProjInfo) {
 	canvas.SetStyle(this.style)
 	for _, v := range this.geos {
 		drawGeo, ok := v.(draw.DrawCanvas)

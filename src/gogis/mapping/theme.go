@@ -53,7 +53,7 @@ func NewTheme(themeType ThemeType) Theme {
 // }
 
 type Theme interface {
-	Draw(canvas *draw.Canvas, feaItr data.FeatureIterator, prjc *base.PrjConvert) int64
+	Draw(canvas draw.Canvas, feaItr data.FeatureIterator, prjc *base.PrjConvert) int64
 	MakeDefault(feaset data.Featureset) // 设置默认值，New出来的时候调用
 	WhenOpenning()
 	GetType() ThemeType

@@ -64,8 +64,8 @@ func (this *GeoPoint) Clone() Geometry {
 	return res
 }
 
-func (this *GeoPoint) Draw(canvas *draw.Canvas) {
-	pnt := canvas.Params.Forward(this.Point2D)
+func (this *GeoPoint) Draw(canvas draw.Canvas) {
+	pnt := canvas.Forward(this.Point2D)
 	canvas.DrawPoint(pnt)
 }
 

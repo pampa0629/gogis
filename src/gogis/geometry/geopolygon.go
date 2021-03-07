@@ -81,12 +81,12 @@ func (this *GeoPolygon) ComputeBounds() base.Rect2D {
 }
 
 // 面的绘制
-func (this *GeoPolygon) Draw(canvas *draw.Canvas) {
+func (this *GeoPolygon) Draw(canvas draw.Canvas) {
 	for _, v := range this.Points {
 		var geo = new(draw.Polygon)
 		geo.Points = make([][]draw.Point, 0)
 		for _, vv := range v {
-			pnts := canvas.Params.Forwards(vv)
+			pnts := canvas.Forwards(vv)
 			geo.Points = append(geo.Points, pnts)
 		}
 		canvas.DrawPolyPolygon(geo)

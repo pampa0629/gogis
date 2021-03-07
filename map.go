@@ -18,25 +18,24 @@ func defProgress(title, sub string, no, count int, step, total int64, cost, esti
 	return false
 }
 
-func DrawMap(mapfile, picfile string, sizex, sizey int) {
-	gmap := mapping.NewMap()
+func DrawMap(mapfile, picfile string, width, height, batch int) {
+	mapping.BATCH_COUNT = batch
+	gmap := mapping.NewMap(draw.Default)
 	gmap.Open(mapfile)
-	gmap.Prepare(sizex, sizey)
+	gmap.Prepare(width, height)
 	gmap.Draw()
 	gmap.Output2File(picfile, draw.MapType(base.GetExt(picfile)))
 	gmap.Close()
 }
 
 func Cache(mapfile, maptype, cachepath string) {
-	gmap := mapping.NewMap()
+	gmap := mapping.NewMap(draw.Default)
 	gmap.Open(mapfile)
 	mapTile := mapping.NewMapTile(gmap, mapping.Epsg4326)
 	mapTile.Cache(cachepath, gmap.Name, draw.MapType(maptype), defProgress)
 }
 
-func CreateMap(mapfile, datafile, name string) {
-	gmap := mapping.NewMap()
-	gmap.Open(mapfile)
+func add2Map(gmap *mapping.Map, datafile, name string) {
 	ext := base.GetExt(datafile)
 	var store data.Datastore
 	switch ext {
@@ -53,12 +52,19 @@ func CreateMap(mapfile, datafile, name string) {
 		if feaset == nil {
 			feaset = store.GetFeasetByNum(0)
 		}
+		feaset.Open()
 		gmap.AddFeatureLayer(feaset, nil)
 	} else if ext == "gmr" {
 		var raset data.MosaicRaset
 		raset.Open(datafile)
 		gmap.AddRasterLayer(&raset)
 	}
+}
+
+func CreateMap(mapfile, datafile, name string) {
+	gmap := mapping.NewMap(draw.Default)
+	gmap.Open(mapfile)
+	add2Map(gmap, datafile, name)
 	gmap.Save(mapfile)
 	gmap.Close()
 }

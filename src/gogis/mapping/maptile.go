@@ -6,6 +6,7 @@ import (
 	"gogis/base"
 	"gogis/data"
 	"gogis/draw"
+	"image"
 	"math"
 	"strconv"
 )
@@ -137,7 +138,7 @@ func (this *MapTile) CacheOneTile2Bytes(level int, col int, row int, maptype dra
 		// 只有真正绘制对象了，才缓存为文件
 		if drawCount > 0 {
 			// 还得看一下 image 中是否赋值了，彻底防止输出全空的图片
-			if tmap.canvas.CheckDrawn() {
+			if checkDrawn(tmap.canvas.GetImage()) {
 				return tmap.Output2Bytes(maptype), nil
 			}
 		}
@@ -150,6 +151,20 @@ func (this *MapTile) CacheOneTile2Bytes(level int, col int, row int, maptype dra
 	}
 
 	return nil, errors.New("draw count is zeor.")
+}
+
+// 检查是否真正在image中绘制了
+func checkDrawn(img image.Image) bool {
+	// img := this.dc.Image()
+	pix := img.(*image.RGBA).Pix
+	if pix != nil {
+		for _, v := range pix {
+			if v != 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // 根据层级和边框范围，计算得到最大、最小行列数

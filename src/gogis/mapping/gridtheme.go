@@ -49,14 +49,14 @@ func calcGridPrecision(bbox base.Rect2D, width, height int) (precision int) {
 	return
 }
 
-func (this *GridTheme) Draw(canvas *draw.Canvas, feaItr data.FeatureIterator, prjc *base.PrjConvert) int64 {
+func (this *GridTheme) Draw(canvas draw.Canvas, feaItr data.FeatureIterator, prjc *base.PrjConvert) int64 {
 	// 文字颜色
 	canvas.SetTextColor(color.RGBA{0, 255, 0, 255})
 	var style draw.Style
 
 	feait := feaItr.(*es.EsFeaItr)
 	width, height := canvas.GetSize()
-	precision := calcGridPrecision(canvas.Params.GetBounds(), width, height)
+	precision := calcGridPrecision(canvas.GetBounds(), width, height)
 	bboxes, counts := feait.AggGrids(precision)
 	max, min := base.GetExtreme(counts)
 
@@ -69,7 +69,7 @@ func (this *GridTheme) Draw(canvas *draw.Canvas, feaItr data.FeatureIterator, pr
 		geo.Draw(canvas)
 
 		// 绘制文字
-		pnt := canvas.Params.Forward(bbox.Center())
+		pnt := canvas.Forward(bbox.Center())
 		canvas.DrawString(strconv.Itoa(counts[i]), pnt.X, pnt.Y)
 	}
 
